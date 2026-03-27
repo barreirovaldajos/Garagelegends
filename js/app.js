@@ -240,8 +240,57 @@ const APP = {
   attachGlobalHandlers() {
     // Keyboard: ESC closes modals
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') GL_UI.closeTopModal();
+      if (e.key === 'Escape') {
+        this.closeFabMenu();
+        GL_UI.closeTopModal();
+      }
     });
+  },
+
+  // ===== FLOATING NAV MENU =====
+  buildFabNav() {
+    const panel = document.getElementById('fab-nav-panel');
+    if (!panel) return;
+    const visibleItems = this.NAV_ITEMS.filter(n => !n.hidden);
+    panel.innerHTML = visibleItems.map(n => {
+      const label = n.labelKey ? __(n.labelKey, n.id) : (n.label || n.id);
+      return `<button class="fab-nav-item ${this.currentScreen === n.id ? 'active' : ''}" onclick="GL_APP.fabNavigate('${n.id}')">
+        <span class="fab-nav-item-icon">${n.icon}</span>
+        <span class="fab-nav-item-label">${label}</span>
+      </button>`;
+    }).join('');
+  },
+
+  toggleFabMenu() {
+    const btn = document.getElementById('fab-menu-btn');
+    const panel = document.getElementById('fab-nav-panel');
+    const overlay = document.getElementById('fab-overlay');
+    if (!btn || !panel || !overlay) return;
+
+    const isOpen = panel.classList.contains('open');
+    if (isOpen) {
+      this.closeFabMenu();
+    } else {
+      this.buildFabNav();
+      btn.classList.add('open');
+      btn.textContent = '✕';
+      panel.classList.add('open');
+      overlay.classList.add('open');
+    }
+  },
+
+  closeFabMenu() {
+    const btn = document.getElementById('fab-menu-btn');
+    const panel = document.getElementById('fab-nav-panel');
+    const overlay = document.getElementById('fab-overlay');
+    if (btn) { btn.classList.remove('open'); btn.textContent = '☰'; }
+    if (panel) panel.classList.remove('open');
+    if (overlay) overlay.classList.remove('open');
+  },
+
+  fabNavigate(screenId) {
+    this.closeFabMenu();
+    this.navigateTo(screenId);
   }
 };
 
