@@ -780,7 +780,7 @@ const I18N_DATA = {
 };
 
 const I18N = {
-  lang: localStorage.getItem('gl_lang') || 'en',
+  lang: localStorage.getItem('gl_lang') || 'es',
 
   t(key, fallback) {
     const val = I18N_DATA[this.lang]?.[key];
