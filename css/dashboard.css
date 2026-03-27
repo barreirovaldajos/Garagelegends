@@ -37,6 +37,11 @@
 .topbar-notif { position: relative; width: 34px; height: 34px; border-radius: var(--r-sm); display: flex; align-items: center; justify-content: center; background: var(--c-surface); border: 1px solid var(--c-border); cursor: pointer; transition: all var(--tr-fast); font-size: 1rem; }
 .topbar-notif .notif-dot { position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; }
 
+/* Real-time clock */
+.rt-clock { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; margin: 0 var(--s-4); flex-shrink: 0; }
+.rt-clock-time { font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; color: var(--t-primary); white-space: nowrap; }
+.rt-clock-next { font-size: 0.7rem; color: var(--c-accent); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; }
+
 /* SIDEBAR */
 #sidebar { grid-area: sidebar; background: var(--c-bg-2); border-right: 1px solid var(--c-border); display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
 .sidebar-section-label { padding: var(--s-4) var(--s-5) var(--s-2); font-family: var(--font-label); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.15em; color: var(--t-tertiary); text-transform: uppercase; }
@@ -313,12 +318,16 @@
 .mini-chart-bar { flex: 1; background: var(--c-accent); border-radius: 2px 2px 0 0; opacity: 0.4; transition: opacity var(--tr-fast); min-height: 4px; }
 .mini-chart-bar:last-child { opacity: 1; }
 
-/* RESPONSIVE */
+/* ===== RESPONSIVE ===== */
+
+/* ---- LARGE DESKTOP ---- */
 @media (max-width:1280px) {
   .dashboard-grid { grid-template-columns: 1fr 1fr 1fr; }
   .right-panel { grid-column: 1/-1; flex-direction: row; flex-wrap: wrap; }
   .right-panel .card { flex: 1 1 260px; }
 }
+
+/* ---- TABLET ---- */
 @media (max-width:1024px) {
   :root { --sidebar-w: 60px; }
   .nav-item-text { display: none; }
@@ -326,12 +335,165 @@
   .nav-item-badge { display: none; }
   .sidebar-section-label,.sidebar-footer,.sidebar-divider { display: none; }
   .dashboard-grid { grid-template-columns: 1fr 1fr; }
+  .garage-layout, .car-layout, .race-layout { grid-template-columns: 1fr; }
+  .post-race-hero { flex-direction: column; text-align: center; gap: var(--s-5); padding: var(--s-5); }
+  .post-race-metrics { justify-content: center; flex-wrap: wrap; }
+  .market-pilot-row { flex-wrap: wrap; }
+  .market-pilot-attrs { flex-wrap: wrap; }
 }
+
+/* ---- MOBILE ---- */
 @media (max-width:768px) {
-  #app { grid-template-columns: 1fr; grid-template-rows: var(--topbar-h) 1fr 60px; grid-template-areas: "topbar" "main" "sidebar"; }
-  #sidebar { flex-direction: row; border-right: none; border-top: 1px solid var(--c-border); overflow-x: auto; overflow-y: hidden; }
-  .nav-item { flex-direction: column; gap: 4px; flex-shrink: 0; padding: 8px 12px; }
-  .nav-item-text { display: block !important; font-size: 0.6rem; }
-  .screen { padding: var(--s-5); }
-  .dashboard-grid,.garage-layout,.car-layout,.race-layout,.prerace-grid { grid-template-columns: 1fr; }
+  /* App shell: sidebar becomes bottom tab bar */
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-h) 1fr 56px;
+    grid-template-areas: "topbar" "main" "sidebar";
+  }
+  #sidebar {
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--c-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 var(--s-2);
+  }
+  #sidebar::-webkit-scrollbar { display: none; }
+  .nav-item {
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+    padding: 6px 10px;
+    min-width: 56px;
+  }
+  .nav-item-icon { font-size: 1.1rem; }
+  .nav-item-text { display: block !important; font-size: 0.55rem; white-space: nowrap; }
+  .nav-item.active::before { display: none; }
+  .nav-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 25%; right: 25%;
+    height: 2px;
+    background: var(--c-accent);
+    border-radius: 2px 2px 0 0;
+  }
+
+  /* Topbar: compact for mobile */
+  #topbar {
+    padding: 0 var(--s-3);
+    gap: var(--s-2);
+  }
+  .topbar-name { font-size: 0.85rem; }
+  .topbar-separator { display: none; }
+  .topbar-season-badge { display: none; }
+  .topbar-credits { padding: 4px 8px; font-size: 0.78rem; }
+  .topbar-credits-val { font-size: 0.78rem; }
+  .topbar-tokens { padding: 4px 8px; }
+  .topbar-tokens-val { font-size: 0.78rem; }
+  .topbar-notif { width: 30px; height: 30px; font-size: 0.9rem; }
+  .topbar-avatar { width: 30px; height: 30px; font-size: 0.75rem; }
+  .topbar-logo { width: 28px; height: 28px; font-size: 0.9rem; }
+  .rt-clock { margin: 0 var(--s-2); align-items: center; }
+  .rt-clock-time { font-size: 0.72rem; }
+  .rt-clock-next { font-size: 0.55rem; letter-spacing: 0; }
+
+  /* Main content */
+  .screen { padding: var(--s-4) var(--s-3); }
+  .screen-header { flex-direction: column; gap: var(--s-3); margin-bottom: var(--s-5); }
+  .screen-title { font-size: 1.4rem; }
+  .screen-actions { width: 100%; }
+  .screen-actions .btn { flex: 1; justify-content: center; }
+
+  /* Dashboard */
+  .dashboard-grid { grid-template-columns: 1fr; gap: var(--s-3); }
+  .right-panel { grid-column: auto; flex-direction: column; }
+  .right-panel .card { flex: auto; }
+  .stat-card { padding: var(--s-4); }
+  .stat-card-value { font-size: 1.4rem; }
+  .stat-card-icon { font-size: 1.4rem; }
+
+  /* Next event */
+  .next-event-header { padding: var(--s-4); }
+  .next-event-body { padding: var(--s-4); }
+  .next-event-body > div { flex-direction: column; }
+
+  /* Standings */
+  .standings-row { padding: var(--s-2); gap: var(--s-2); }
+  .standings-row-name { font-size: 0.78rem; }
+  .standings-row-pts { font-size: 0.78rem; }
+
+  /* Finances */
+  .finance-row-label { font-size: 0.75rem; }
+  .finance-row-val { font-size: 0.8rem; }
+
+  /* Garage */
+  .garage-layout, .car-layout, .race-layout, .prerace-grid { grid-template-columns: 1fr; }
+  .garage-buildings { grid-template-columns: repeat(2, 1fr); gap: var(--s-3); }
+  .building-icon { font-size: 1.5rem; }
+  .building-name { font-size: 0.75rem; }
+
+  /* Car dev */
+  .car-stats-grid { grid-template-columns: 1fr; }
+  .car-name-display { font-size: 1.4rem; }
+
+  /* Race */
+  .race-track-view { min-height: 280px; padding: var(--s-4); }
+  .race-status-bar { flex-wrap: wrap; gap: var(--s-2); padding: var(--s-2) var(--s-3); }
+  .race-lap-counter { font-size: 0.9rem; }
+
+  /* Pre-race */
+  .strategy-preset { padding: var(--s-2) var(--s-3); }
+  .tire-choice-row { flex-direction: column; }
+  .tire-btn { padding: var(--s-3); }
+
+  /* Post-race */
+  .post-race-hero { flex-direction: column; text-align: center; gap: var(--s-4); padding: var(--s-5); }
+  .post-race-pos-num { font-size: 4rem; }
+  .post-race-title { font-size: 1.3rem; }
+  .post-race-metrics { flex-wrap: wrap; gap: var(--s-3); justify-content: center; }
+
+  /* Pilots */
+  .pilot-roster-grid { grid-template-columns: 1fr; }
+  .pilot-full-header { padding: var(--s-4); gap: var(--s-3); }
+  .pilot-full-avatar { width: 48px; height: 48px; font-size: 1.5rem; }
+
+  /* Market */
+  .market-pilot-row { flex-wrap: wrap; gap: var(--s-3); padding: var(--s-3); }
+  .market-pilot-attrs { flex-wrap: wrap; gap: var(--s-2); }
+  .market-pilot-salary { text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; padding-top: var(--s-2); border-top: 1px solid var(--c-border); }
+
+  /* Calendar */
+  .calendar-race-item { flex-wrap: wrap; gap: var(--s-3); padding: var(--s-3); }
+  .calendar-round { flex: 0 0 36px; }
+  .calendar-round-num { font-size: 1rem; }
+  .calendar-circuit-dot { height: 30px; }
+
+  /* Standings table */
+  .standings-table-full th,
+  .standings-table-full td { padding: var(--s-2) var(--s-2); font-size: 0.75rem; }
+
+  /* Finance chart */
+  .finance-chart-bar-h { flex-wrap: wrap; }
+  .finance-chart-label { flex: 0 0 100%; font-size: 0.72rem; }
+
+  /* Modal */
+  .modal { padding: var(--s-5); border-radius: var(--r-lg); max-width: 95vw; }
+  .modal-lg { max-width: 95vw; }
+  .modal-close { top: var(--s-3); right: var(--s-3); padding: 4px 8px; font-size: 0.9rem; }
+}
+
+/* ---- SMALL MOBILE ---- */
+@media (max-width:400px) {
+  .topbar-brand { gap: var(--s-2); }
+  .topbar-name { display: none; }
+  .topbar-credits { padding: 3px 6px; }
+  .topbar-tokens { padding: 3px 6px; }
+  .stat-card-value { font-size: 1.2rem; }
+  .screen-title { font-size: 1.2rem; }
+  .ob-name-input { font-size: 1.4rem; }
+  .garage-buildings { grid-template-columns: 1fr 1fr; }
+  .next-event-name { font-size: 1rem; }
+  .post-race-pos-num { font-size: 3rem; }
 }

@@ -379,3 +379,35 @@
   color: var(--t-secondary);
   margin-top: var(--s-1);
 }
+
+/* ===== ONBOARDING RESPONSIVE ===== */
+@media (max-width:768px) {
+  .ob-welcome-content { padding: var(--s-5); }
+  .ob-headline { font-size: clamp(2rem, 10vw, 3.5rem); letter-spacing: -2px; }
+  .ob-subtitle { font-size: 0.9rem; }
+  .ob-stats-row { gap: var(--s-4); flex-wrap: wrap; }
+  .ob-stat-val { font-size: 1.5rem; }
+  .ob-step-indicator { padding: var(--s-3) var(--s-4); }
+  .ob-step-inner { padding: var(--s-5) var(--s-4); }
+  .ob-step-heading { font-size: clamp(1.2rem, 5vw, 1.8rem); }
+  .ob-step-sub { font-size: 0.85rem; margin-bottom: var(--s-5); }
+  .ob-footer { padding: var(--s-3) var(--s-4); flex-direction: column; gap: var(--s-3); }
+  .ob-footer > div { width: 100%; }
+  .ob-footer .btn { flex: 1; justify-content: center; }
+  .ob-name-input { font-size: 1.4rem; }
+  .ob-logo-preview { width: 90px; height: 90px; font-size: 2.5rem; }
+  .ob-color-swatch { width: 30px; height: 30px; }
+  .ob-sponsor-card { padding: var(--s-4); }
+  .ob-pros-cons { flex-direction: column; gap: var(--s-3); }
+  .ob-pilot-grid { grid-template-columns: 1fr; }
+  .ob-reward { padding: var(--s-5) var(--s-4); }
+  .ob-reward-icon { font-size: 3.5rem; }
+  .ob-reward-items { gap: var(--s-3); }
+  .ob-reward-item { min-width: 90px; padding: var(--s-4); }
+}
+
+@media (max-width:400px) {
+  .ob-headline { font-size: 2rem; }
+  .ob-step-inner { padding: var(--s-4) var(--s-3); }
+  .ob-name-input { font-size: 1.2rem; }
+}

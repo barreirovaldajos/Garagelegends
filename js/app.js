@@ -98,9 +98,9 @@ const APP = {
         <span class="topbar-name" id="topbar-team-name">${state.team.name||'Garage Legends'}</span>
       </div>
       <div class="topbar-separator"></div>
-      <div class="topbar-clock" id="topbar-clock" style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;margin:0 var(--s-4)">
-        <div style="font-family:var(--font-display);font-weight:700;font-size:0.9rem;color:var(--t-primary)" id="rt-clock-time">--:--</div>
-        <div style="font-size:0.7rem;color:var(--c-accent);font-weight:600;letter-spacing:0.5px;text-transform:uppercase" id="rt-clock-next">NEXT RACE: --:--</div>
+      <div class="topbar-clock rt-clock" id="topbar-clock">
+        <div class="rt-clock-time" id="rt-clock-time">--:--</div>
+        <div class="rt-clock-next" id="rt-clock-next">NEXT RACE: --:--</div>
       </div>
       <div class="topbar-actions">
         <div class="topbar-credits" title="Credits" onclick="GL_APP.navigateTo('finances')">
