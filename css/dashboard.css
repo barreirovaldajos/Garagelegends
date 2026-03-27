@@ -358,18 +358,21 @@
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding: 0 var(--s-2);
+    padding: 0;
+    justify-content: space-around;
   }
   #sidebar::-webkit-scrollbar { display: none; }
   .nav-item {
     flex-direction: column;
     gap: 2px;
     flex-shrink: 0;
-    padding: 6px 10px;
-    min-width: 56px;
+    padding: 4px 2px;
+    min-width: 0;
+    width: calc(100% / 9);
+    max-width: 60px;
   }
-  .nav-item-icon { font-size: 1.1rem; }
-  .nav-item-text { display: block !important; font-size: 0.55rem; white-space: nowrap; }
+  .nav-item-icon { font-size: 1rem; }
+  .nav-item-text { display: block !important; font-size: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; text-align: center; }
   .nav-item.active::before { display: none; }
   .nav-item.active::after {
     content: '';
