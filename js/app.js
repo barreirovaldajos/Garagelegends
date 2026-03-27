@@ -25,12 +25,16 @@ const APP = {
     if (loaded && GL_STATE.hasOnboarded()) {
       this.showApp();
       GL_ENGINE.catchUpOffline();
-      GL_DASHBOARD.init();
+      if (window.GL_DASHBOARD) GL_DASHBOARD.init();
       this.navigateTo('dashboard');
     } else {
-      GL_STATE.resetState();
+      console.log('App: State not onboarded or missing. Starting onboarding.');
       document.getElementById('app').style.display = 'none';
-      GL_OB.start();
+      const obEl = document.getElementById('onboarding-screen');
+      if (obEl) {
+        obEl.style.display = 'flex';
+        GL_OB.start();
+      }
     }
 
     this.buildSidebar();
@@ -60,6 +64,12 @@ const APP = {
          GL_ENGINE.catchUpOffline();
          if (window.GL_DASHBOARD) GL_DASHBOARD.init();
          return;
+      }
+      
+      // Check active HQ construction
+      if (GL_ENGINE.updateConstructionQueue()) {
+         if (APP.currentScreen === 'garage' && window.GL_SCREENS) window.GL_SCREENS.renderGarage();
+         if (window.GL_DASHBOARD) GL_DASHBOARD.updateTopbar(S.getState());
       }
       
       const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));

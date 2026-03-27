@@ -64,77 +64,62 @@ const STAFF_POOL = [
     attrs:{ technical:30, setup:25, pitStrategy:20, scouting:35, commercial:40 }, salary:7000,  bio:'Reduces injury risk and helps pilot morale recovery.' },
 ];
 
-// ---- FACILITIES ----
+// ---- HQ BUILDINGS ----
 const FACILITIES = [
-  { id:'garage',     name:'Main Garage',         icon:'🏗️', maxLevel:5, unlockDiv:8,
+  { id:'admin', name:'Oficina de Administración', icon:'🏢', maxLevel:5,
     levels:[
-      { cost:0,      buildTime:0,  effect:'Base operations' },
-      { cost:30000,  buildTime:2,  effect:'+5 car reliability, faster repairs' },
-      { cost:80000,  buildTime:4,  effect:'+8 reliability, 2nd car slot unlocked' },
-      { cost:200000, buildTime:7,  effect:'+12 reliability, expanded workshop' },
-      { cost:500000, buildTime:12, effect:'+18 reliability, elite workshop' }
+      { cost:15000,  durationMs:5 * 60 * 1000,   effect:'+5% sponsor income' }, // 5 mins
+      { cost:45000,  durationMs:30 * 60 * 1000,  effect:'+10% sponsor income, +1 sponsor slot' }, // 30 mins
+      { cost:150000, durationMs:2 * 3600 * 1000, effect:'+15% sponsor income, higher tier deals' }, // 2 hours
+      { cost:400000, durationMs:8 * 3600 * 1000, effect:'+20% sponsor income' }, // 8 hours
+      { cost:1000000,durationMs:24 * 3600 * 1000,effect:'+30% sponsor income, elite PR' } // 24 hours
     ]
   },
-  { id:'windtunnel',  name:'Wind Tunnel',         icon:'💨', maxLevel:4, unlockDiv:7,
+  { id:'wind_tunnel', name:'Túnel de Viento', icon:'💨', maxLevel:5,
     levels:[
-      { cost:50000,  buildTime:4,  effect:'+6 aero score per level' },
-      { cost:120000, buildTime:6,  effect:'+10 aero, faster aero R&D' },
-      { cost:300000, buildTime:10, effect:'+16 aero, aero packages unlocked' },
-      { cost:700000, buildTime:16, effect:'+24 aero, elite aero programs' }
+      { cost:25000,  durationMs:10 * 60 * 1000,  effect:'+10 Base Aerodynamics' },
+      { cost:80000,  durationMs:60 * 60 * 1000,  effect:'+20 Base Aerodynamics, rain resistance' },
+      { cost:250000, durationMs:4 * 3600 * 1000, effect:'+35 Base Aerodynamics' },
+      { cost:600000, durationMs:12 * 3600 * 1000,effect:'+50 Base Aerodynamics, elite correlation' },
+      { cost:1500000,durationMs:48 * 3600 * 1000,effect:'+75 Base Aerodynamics, flawless aero' }
     ]
   },
-  { id:'simulator',   name:'Driver Simulator',   icon:'🎮', maxLevel:4, unlockDiv:7,
+  { id:'rnd', name:'Centro de I+D', icon:'🔬', maxLevel:5,
     levels:[
-      { cost:40000,  buildTime:3,  effect:'+3 pace/race training speed' },
-      { cost:90000,  buildTime:5,  effect:'+5 training speed, circuit prep' },
-      { cost:220000, buildTime:8,  effect:'+8 training, setup feedback +10' },
-      { cost:550000, buildTime:14, effect:'+12 training, elite data program' }
+      { cost:35000,  durationMs:15 * 60 * 1000,  effect:'+10 Base Engine Power' },
+      { cost:100000, durationMs:90 * 60 * 1000,  effect:'+22 Base Engine Power, fuel efficiency' },
+      { cost:300000, durationMs:6 * 3600 * 1000, effect:'+38 Base Engine Power' },
+      { cost:750000, durationMs:16 * 3600 * 1000,effect:'+55 Base Engine Power, custom mapping' },
+      { cost:1800000,durationMs:72 * 3600 * 1000,effect:'+80 Base Engine Power, works status' }
     ]
   },
-  { id:'academy',     name:'Pilot Academy',      icon:'🎓', maxLevel:4, unlockDiv:6,
+  { id:'factory', name:'Fábrica', icon:'🏭', maxLevel:5,
     levels:[
-      { cost:60000,  buildTime:5,  effect:'Open academy slots, can train rookies' },
-      { cost:140000, buildTime:7,  effect:'+2 academy slots, faster progression' },
-      { cost:350000, buildTime:11, effect:'+3 slots, international scouting' },
-      { cost:800000, buildTime:18, effect:'+4 slots, elite feeder program' }
+      { cost:20000,  durationMs:10 * 60 * 1000,  effect:'+10 Reliability, faster pit stops' },
+      { cost:65000,  durationMs:45 * 60 * 1000,  effect:'+20 Reliability, -1s pit stops' },
+      { cost:200000, durationMs:3 * 3600 * 1000, effect:'+35 Reliability, advanced materials' },
+      { cost:500000, durationMs:10 * 3600 * 1000,effect:'+55 Reliability, zero defects' },
+      { cost:1200000,durationMs:36 * 3600 * 1000,effect:'+80 Reliability, autonomous assembly' }
     ]
   },
-  { id:'datacentre',  name:'Data Centre',        icon:'🖥️', maxLevel:3, unlockDiv:6,
+  { id:'academy', name:'Academia de Pilotos', icon:'🎓', maxLevel:5,
     levels:[
-      { cost:70000,  buildTime:5,  effect:'Race analysis unlocked, +5 setup' },
-      { cost:180000, buildTime:8,  effect:'+10 setup, predictive strategy AI' },
-      { cost:450000, buildTime:14, effect:'+18 setup, real-time race data' }
-    ]
-  },
-  { id:'engshop',    name:'Engine Workshop',     icon:'⚙️', maxLevel:4, unlockDiv:7,
-    levels:[
-      { cost:45000,  buildTime:3,  effect:'+5 engine, quicker rebuilds' },
-      { cost:110000, buildTime:6,  effect:'+10 engine, -20% engine failures' },
-      { cost:280000, buildTime:10, effect:'+16 engine, bespoke tuning' },
-      { cost:650000, buildTime:16, effect:'+24 engine, works-level engine program' }
-    ]
-  },
-  { id:'pitcrew',    name:'Pit Crew Centre',     icon:'🔩', maxLevel:3, unlockDiv:8,
-    levels:[
-      { cost:25000,  buildTime:2,  effect:'-0.5s average pit stop time' },
-      { cost:65000,  buildTime:4,  effect:'-1.0s, reduced errors' },
-      { cost:160000, buildTime:8,  effect:'-1.5s, elite crew training' }
-    ]
-  },
-  { id:'commercial', name:'Commercial Dept.',    icon:'💼', maxLevel:3, unlockDiv:8,
-    levels:[
-      { cost:20000,  buildTime:2,  effect:'+5% sponsor income' },
-      { cost:55000,  buildTime:4,  effect:'+12% sponsor income, more deals' },
-      { cost:130000, buildTime:7,  effect:'+20% sponsor income, hospitality' }
-    ]
-  },
-  { id:'medical',    name:'Medical Centre',      icon:'🏥', maxLevel:3, unlockDiv:7,
-    levels:[
-      { cost:30000,  buildTime:2,  effect:'-30% injury duration' },
-      { cost:75000,  buildTime:4,  effect:'-50% injury, better pilot recovery' },
-      { cost:180000, buildTime:7,  effect:'-70% injury, performance monitoring' }
+      { cost:30000,  durationMs:15 * 60 * 1000,  effect:'+15% pilot training speed' },
+      { cost:90000,  durationMs:60 * 60 * 1000,  effect:'+30% pilot training speed, unlock sim' },
+      { cost:250000, durationMs:5 * 3600 * 1000, effect:'+50% pilot training speed, mental coaching' },
+      { cost:650000, durationMs:14 * 3600 * 1000,effect:'+75% pilot training speed, physical peak' },
+      { cost:1400000,durationMs:48 * 3600 * 1000,effect:'+100% pilot training speed, legendary academy' }
     ]
   }
+];
+
+// ---- ENGINE SUPPLIERS ----
+const ENGINE_SUPPLIERS = [
+  { id:'cosmos', name:'Cosmos Power', cost: 10000, color: '#e74c3c', pros:'+10 Velocidad Inicial', description: 'Motor barato y robusto. Ideal para empezar tu legado.' },
+  { id:'zenith', name:'Zenith Motors', cost: 25000, color: '#3498db', pros:'+5 Eficiencia, -5 Degradación', description: 'Equilibrio perfecto. Destaca en tandas largas cuidando neumáticos.' },
+  { id:'aerov', name:'Aero-V', cost: 35000, color: '#2ecc71', pros:'+10 Aerodinámica, +5 Velocidad', description: 'Bloque compacto que permite diseños de coche agresivos.' },
+  { id:'titan', name:'Titan Dynamics', cost: 50000, color: '#f1c40f', pros:'+15 Fiabilidad', description: 'A prueba de balas. Un motor pesado que rara vez se rompe.' },
+  { id:'vulcan', name:'Vulcan Tech', cost: 100000, color: '#9b59b6', pros:'-15% Tiempos de I+D/Construcción', description: 'Tecnología punta VIP. Acelera el progreso en tu Cuartel General.' }
 ];
 
 // ---- SPONSORS ----
@@ -239,5 +224,6 @@ window.GL_DATA = {
   PILOT_POOL, STAFF_POOL, FACILITIES, SPONSOR_POOL,
   CIRCUITS, AI_TEAMS, PHILOSOPHIES,
   RANDOM_EVENT_TEMPLATES, POINTS_TABLE, DIVISIONS,
+  ENGINE_SUPPLIERS,
   generateCalendar
 };

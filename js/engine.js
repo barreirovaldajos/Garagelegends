@@ -245,45 +245,65 @@ function weeklyTick() {
   return { income, expenses, net };
 }
 
-// ---- facility build timer ----
-function checkFacilityTimers() {
+// ---- hq construction timer ----
+function updateConstructionQueue() {
   const state = S.getState();
-  let changed = false;
-  state.facilities.forEach(f => {
-    if (f.upgrading && f.completeWeek <= state.season.week) {
-      f.level++;
-      f.upgrading = false;
-      f.completeWeek = null;
-      S.addLog(`🏗️ ${f.name} upgrade complete! Now Level ${f.level}.`, 'good');
-      changed = true;
-    }
-  });
-  if (changed) S.saveState();
-  return changed;
+  const c = state.construction;
+  if (!c || !c.active) return false;
+  
+  if (Date.now() >= c.startTime + c.durationMs) {
+    // Complete construction
+    state.hq[c.buildingId] = c.targetLevel;
+    
+    // Log
+    const bNames = { wind_tunnel: 'Túnel de Viento', rnd: 'I+D', factory: 'Fábrica', academy: 'Academia', admin: 'Administración' };
+    S.addLog(`🏗️ ${bNames[c.buildingId] || c.buildingId} completado (Nivel ${c.targetLevel})`, 'good');
+    
+    // Clear queue
+    c.active = false;
+    c.buildingId = null;
+    c.startTime = 0;
+    c.durationMs = 0;
+    c.targetLevel = 0;
+    
+    S.saveState();
+    return true;
+  }
+  return false;
 }
 
-// ---- start facility upgrade ----
-function startFacilityUpgrade(facilityId, useToken = false) {
+// ---- start hq upgrade ----
+function startHqUpgrade(buildingId, cost, durationMs, targetLevel, useToken = false) {
   const state = S.getState();
-  const fac = state.facilities.find(f => f.id === facilityId);
-  const def = D.FACILITIES.find(f => f.id === facilityId);
-  if (!fac || !def) return { ok: false, msg: 'Facility not found' };
-  if (fac.upgrading) return { ok: false, msg: 'Already upgrading' };
-  if (fac.level >= def.maxLevel) return { ok: false, msg: 'Already max level' };
-
-  const nextLevelData = def.levels[fac.level];
-  if (!nextLevelData) return { ok: false, msg: 'Max level reached' };
-
-  if (!S.spendCredits(nextLevelData.cost)) {
-    return { ok: false, msg: `Not enough credits. Need ${nextLevelData.cost.toLocaleString()} CR` };
+  if (state.construction.active) {
+    return { ok: false, msg: 'Ya hay una construcción en curso' };
+  }
+  
+  // Apply Vulcan Tech bonus if they have it
+  let finalDuration = durationMs;
+  if (state.team.engineSupplier === 'Vulcan') {
+    finalDuration = Math.floor(finalDuration * 0.85);
+  }
+  
+  // Apply token speedup if requested (e.g. 70% reduction)
+  if (useToken) {
+    if (!S.spendTokens(5)) return { ok: false, msg: 'Tokens insuficientes (5 necesarios)' };
+    finalDuration = Math.floor(finalDuration * 0.3);
+  } else {
+    if (!S.spendCredits(cost)) {
+      return { ok: false, msg: `Saldo insuficiente. Necesitas ${cost.toLocaleString()} CR` };
+    }
   }
 
-  const buildWeeks = useToken ? Math.max(1, Math.floor(nextLevelData.buildTime * 0.3)) : nextLevelData.buildTime;
-  fac.upgrading = true;
-  fac.completeWeek = state.season.week + buildWeeks;
-  S.addLog(`🔨 ${def.name} upgrade started. Completes in ${buildWeeks} week(s).`, 'info');
+  state.construction = {
+    active: true,
+    buildingId: buildingId,
+    startTime: Date.now(),
+    durationMs: finalDuration,
+    targetLevel: targetLevel
+  };
   S.saveState();
-  return { ok: true, buildWeeks };
+  return { ok: true, durationMs: finalDuration };
 }
 
 // ---- generate random event ----
@@ -435,6 +455,9 @@ function catchUpOffline() {
   let saveTime = state.meta.saveTime;
   let missedRaces = 0;
   
+  // Check if any building finished while offline
+  updateConstructionQueue();
+  
   // Find the exact next Wed/Sun 18:00 from a timestamp
   const getNextRaceSlot = (timestamp) => {
     let dMs = timestamp;
@@ -545,7 +568,7 @@ function trainPilot(pid) {
 
 window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
-  weeklyTick, checkFacilityTimers, startFacilityUpgrade,
+  weeklyTick, updateConstructionQueue, startHqUpgrade,
   generateRandomEvent, applyEventChoice,
   buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot
 };

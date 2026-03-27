@@ -3,73 +3,158 @@
 
 const SCREENS = {
 
-  // ===== GARAGE SCREEN =====
+  // ===== GARAGE SCREEN (HQ) =====
   renderGarage() {
     const state = GL_STATE.getState();
-    const facs = state.facilities || [];
+    const hqLevels = state.hq || { wind_tunnel: 1, rnd: 1, factory: 1, academy: 1, admin: 1 };
+    const c = state.construction || { active: false };
+    const engineSup = state.team.engineSupplier ? GL_DATA.ENGINE_SUPPLIERS.find(e => e.id === state.team.engineSupplier) : null;
+    
     const el = document.getElementById('screen-garage');
     if (!el) return;
+    
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
-          <div class="screen-eyebrow">${__('garage_eyebrow')}</div>
-          <div class="screen-title">${__('garage_title')}</div>
-          <div class="screen-subtitle">${__('garage_subtitle')}</div>
+          <div class="screen-eyebrow">Motor Empire Infraestructura</div>
+          <div class="screen-title">Cuartel General (HQ)</div>
+          <div class="screen-subtitle">Invierte tus Dólares ME en edificios para ganar ventaja técnica a lo largo de la temporada.</div>
         </div>
+        ${engineSup ? `
+        <div class="card" style="display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3) var(--s-4);border-color:${engineSup.color}66;background:${engineSup.color}11">
+           <div style="font-size:2rem">⚙️</div>
+           <div>
+              <div style="font-size:0.75rem;color:var(--t-secondary)">Motor Oficial</div>
+              <div style="font-weight:700;color:${engineSup.color}">${engineSup.name}</div>
+           </div>
+        </div>` : ''}
       </div>
+      
       <div class="garage-layout">
         <div class="garage-map">
           <div class="garage-map-bg"></div>
           <div class="garage-grid-overlay"></div>
-          <div class="section-eyebrow" style="position:relative;z-index:2">${__('garage_facility_map')} · ${state.team.name || ''}</div>
+          <div class="section-eyebrow" style="position:relative;z-index:2">Instalaciones Físicas · ${state.team.name || ''}</div>
+          
           <div class="garage-buildings mt-auto" style="position:relative;z-index:2;margin-top:var(--s-5)">
             ${GL_DATA.FACILITIES.map(def => {
-              const fac = facs.find(f => f.id === def.id) || { id: def.id, level: 0, upgrading: false };
-              const locked = fac.level === 0 && fac.id !== 'garage' && fac.id !== 'pitcrew' && fac.id !== 'commercial';
-              const nextLevel = def.levels[fac.level];
-              return `<div class="building-tile ${fac.upgrading?'upgrading':''} ${locked&&fac.level===0&&fac.id!=='garage'&&fac.id!=='pitcrew'&&fac.id!=='commercial'?'':''}">
+              const currentLevel = hqLevels[def.id] || 0;
+              const nextLevelData = def.levels[currentLevel];
+              const isUpgrading = c.active && c.buildingId === def.id;
+              let contentHtml = '';
+              
+              if (isUpgrading) {
+                // Show real-time progress bar
+                contentHtml = `
+                  <div class="building-upgrade-bar"><div class="building-upgrade-fill" id="hq-fill-${def.id}" style="width:0%"></div></div>
+                  <div style="display:flex;justify-content:space-between;font-size:0.65rem;margin-top:2px;">
+                     <span style="color:var(--c-gold)">Construyendo Lv${currentLevel+1}</span>
+                     <span id="hq-time-${def.id}">--:--</span>
+                  </div>
+                `;
+              } else if (nextLevelData) {
+                // Determine if we can afford it
+                const canAfford = state.finances.credits >= nextLevelData.cost;
+                const canStart = !c.active && canAfford;
+                const durationMins = Math.round(nextLevelData.durationMs / 60000);
+                let durationStr = durationMins > 60 ? `${Math.round(durationMins/60)}h` : `${durationMins}m`;
+                if(state.team.engineSupplier === 'Vulcan') durationStr += ' (-15%)';
+                
+                contentHtml = `
+                  <button class="btn btn-secondary btn-sm ${!canStart ? 'disabled' : ''}" 
+                          onclick="GL_SCREENS.upgradeBuilding('${def.id}', ${nextLevelData.cost}, ${nextLevelData.durationMs}, ${currentLevel+1})" 
+                          style="font-size:0.7rem;padding:6px;width:100%;margin-top:var(--s-2)">
+                    Nv${currentLevel+1} · ${GL_UI.fmtCR(nextLevelData.cost)} CR · ⏱️ ${durationStr}
+                  </button>
+                `;
+              } else {
+                contentHtml = `<span class="badge badge-gold" style="width:100%;display:block;text-align:center;margin-top:var(--s-2)">NIVEL MÁXIMO</span>`;
+              }
+
+              return `<div class="building-tile ${isUpgrading?'upgrading':''}">
                 <div class="building-icon">${def.icon}</div>
                 <div class="building-name">${def.name}</div>
                 <div class="building-level">
-                  ${Array.from({length:def.maxLevel}).map((_,i) => `<div class="building-level-dot ${i<fac.level?'filled':''}"></div>`).join('')}
+                  ${Array.from({length:def.maxLevel}).map((_,i) => `<div class="building-level-dot ${i<currentLevel?'filled':''}"></div>`).join('')}
                 </div>
-                ${fac.upgrading ? `<span class="badge badge-gold" style="font-size:0.6rem">${__('garage_upgrading')}→ Lv${fac.level+1}</span>` : 
-                  nextLevel ? `<button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.upgradeBuilding('${def.id}')" style="font-size:0.7rem;padding:5px 10px">
-                    Lv${fac.level+1} · ${GL_UI.fmtCR(nextLevel.cost)} CR</button>` :
-                  `<span class="badge badge-gold">${__('garage_max_level')}</span>`}
-                ${fac.upgrading ? `<div class="building-upgrade-bar"><div class="building-upgrade-fill" style="width:50%"></div></div>` : ''}
+                ${contentHtml}
               </div>`;
             }).join('')}
           </div>
         </div>
+        
         <div class="flex flex-col gap-4">
           <div class="card">
-            <div class="section-eyebrow">${__('garage_benefits')}</div>
-            <div class="section-title mb-4" style="font-size:1.1rem">${__('garage_upgrade_effects')}</div>
-            ${GL_DATA.FACILITIES.slice(0,5).map(def => {
-              const fac = facs.find(f=>f.id===def.id)||{level:0};
-              const cur = def.levels[fac.level-1];
-              return cur ? `<div style="display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-2);">
-                <span>${def.icon}</span>
-                <div><div style="font-size:0.82rem;font-weight:600">${def.name} · Lv${fac.level}</div>
-                <div style="font-size:0.75rem;color:var(--t-secondary)">${cur.effect}</div></div></div>` : '';
+            <div class="section-eyebrow">Motor Empire Buffs</div>
+            <div class="section-title mb-4" style="font-size:1.1rem">Capacidades del Cuartel</div>
+            ${GL_DATA.FACILITIES.map(def => {
+              const currentLevel = hqLevels[def.id] || 0;
+              const curData = def.levels[currentLevel - 1];
+              return curData ? `<div style="display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3);">
+                <span style="font-size:1.5rem">${def.icon}</span>
+                <div><div style="font-size:0.85rem;font-weight:700">${def.name} · Lv${currentLevel}</div>
+                <div style="font-size:0.75rem;color:var(--t-secondary)">${curData.effect}</div></div></div>` : '';
             }).join('')}
           </div>
+          
           <div class="card">
-            <div class="section-eyebrow">${__('garage_quick_actions')}</div>
-            <div style="display:flex;flex-direction:column;gap:var(--s-2);margin-top:var(--s-3)">
-              <button class="btn btn-secondary w-full" onclick="GL_SCREENS.advanceWeek()">${__('garage_advance_week')}</button>
-              <button class="btn btn-gold w-full" onclick="GL_SCREENS.showBoostModal()" id="boost-btn">${__('garage_boost_btn')}</button>
-            </div>
+            <div class="section-eyebrow">Gestión de Construcción</div>
+            <div class="section-title mb-2">Pase Mensual VIP</div>
+            <p style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:var(--s-3)">Acelera la construcción instantáneamente usando Tokens, o despacha 2 mejoras simultáneas con el Pase VIP.</p>
+            ${c.active ? `
+              <button class="btn btn-gold w-full" onclick="GL_SCREENS.showBoostModal()">
+                ⚡ Acelerar ${GL_DATA.FACILITIES.find(f=>f.id===c.buildingId)?.name} (5 Tokens)
+              </button>
+            ` : `
+              <button class="btn btn-secondary w-full disabled">Sin construcciones activas</button>
+            `}
           </div>
         </div>
       </div>`;
+      
+      // Start live timer loop if construction is active
+      if (c.active && !this._hqTimer) {
+         this._hqTimer = setInterval(() => this.updateHqTimers(), 1000);
+      } else if (!c.active && this._hqTimer) {
+         clearInterval(this._hqTimer);
+         this._hqTimer = null;
+      }
+      this.updateHqTimers(); // manual initial call
+  },
+  
+  updateHqTimers() {
+     const c = GL_STATE.getConstruction();
+     if (!c || !c.active) return;
+     const now = Date.now();
+     const remainingMs = (c.startTime + c.durationMs) - now;
+     
+     const fillEl = document.getElementById(`hq-fill-${c.buildingId}`);
+     const timeEl = document.getElementById(`hq-time-${c.buildingId}`);
+     
+     if (remainingMs <= 0) {
+        // Complete! Engine will catch it next tick
+        if(fillEl) fillEl.style.width = '100%';
+        if(timeEl) timeEl.textContent = 'Completado';
+        return;
+     }
+     
+     if (fillEl) {
+        let pct = ((now - c.startTime) / c.durationMs) * 100;
+        fillEl.style.width = Math.min(100, pct) + '%';
+     }
+     
+     if (timeEl) {
+        const h = Math.floor(remainingMs / 3600000);
+        const m = Math.floor((remainingMs % 3600000) / 60000);
+        const s = Math.floor((remainingMs % 60000) / 1000);
+        timeEl.textContent = `${h>0?h+'h ':''}${m}m ${s}s`;
+     }
   },
 
-  upgradeBuilding(id) {
-    const result = GL_ENGINE.startFacilityUpgrade(id);
+  upgradeBuilding(id, cost, durationMs, targetLevel) {
+    const result = GL_ENGINE.startHqUpgrade(id, cost, durationMs, targetLevel, false);
     if (result.ok) {
-      GL_UI.toast(`🏗️ ${__('log_facility_started')} ${result.buildWeeks} ${__('log_weeks')}`, 'success');
+      GL_UI.toast(`🏗️ Construcción iniciada.`, 'success');
       this.renderGarage();
       GL_DASHBOARD.refresh();
     } else {
@@ -78,25 +163,20 @@ const SCREENS = {
   },
 
   showBoostModal() {
-    GL_UI.confirm(__('garage_boost_confirm_title'), __('garage_boost_confirm_msg'), __('garage_boost_confirm_ok'), __('btn_cancel')).then(ok => {
+    GL_UI.confirm('Acelerar Construcción', '¿Usar 5 Tokens para acortar el tiempo restante de construcción al 30% del original?', 'Gastar 5 Tokens ⚡', 'Cancelar').then(ok => {
       if (!ok) return;
-      if (!GL_STATE.spendTokens(5)) { GL_UI.toast(__('garage_not_enough_tokens'), 'error'); return; }
-      const state = GL_STATE.getState();
-      state.facilities.forEach(f => {
-        if (f.upgrading) f.completeWeek = state.season.week + 1;
-      });
-      GL_STATE.saveState();
-      GL_UI.toast(__('garage_boost_success'), 'success');
-      this.renderGarage();
+      if (!GL_STATE.spendTokens(5)) { GL_UI.toast('¡Tokens insuficientes!', 'error'); return; }
+      const c = GL_STATE.getConstruction();
+      if(c && c.active) {
+         const remaining = (c.startTime + c.durationMs) - Date.now();
+         if (remaining > 0) {
+            c.durationMs = c.durationMs - Math.floor(remaining * 0.7); // cut 70% of remaining time
+            GL_STATE.saveState();
+            GL_UI.toast('⚡ ¡Construcción acelerada!', 'success');
+            this.renderGarage();
+         }
+      }
     });
-  },
-
-  advanceWeek() {
-    const result = GL_ENGINE.weeklyTick();
-    GL_ENGINE.checkFacilityTimers();
-    GL_UI.toast(`${__('log_week_complete')} ${GL_UI.fmtSign(result.net)} CR`, result.net >= 0 ? 'success' : 'warning');
-    this.renderGarage();
-    GL_DASHBOARD.refresh();
   },
 
   // ===== PILOTS SCREEN =====

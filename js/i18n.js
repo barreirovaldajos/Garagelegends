@@ -211,6 +211,21 @@ const I18N_DATA = {
     market_sponsor_income: 'Sponsor Income',
     market_max_pilots: 'Maximum 3 pilots. Release one first.',
 
+    // Onboarding (Motor Empire)
+    ob_step_engine_title: 'Engine Supplier',
+    ob_step_engine_heading: 'Choose Your Mechanical Heart',
+    ob_step_engine_sub: 'The engine will define your initial bonuses and your team DNA.',
+    ob_engine_select: 'Select Engine',
+    ob_engine_pros: 'Advantages',
+    ob_engine_cost: 'Initial Cost',
+
+    // HQ Building Names (Motor Empire)
+    hq_admin: 'Administration Office',
+    hq_wind_tunnel: 'Wind Tunnel',
+    hq_rnd: 'R&D Centre',
+    hq_factory: 'Factory',
+    hq_academy: 'Driver Academy',
+
     // Pre-Race
     prerace_eyebrow: 'Race Strategy',
     prerace_simulate: '🏁 Simulate Race',
@@ -605,6 +620,21 @@ const I18N_DATA = {
     market_req: 'Req',
     market_sponsor_income: 'Ingresos del Patrocinador',
     market_max_pilots: 'Máximo 3 pilotos. Libera uno primero.',
+
+    // Onboarding (Motor Empire)
+    ob_step_engine_title: 'Proveedor de Motor',
+    ob_step_engine_heading: 'Elige tu Corazón Mecánico',
+    ob_step_engine_sub: 'El motor definirá tus bonos iniciales y el ADN de tu escudería.',
+    ob_engine_select: 'Seleccionar Motor',
+    ob_engine_pros: 'Ventajas',
+    ob_engine_cost: 'Coste Inicial',
+
+    // HQ Building Names (Motor Empire)
+    hq_admin: 'Oficina de Administración',
+    hq_wind_tunnel: 'Túnel de Viento',
+    hq_rnd: 'Centro de I+D',
+    hq_factory: 'Fábrica',
+    hq_academy: 'Academia de Pilotos',
 
     // Pre-Race
     prerace_eyebrow: 'Estrategia de Carrera',

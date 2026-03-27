@@ -3,11 +3,11 @@
 
 const OB = {
   step: 0,
-  totalSteps: 2,
+  totalSteps: 3,
   data: {
     name: '', country: '', countryFlag: '',
     primaryColor: '#e8292a', secondaryColor: '#0a0b0f',
-    logo: '🏎️'
+    logo: '🏎️', engineSupplier: 'cosmos'
   },
 
   COUNTRIES: [
@@ -106,33 +106,45 @@ const OB = {
   },
 
   renderStep(step) {
-    const steps = [__('ob_step1_title'), __('ob_step3_title')]; // Step 3 was Team identity/colors
-    document.getElementById('ob-step-num').textContent = `${__('ob_step')} ${step + 1} ${__('ob_step_of')} ${this.totalSteps}`;
-    document.getElementById('ob-step-title').textContent = steps[step];
-
-    const fillPct = ((step) / this.totalSteps) * 100;
-    document.getElementById('ob-prog-fill').style.width = fillPct + '%';
+    console.log('Rendering OB step:', step);
+    const stepTitles = [__('ob_step1_title'), __('ob_step3_title'), __('ob_step_engine_title')];
+    
+    const numEl = document.getElementById('ob-step-num');
+    const titleEl = document.getElementById('ob-step-title');
+    const progEl = document.getElementById('ob-prog-fill');
+    const dotsEl = document.getElementById('ob-dots');
+    
+    if (numEl) numEl.textContent = `${__('ob_step')} ${step + 1} ${__('ob_step_of')} ${this.totalSteps}`;
+    if (titleEl) titleEl.textContent = stepTitles[step] || 'Setup';
+    if (progEl) progEl.style.width = ((step) / (this.totalSteps - 1)) * 100 + '%';
 
     // Dots
-    let dots = '';
-    for (let i = 0; i < this.totalSteps; i++) {
-      dots += `<div class="ob-dot ${i < step ? 'done' : i === step ? 'active' : ''}"></div>`;
+    if (dotsEl) {
+      let dots = '';
+      for (let i = 0; i < this.totalSteps; i++) {
+        dots += `<div class="ob-dot ${i < step ? 'done' : i === step ? 'active' : ''}"></div>`;
+      }
+      dotsEl.innerHTML = dots;
     }
-    document.getElementById('ob-dots').innerHTML = dots;
 
-    const renderFns = [
-      this.renderStep0.bind(this), this.renderStep1.bind(this)
-    ];
-    if (renderFns[step]) renderFns[step]();
+    try {
+      if (step === 0) this.renderStep0();
+      else if (step === 1) this.renderStep1();
+      else if (step === 2) this.renderStep2();
+    } catch (e) {
+      console.error('Error rendering OB step:', step, e);
+    }
 
     const inner = document.getElementById('ob-step-inner');
-    inner.style.opacity = '0';
-    inner.style.transform = 'translateY(12px)';
-    setTimeout(() => {
-      inner.style.transition = 'all 0.35s ease';
-      inner.style.opacity = '1';
-      inner.style.transform = 'translateY(0)';
-    }, 20);
+    if (inner) {
+      inner.style.opacity = '0';
+      inner.style.transform = 'translateY(12px)';
+      setTimeout(() => {
+        inner.style.transition = 'all 0.35s ease';
+        inner.style.opacity = '1';
+        inner.style.transform = 'translateY(0)';
+      }, 20);
+    }
   },
 
   renderStep0() {
@@ -166,41 +178,45 @@ const OB = {
   renderStep1() {
     const inner = document.getElementById('ob-step-inner');
     inner.innerHTML = `
-      <div class="ob-step-heading">${__('ob_s3_heading') || 'Team Identity'}</div>
-      <p class="ob-step-sub">${__('ob_s3_sub') || 'Select your colors and emblem'}</p>
+      <div class="ob-step-heading">${__('ob_s3_heading') || 'Identidad del Equipo'}</div>
+      <p class="ob-step-sub">${__('ob_s3_sub') || 'Selecciona tus colores y emblema'}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-8);align-items:start">
         <div>
-          <p style="font-family:var(--font-label);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--t-tertiary);margin-bottom:var(--s-3)">${__('ob_s3_primary') || 'Primary Color'}</p>
+          <p style="font-family:var(--font-label);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--t-tertiary);margin-bottom:var(--s-3)">Color Principal</p>
           <div class="ob-color-row" id="ob-primary-colors">
             ${GL_UI.colorSwatchesHTML(this.data.primaryColor)}
           </div>
-          <p style="font-family:var(--font-label);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--t-tertiary);margin-bottom:var(--s-3);margin-top:var(--s-5)">${__('ob_s3_logo') || 'Team Emblem'}</p>
+          <p style="font-family:var(--font-label);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--t-tertiary);margin-bottom:var(--s-3);margin-top:var(--s-5)">Emblema</p>
           <div style="display:flex;flex-wrap:wrap;gap:var(--s-2)">
             ${this.LOGOS.map(l => `<div class="choice-card card-sm ${this.data.logo===l?'selected':''}" style="width:52px;text-align:center;padding:8px;font-size:1.5rem" data-logo="${l}">${l}</div>`).join('')}
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:var(--s-4)">
-          <div class="ob-logo-preview" id="ob-preview" style="background:${this.data.primaryColor}22;border-color:${this.data.primaryColor}">
-            <span style="font-size:3rem">${this.data.logo}</span>
+          <div class="ob-logo-preview" id="ob-preview" style="background:${this.data.primaryColor}22;border-color:${this.data.primaryColor};width:120px;height:120px;border-radius:24px;border:2px solid;display:flex;align-items:center;justify-content:center">
+            <span style="font-size:3.5rem">${this.data.logo}</span>
           </div>
           <div style="text-align:center">
-            <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--t-primary)" id="ob-prev-name">${this.data.name||'Your Team'}</div>
-            <div style="font-size:0.78rem;color:var(--t-secondary)">${this.data.countryFlag||''} ${this.data.country||'Unknown'}</div>
+            <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--t-primary)" id="ob-prev-name">${this.data.name||'Tu Equipo'}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary)">${this.data.countryFlag||''} ${this.data.country||'Desconocido'}</div>
           </div>
           <div style="width:60px;height:8px;border-radius:4px;background:${this.data.primaryColor}" id="ob-color-strip"></div>
         </div>
       </div>`;
-    document.getElementById('ob-hint').textContent = __('ob_s3_hint') || 'You can change these later.';
-    document.getElementById('ob-next-btn').textContent = __('ob_finish_btn') || 'Finish';
+    document.getElementById('ob-hint').textContent = __('ob_s3_hint');
+    document.getElementById('ob-next-btn').textContent = __('ob_continue');
 
     inner.querySelectorAll('#ob-primary-colors .ob-color-swatch').forEach(el => {
       el.onclick = () => {
         inner.querySelectorAll('#ob-primary-colors .ob-color-swatch').forEach(e => e.classList.remove('selected'));
         el.classList.add('selected');
         this.data.primaryColor = el.dataset.color;
-        document.getElementById('ob-preview').style.background = this.data.primaryColor + '22';
-        document.getElementById('ob-preview').style.borderColor = this.data.primaryColor;
-        document.getElementById('ob-color-strip').style.background = this.data.primaryColor;
+        const prev = document.getElementById('ob-preview');
+        if(prev) {
+          prev.style.background = this.data.primaryColor + '22';
+          prev.style.borderColor = this.data.primaryColor;
+        }
+        const strip = document.getElementById('ob-color-strip');
+        if(strip) strip.style.background = this.data.primaryColor;
       };
     });
     inner.querySelectorAll('[data-logo]').forEach(el => {
@@ -208,23 +224,62 @@ const OB = {
         inner.querySelectorAll('[data-logo]').forEach(e => e.classList.remove('selected'));
         el.classList.add('selected');
         this.data.logo = el.dataset.logo;
-        document.getElementById('ob-preview').innerHTML = `<span style="font-size:3rem">${this.data.logo}</span>`;
+        const prev = document.getElementById('ob-preview');
+        if(prev) prev.innerHTML = `<span style="font-size:3.5rem">${this.data.logo}</span>`;
       };
     });
   },
 
+  renderStep2() {
+    const inner = document.getElementById('ob-step-inner');
+    // Hardcoded fallback to ensure visibility
+    const engines = [
+      { id:'cosmos', name:'Cosmos Power', cost: 10000, color: '#e74c3c', pros:'+10 Velocidad Inicial', description: 'Motor barato y robusto.' },
+      { id:'zenith', name:'Zenith Motors', cost: 25000, color: '#3498db', pros:'+5 Eficiencia', description: 'Equilibrio perfecto.' },
+      { id:'aerov', name:'Aero-V', cost: 35000, color: '#2ecc71', pros:'+10 Aerodinámica', description: 'Bloque compacto.' },
+      { id:'titan', name:'Titan Dynamics', cost: 50000, color: '#f1c40f', pros:'+15 Fiabilidad', description: 'A prueba de balas.' },
+      { id:'vulcan', name:'Vulcan Tech', cost: 100000, color: '#9b59b6', pros:'-15% Tiempo Base', description: 'Tecnología punta VIP.' }
+    ];
+    
+    if(!inner) return;
+    
+    inner.innerHTML = `
+      <div class="ob-step-heading">${__('ob_step_engine_heading')}</div>
+      <p class="ob-step-sub">${__('ob_step_engine_sub')}</p>
+      
+      <div class="engine-selection-grid" style="display:flex; flex-direction:column; gap:12px; margin-top:20px">
+        ${engines.map(e => `
+          <div class="engine-card ${this.data.engineSupplier===e.id?'selected':''}" data-engine="${e.id}" style="border-left:4px solid ${e.color}; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px; cursor: pointer">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+               <div style="font-weight:800;font-size:1.1rem;color:${e.color}">${e.name}</div>
+               <div class="badge" style="background:${e.color}22;color:${e.color};padding:2px 8px;border-radius:4px;font-size:0.7rem">${e.pros}</div>
+            </div>
+            <p style="font-size:0.8rem;color:#aaa;margin:8px 0">${e.description}</p>
+            <div style="font-size:0.75rem;font-weight:600;color:#777">Costo: ${e.cost.toLocaleString()} CR</div>
+          </div>
+        `).join('')}
+      </div>`;
+    
+    document.getElementById('ob-hint').textContent = 'El motor Vulcan Tech reduce los tiempos de construcción en un 15%.';
+    document.getElementById('ob-next-btn').textContent = __('ob_finish_btn') || 'Finalizar';
 
-
-
-
-
+    inner.querySelectorAll('[data-engine]').forEach(el => {
+      el.onclick = () => {
+        inner.querySelectorAll('[data-engine]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        this.data.engineSupplier = el.dataset.engine;
+      };
+    });
+  },
 
   nextStep() {
+    console.log('Next step clicked. Current step:', this.step);
     // Validate
     if (this.step === 0 && !this.data.name.trim()) { GL_UI.toast(__('ob_name_required'), 'warning'); return; }
     if (this.step === 0 && !this.data.country) { GL_UI.toast(__('ob_country_required'), 'warning'); return; }
 
-    if (this.step === this.totalSteps - 1) {
+    if (this.step >= this.totalSteps - 1) {
+      console.log('Finalizing OB session...');
       this.applyChoices();
       this.finish();
       return;
@@ -241,6 +296,7 @@ const OB = {
     state.team.countryFlag = this.data.countryFlag;
     state.team.colors.primary = this.data.primaryColor;
     state.team.logo = this.data.logo;
+    state.team.engineSupplier = this.data.engineSupplier;
     state.team.reputation = 100;
     state.team.fans = 250;
     state.meta.created = Date.now();
@@ -253,12 +309,16 @@ const OB = {
     // Sponsor
     state.sponsors = []; // Start with 0 sponsors
 
-    // Starting budget
-    let budget = 120000; // Increased base budget
+    // Engine Cost
+    const engData = GL_DATA.ENGINE_SUPPLIERS.find(e => e.id === this.data.engineSupplier);
+    const engCost = engData ? engData.cost : 10000;
 
-    // Facilities – Garage level 1, everything else 0
-    state.facilities = GL_DATA.FACILITIES.map(f => ({ id:f.id, name:f.name, level:0, upgrading:false, completeWeek:null }));
-    state.facilities.find(f=>f.id==='garage').level = 1;
+    // Starting budget
+    let budget = 150000 - engCost; 
+
+    // HQ - Initial levels (all Lv1)
+    state.hq = { admin:1, wind_tunnel:1, rnd:1, factory:1, academy:1 };
+    state.construction = { active: false, buildingId: null, startTime: null, durationMs: null, targetLevel: null };
 
     // Staff – start with no staff to make them hire one? Let's give them a basic engineer.
     state.staff = [GL_STATE.deepClone(GL_DATA.STAFF_POOL.find(s=>s.id==='s7') || GL_DATA.STAFF_POOL[0])]; // pit crew head or engineer
@@ -289,7 +349,11 @@ const OB = {
       ob.style.display = 'none';
       document.getElementById('app').style.display = 'grid';
       if (typeof GL_DASHBOARD !== 'undefined') GL_DASHBOARD.init();
-      if (typeof GL_APP !== 'undefined') GL_APP.navigateTo('dashboard');
+      if (typeof GL_APP !== 'undefined') {
+        GL_APP.buildTopbar();
+        GL_APP.buildSidebar();
+        GL_APP.navigateTo('dashboard');
+      }
       GL_UI.toast(`${__('ob_welcome_toast')} ${GL_STATE.getState().team.name}! 🏁`, 'success', 4000);
     }, 500);
   }
