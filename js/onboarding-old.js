@@ -1,0 +1,428 @@
+// ===== ONBOARDING.JS – 6-Phase Guided Wizard with NPC Elena =====
+'use strict';
+
+const OB = {
+  step: 0,
+  totalSteps: 6,
+  data: {
+    name: '', country: '', countryFlag: '',
+    primaryColor: '#e8292a', secondaryColor: '#0a0b0f',
+    logo: '🏎️', engineSupplier: 'cosmos',
+    pilotChosen: false,
+    windTunnelAccelerated: false
+  },
+
+  COUNTRIES: [
+    {name:'Italy',flag:'🇮🇹'},{name:'Germany',flag:'🇩🇪'},{name:'UK',flag:'🇬🇧'},
+    {name:'Brazil',flag:'🇧🇷'},{name:'France',flag:'🇫🇷'},{name:'Japan',flag:'🇯🇵'},
+    {name:'Spain',flag:'🇪🇸'},{name:'USA',flag:'🇺🇸'},{name:'Australia',flag:'🇦🇺'},
+    {name:'Mexico',flag:'🇲🇽'},{name:'Netherlands',flag:'🇳🇱'},{name:'Monaco',flag:'🇲🇨'},
+    {name:'Sweden',flag:'🇸🇪'},{name:'South Africa',flag:'🇿🇦'},{name:'Argentina',flag:'🇦🇷'}
+  ],
+  LOGOS: ['🏎️','🚀','⚡','🔥','🦅','🐉','💎','🛡️','🌟','🏆','⚙️','🦁'],
+  SEED_SPONSORS: [
+    { id:'ss1', name:'VELOCE Energy', logo:'⚡', color:'#e8292a', income: 6000, duration: 10,
+      pros:['High weekly income (+6k CR)','Bonus for top 8 finishes'],
+      cons:['Demands race results fast','Ends after season if no top 8'] },
+    { id:'ss2', name:'NovaTech Systems', logo:'💻', color:'#4a9eff', income: 4500, duration: 14,
+      pros:['Long contract (14 weeks)','No performance demands'],
+      cons:['Lower income','No performance bonuses'] },
+    { id:'ss3', name:'Grid Fuels', logo:'⛽', color:'#f5c842', income: 5200, duration: 12,
+      pros:['Good income','Fuel discount (saves 500 CR/race)'],
+      cons:['Requires logo visibility in top 6','Mid-length contract'] }
+  ],
+
+  start() {
+    const el = document.getElementById('onboarding-screen');
+    if (!el) return;
+    el.style.display = 'flex';
+    this.renderPhase0();
+  },
+
+  renderPhase0() {
+    // Welcome to Motor Empire splash
+    const el = document.getElementById('onboarding-screen');
+    el.innerHTML = `
+      <div class="ob-phase0">
+        <div class="ob-phase0-bg"></div>
+        <div class="ob-phase0-content anim-fade-up">
+          <div style="font-size:0.8rem;color:#aaa;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:var(--s-3)">
+            ${__('ob_phase0_tagline')}
+          </div>
+          <h1 style="font-size:3.5rem;font-weight:900;color:var(--t-primary);margin-bottom:var(--s-4);line-height:1">
+            Motor<br><span style="color:#e8292a">Empire</span>
+          </h1>
+          <p style="font-size:1.1rem;color:var(--t-secondary);margin-bottom:var(--s-6);line-height:1.5;max-width:400px">
+            ${__('ob_phase0_subtitle')}
+          </p>
+          <button class="btn btn-primary btn-lg" onclick="GL_OB.step=0;GL_OB.renderWizardShell();GL_OB.renderStep(0)" style="font-size:1.05rem;padding:16px 40px">
+            ${__('ob_phase0_btn')}
+          </button>
+        </div>
+      </div>`;
+  },
+
+  renderWizardShell() {
+    const el = document.getElementById('onboarding-screen');
+    el.innerHTML = `
+      <div class="ob-wizard">
+        <div class="ob-progress-bar-track"><div class="ob-progress-bar-fill" id="ob-prog-fill" style="width:0%"></div></div>
+        <div class="ob-step-indicator">
+          <span class="ob-step-num" id="ob-step-num">Fase 1 de 6</span>
+          <span class="ob-step-title" id="ob-step-title">Identidad del Equipo</span>
+          <div class="ob-step-dots" id="ob-dots"></div>
+        </div>
+        <div class="ob-step-body">
+          <div class="ob-npc-elena" id="ob-elena"></div>
+          <div class="ob-step-inner" id="ob-step-inner"></div>
+        </div>
+        <div class="ob-footer">
+          <span class="ob-footer-hint" id="ob-hint"></span>
+          <div style="display:flex;gap:12px">
+            <button class="btn btn-ghost" id="ob-back-btn">${__('ob_back')}</button>
+            <button class="btn btn-primary" id="ob-next-btn">${__('ob_continue')}</button>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('ob-back-btn').onclick = () => { if (this.step > 0) { this.step--; this.renderStep(this.step); } else { this.renderPhase0(); } };
+    document.getElementById('ob-next-btn').onclick = () => this.nextStep();
+  },
+
+  renderStep(step) {
+    console.log('Rendering OB step:', step);
+    const stepTitles = [__('ob_step1_title'), __('ob_step2_title'), __('ob_step3_title'), __('ob_step4_title'), __('ob_step5_title'), __('ob_step6_title')];
+    
+    const numEl = document.getElementById('ob-step-num');
+    const titleEl = document.getElementById('ob-step-title');
+    const progEl = document.getElementById('ob-prog-fill');
+    const dotsEl = document.getElementById('ob-dots');
+    
+    if (numEl) numEl.textContent = `Fase ${step + 1} de ${this.totalSteps}`;
+    if (titleEl) titleEl.textContent = stepTitles[step] || 'Configuración';
+    if (progEl) progEl.style.width = ((step) / (this.totalSteps - 1)) * 100 + '%';
+
+    // Dots
+    if (dotsEl) {
+      let dots = '';
+      for (let i = 0; i < this.totalSteps; i++) {
+        dots += `<div class="ob-dot ${i < step ? 'done' : i === step ? 'active' : ''}"></div>`;
+      }
+      dotsEl.innerHTML = dots;
+    }
+
+    try {
+      if (step === 0) this.renderPhase1();
+      else if (step === 1) this.renderPhase2();
+      else if (step === 2) this.renderPhase3();
+      else if (step === 3) this.renderPhase4();
+      else if (step === 4) this.renderPhase5();
+      else if (step === 5) this.renderPhase6();
+    } catch (e) {
+      console.error('Error rendering OB step:', step, e);
+    }
+
+    const inner = document.getElementById('ob-step-inner');
+    if (inner) {
+      inner.style.opacity = '0';
+      inner.style.transform = 'translateY(12px)';
+      setTimeout(() => {
+        inner.style.transition = 'all 0.35s ease';
+        inner.style.opacity = '1';
+        inner.style.transform = 'translateY(0)';
+      }, 20);
+    }
+  },
+
+  renderPhase1() {
+    // Team Identity (Name + Country)
+    const elElena = document.getElementById('ob-elena');
+    const inner = document.getElementById('ob-step-inner');
+    
+    elElena.innerHTML = `
+      <div class="elena-dialogue">
+        <span class="elena-avatar">👩‍💼</span>
+        <div class="elena-text">${__('ob_phase1_elena')}</div>
+      </div>`;
+
+    inner.innerHTML = `
+      <div class="ob-step-heading">¿Cómo se llama tu equipo?</div>
+      <p class="ob-step-sub">Tu nombre de equipo es tu legado. Elige con cuidado.</p>
+      <input class="ob-name-input" id="ob-name" placeholder="Introduce el nombre del equipo..." value="${this.data.name}" maxlength="30">
+      <div style="margin-top:var(--s-6)">
+        <p style="font-size:0.85rem;color:var(--t-secondary);margin-bottom:var(--s-3)">Selecciona tu base de operaciones:</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s-2)">
+          ${this.COUNTRIES.map(c => `
+            <div class="choice-card card-sm ${this.data.country===c.name?'selected':''}" style="text-align:center" data-country="${c.name}" data-flag="${c.flag}">
+              <span style="font-size:1.5rem">${c.flag}</span>
+              <div style="font-size:0.8rem;font-weight:600;margin-top:4px">${c.name}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    
+    document.getElementById('ob-hint').textContent = 'Tu base determina la base de fans regional y las oportunidades de patrocinio.';
+    document.getElementById('ob-next-btn').textContent = __('ob_continue');
+
+    inner.querySelector('#ob-name').oninput = e => { this.data.name = e.target.value; };
+    inner.querySelectorAll('[data-country]').forEach(el => {
+      el.onclick = () => {
+        inner.querySelectorAll('[data-country]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        this.data.country = el.dataset.country;
+        this.data.countryFlag = el.dataset.flag;
+      };
+    });
+  },
+
+  renderPhase2() {
+    // Mechanical Heart (Engine with context + comparatives)
+    const elElena = document.getElementById('ob-elena');
+    const inner = document.getElementById('ob-step-inner');
+    
+    elElena.innerHTML = `
+      <div class="elena-dialogue">
+        <span class="elena-avatar">👩‍💼</span>
+        <div class="elena-text">${__('ob_phase2_elena')}</div>
+      </div>`;
+    
+    const engines = [
+      { 
+        id:'cosmos', name:'Cosmos Power', cost: 45000, dna: '+10% Velocidad Inicial',
+        tagline: 'El Comerciante de Velocidad',
+        description: 'Motor barato y robusto para equipos agresivos.',
+        pros: ['Desbloquea ventaja de velocidad inicial'], cons: ['Presupuesto muy reducido']
+      },
+      { 
+        id:'zenith', name:'Zenith Motors', cost: 35000, dna: '+15% Eficiencia',
+        tagline: 'El Camino Equilibrado',
+        description: 'Equilibrio perfecto entre coste y rendimiento.',
+        pros: ['Buena relación coste-rendimiento'], cons: ['Bonificaciones moderadas']
+      },
+      { 
+        id:'aerov', name:'Aero-V', cost: 30000, dna: '+12% Aerodinamica',
+        tagline: 'Bloque Compacto',
+        description: 'Motor optimizado para aerodinámica y menores degradación de neumáticos.',
+        pros: ['Mejora curvas y consumo'], cons: ['Menor potencia pura']
+      },
+      { 
+        id:'titan', name:'Titan Dynamics', cost: 40000, dna: '+20% Fiabilidad',
+        tagline: 'A Prueba de Balas',
+        description: 'Fiabilidad extrema contra averías.',
+        pros: ['Avería extremadamente rara'], cons: ['Coste significativo']
+      },
+      { 
+        id:'vulcan', name:'Vulcan Tech', cost: 60000, dna: '−20% Tiempos I+D',
+        tagline: 'Laboratorio de Innovación',
+        description: 'Tecnología de punta. Reduce tiempos de investigación.'
+    const inner = document.getElementById('ob-step-inner');
+    inner.innerHTML = `
+      <div class="ob-step-heading">${__('ob_s1_heading')}</div>
+      <p class="ob-step-sub">${__('ob_s1_sub')}</p>
+      <input class="ob-name-input" id="ob-name" placeholder="${__('ob_s1_placeholder')}" value="${this.data.name}" maxlength="30">
+      <div style="margin-top:var(--s-6)">
+        <p style="font-size:0.85rem;color:var(--t-secondary);margin-bottom:var(--s-3)">${__('ob_s1_base')}</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s-2)">
+          ${this.COUNTRIES.map(c => `
+            <div class="choice-card card-sm ${this.data.country===c.name?'selected':''}" style="text-align:center" data-country="${c.name}" data-flag="${c.flag}">
+              <span style="font-size:1.5rem">${c.flag}</span>
+              <div style="font-size:0.8rem;font-weight:600;margin-top:4px">${c.name}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    document.getElementById('ob-hint').textContent = __('ob_s1_hint');
+    inner.querySelector('#ob-name').oninput = e => { this.data.name = e.target.value; };
+    inner.querySelectorAll('[data-country]').forEach(el => {
+      el.onclick = () => {
+        inner.querySelectorAll('[data-country]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        this.data.country = el.dataset.country;
+        this.data.countryFlag = el.dataset.flag;
+      };
+    });
+  },
+
+  renderStep1() {
+    const inner = document.getElementById('ob-step-inner');
+    inner.innerHTML = `
+      <div class="ob-step-heading">${__('ob_s3_heading') || 'Identidad del Equipo'}</div>
+      <p class="ob-step-sub">${__('ob_s3_sub') || 'Selecciona tus colores y emblema'}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s-8);align-items:start">
+        <div>
+          <p style="font-family:var(--font-label);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--t-tertiary);margin-bottom:var(--s-3)">Color Principal</p>
+          <div class="ob-color-row" id="ob-primary-colors">
+            ${GL_UI.colorSwatchesHTML(this.data.primaryColor)}
+          </div>
+          <p style="font-family:var(--font-label);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--t-tertiary);margin-bottom:var(--s-3);margin-top:var(--s-5)">Emblema</p>
+          <div style="display:flex;flex-wrap:wrap;gap:var(--s-2)">
+            ${this.LOGOS.map(l => `<div class="choice-card card-sm ${this.data.logo===l?'selected':''}" style="width:52px;text-align:center;padding:8px;font-size:1.5rem" data-logo="${l}">${l}</div>`).join('')}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:var(--s-4)">
+          <div class="ob-logo-preview" id="ob-preview" style="background:${this.data.primaryColor}22;border-color:${this.data.primaryColor};width:120px;height:120px;border-radius:24px;border:2px solid;display:flex;align-items:center;justify-content:center">
+            <span style="font-size:3.5rem">${this.data.logo}</span>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;color:var(--t-primary)" id="ob-prev-name">${this.data.name||'Tu Equipo'}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary)">${this.data.countryFlag||''} ${this.data.country||'Desconocido'}</div>
+          </div>
+          <div style="width:60px;height:8px;border-radius:4px;background:${this.data.primaryColor}" id="ob-color-strip"></div>
+        </div>
+      </div>`;
+    document.getElementById('ob-hint').textContent = __('ob_s3_hint');
+    document.getElementById('ob-next-btn').textContent = __('ob_continue');
+
+    inner.querySelectorAll('#ob-primary-colors .ob-color-swatch').forEach(el => {
+      el.onclick = () => {
+        inner.querySelectorAll('#ob-primary-colors .ob-color-swatch').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        this.data.primaryColor = el.dataset.color;
+        const prev = document.getElementById('ob-preview');
+        if(prev) {
+          prev.style.background = this.data.primaryColor + '22';
+          prev.style.borderColor = this.data.primaryColor;
+        }
+        const strip = document.getElementById('ob-color-strip');
+        if(strip) strip.style.background = this.data.primaryColor;
+      };
+    });
+    inner.querySelectorAll('[data-logo]').forEach(el => {
+      el.onclick = () => {
+        inner.querySelectorAll('[data-logo]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        this.data.logo = el.dataset.logo;
+        const prev = document.getElementById('ob-preview');
+        if(prev) prev.innerHTML = `<span style="font-size:3.5rem">${this.data.logo}</span>`;
+      };
+    });
+  },
+
+  renderStep2() {
+    const inner = document.getElementById('ob-step-inner');
+    // Hardcoded fallback to ensure visibility
+    const engines = [
+      { id:'cosmos', name:'Cosmos Power', cost: 10000, color: '#e74c3c', pros:'+10 Velocidad Inicial', description: 'Motor barato y robusto.' },
+      { id:'zenith', name:'Zenith Motors', cost: 25000, color: '#3498db', pros:'+5 Eficiencia', description: 'Equilibrio perfecto.' },
+      { id:'aerov', name:'Aero-V', cost: 35000, color: '#2ecc71', pros:'+10 Aerodinámica', description: 'Bloque compacto.' },
+      { id:'titan', name:'Titan Dynamics', cost: 50000, color: '#f1c40f', pros:'+15 Fiabilidad', description: 'A prueba de balas.' },
+      { id:'vulcan', name:'Vulcan Tech', cost: 100000, color: '#9b59b6', pros:'-15% Tiempo Base', description: 'Tecnología punta VIP.' }
+    ];
+    
+    if(!inner) return;
+    
+    inner.innerHTML = `
+      <div class="ob-step-heading">${__('ob_step_engine_heading')}</div>
+      <p class="ob-step-sub">${__('ob_step_engine_sub')}</p>
+      
+      <div class="engine-selection-grid" style="display:flex; flex-direction:column; gap:12px; margin-top:20px">
+        ${engines.map(e => `
+          <div class="engine-card ${this.data.engineSupplier===e.id?'selected':''}" data-engine="${e.id}" style="border-left:4px solid ${e.color}; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 8px; cursor: pointer">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+               <div style="font-weight:800;font-size:1.1rem;color:${e.color}">${e.name}</div>
+               <div class="badge" style="background:${e.color}22;color:${e.color};padding:2px 8px;border-radius:4px;font-size:0.7rem">${e.pros}</div>
+            </div>
+            <p style="font-size:0.8rem;color:#aaa;margin:8px 0">${e.description}</p>
+            <div style="font-size:0.75rem;font-weight:600;color:#777">Costo: ${e.cost.toLocaleString()} CR</div>
+          </div>
+        `).join('')}
+      </div>`;
+    
+    document.getElementById('ob-hint').textContent = 'El motor Vulcan Tech reduce los tiempos de construcción en un 15%.';
+    document.getElementById('ob-next-btn').textContent = __('ob_finish_btn') || 'Finalizar';
+
+    inner.querySelectorAll('[data-engine]').forEach(el => {
+      el.onclick = () => {
+        inner.querySelectorAll('[data-engine]').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+        this.data.engineSupplier = el.dataset.engine;
+      };
+    });
+  },
+
+  nextStep() {
+    console.log('Next step clicked. Current step:', this.step);
+    // Validate
+    if (this.step === 0 && !this.data.name.trim()) { GL_UI.toast(__('ob_name_required'), 'warning'); return; }
+    if (this.step === 0 && !this.data.country) { GL_UI.toast(__('ob_country_required'), 'warning'); return; }
+
+    if (this.step >= this.totalSteps - 1) {
+      console.log('Finalizing OB session...');
+      this.applyChoices();
+      this.finish();
+      return;
+    }
+
+    this.step++;
+    this.renderStep(this.step);
+  },
+
+  applyChoices() {
+    const state = GL_STATE.getState();
+    state.team.name = this.data.name;
+    state.team.country = this.data.country;
+    state.team.countryFlag = this.data.countryFlag;
+    state.team.colors.primary = this.data.primaryColor;
+    state.team.logo = this.data.logo;
+    state.team.engineSupplier = this.data.engineSupplier;
+    state.team.reputation = 100;
+    state.team.fans = 250;
+    state.meta.created = Date.now();
+
+    // Default Pilots (2 random rookies so the engine doesn't break)
+    state.pilots = GL_DATA.PILOT_POOL.slice(0, 2).map(p => {
+      return { ...GL_STATE.deepClone(p), morale: 80, training: null, contractWeeks: 20, number: Math.floor(Math.random()*89)+11, lastTrainedTimestamp: null };
+    });
+
+    // Sponsor
+    state.sponsors = []; // Start with 0 sponsors
+
+    // Engine Cost
+    const engData = GL_DATA.ENGINE_SUPPLIERS.find(e => e.id === this.data.engineSupplier);
+    const engCost = engData ? engData.cost : 10000;
+
+    // Starting budget
+    let budget = 150000 - engCost; 
+
+    // HQ - Initial levels (all Lv1)
+    state.hq = { admin:1, wind_tunnel:1, rnd:1, factory:1, academy:1 };
+    state.construction = { active: false, buildingId: null, startTime: null, durationMs: null, targetLevel: null };
+
+    // Staff – start with no staff to make them hire one? Let's give them a basic engineer.
+    state.staff = [GL_STATE.deepClone(GL_DATA.STAFF_POOL.find(s=>s.id==='s7') || GL_DATA.STAFF_POOL[0])]; // pit crew head or engineer
+
+    // Calendar
+    const cal = GL_DATA.generateCalendar(8);
+    state.season.calendar = cal;
+    state.season.totalRaces = cal.length;
+    state.season.phase = 'season';
+
+    state.finances.credits = budget;
+    state.finances.tokens = 20;
+
+    // Standings
+    state.standings = GL_ENGINE.buildInitialStandings(8);
+
+    GL_STATE.saveState();
+  },
+
+  finish() {
+    GL_STATE.addLog(`Welcome to Garage Legends! Your journey begins now.`, 'good');
+    GL_STATE.saveState();
+
+    const ob = document.getElementById('onboarding-screen');
+    ob.style.transition = 'opacity 0.5s ease';
+    ob.style.opacity = '0';
+    setTimeout(() => {
+      ob.style.display = 'none';
+      document.getElementById('app').style.display = 'grid';
+      if (typeof GL_DASHBOARD !== 'undefined') GL_DASHBOARD.init();
+      if (typeof GL_APP !== 'undefined') {
+        GL_APP.buildTopbar();
+        GL_APP.buildSidebar();
+        GL_APP.navigateTo('dashboard');
+      }
+      GL_UI.toast(`${__('ob_welcome_toast')} ${GL_STATE.getState().team.name}! 🏁`, 'success', 4000);
+    }, 500);
+  }
+};
+
+window.GL_OB = OB;

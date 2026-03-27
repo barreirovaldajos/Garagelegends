@@ -777,6 +777,43 @@ const I18N_DATA = {
     ob_pilots_required: 'Por favor selecciona 2 pilotos',
     ob_welcome_toast: '¡Bienvenido a Garage Legends,',
 
+    // New Onboarding Phases (Rediseño)
+    ob_phase0_title: 'Bienvenido a Motor Empire',
+    ob_phase0_subtitle: 'Eres el CEO de una nueva escudería de monoplazas.',
+    ob_phase0_tagline: 'De la División 8 al Campeonato Mundial',
+    ob_phase0_btn: 'Comienza tu Viaje',
+
+    ob_phase1_elena: 'Bienvenido, CEO. Soy Elena, tu Directora de Operaciones. Vamos a construir tu legado juntos. Primero, establezcamos la identidad de tu equipo. Elige con cuidado — estos colores te definirán globalmente.',
+    ob_phase1_reward_toast: '¡Base Fundada! 🏢',
+
+    ob_phase2_elena: 'Cada campeonato se construye sobre tecnología. Necesitas elegir tu proveedor de motor. Cada uno tiene una ventaja única — llamada "DNA". Esto moldeará la ventaja competitiva de tu equipo para toda la temporada.',
+    ob_phase2_motor_warning: '⚠️ Advertencia: Presupuesto bajo. El marketing será difícil.',
+    ob_phase2_motor_good: '✅ Buen equilibrio para principiantes',
+    ob_phase2_motor_explained: 'Este cambio afecta tu presupuesto semanal. Elige estratégicamente.',
+    ob_phase2_reward_toast: '¡Corazón Mecánico Seleccionado! ⚙️',
+
+    ob_phase3_elena: 'Tu equipo comienza con un piloto veterano. Sólido, pero envejecido. Encontremos talento fresco. Te guiaré a través del proceso de Scout — El primer scout es siempre gratuito. Descubrirás una Joven Promesa con potencial excepcional.',
+    ob_phase3_btn_scout: 'Buscar Talento',
+    ob_phase3_reward_toast: '¡Talento Joven Descubierto! ⭐',
+
+    ob_phase4_elena: 'Tu Túnel de Viento es la base del desarrollo aerodinámico. Todo equipo de carreras necesita esto mejorado. Vamos a iniciar tu primer proyecto de construcción.',
+    ob_phase4_note: 'Esta construcción CONTINUARÁ aunque cierres el juego',
+    ob_phase4_choice1: 'Esperar 30 minutos (tiempo real)',
+    ob_phase4_choice2: 'Acelerar con 5 Fichas',
+    ob_phase4_elena_tips: 'Elige: espera en tiempo real, o gasta Fichas premium para acelerar. Ambas son estrategias válidas. Los nuevos jugadores a menudo usan Fichas para la primera mejora para sentir progreso.',
+    ob_phase4_reward_toast: '¡Primera Construcción Iniciada! 🔨',
+
+    ob_phase5_elena: 'Los patrocinadores están observando. Quieren prueba de competencia. Vamos a correr una **Carrera de Prueba** contra bots ficticios en el circuito **Muro de Boxes** (3 vueltas). No es oficial — es una exhibición.',
+    ob_phase5_btn_race: 'Iniciar Carrera de Prueba',
+    ob_phase5_result_elena: '¡Excelente debut! Los patrocinadores lo notaron. Bienvenido a Motor Empire, CEO.',
+    ob_phase5_reward_toast: '¡Primer Patrocinador Desbloqueado! 🤝',
+
+    ob_phase6_elena: 'El verdadero viaje comienza ahora. Gestiona tus recursos sabiamente. Gana carreras. Construye una dinastía. Bienvenido a Motor Empire.',
+    ob_phase6_mission1: 'Mejora tu Academia al Nivel 2',
+    ob_phase6_mission2: 'Scout de un segundo piloto',
+    ob_phase6_mission3: 'Revisa tu reporte financiero',
+    ob_phase6_reward_toast: '¡Librado al Juego Principal! 🎮',
+
     // Economy / log messages
     log_week_complete: 'Semana completada. Balance:',
     log_facility_complete: 'mejora completa! Ahora Nivel',
