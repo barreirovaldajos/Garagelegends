@@ -69,7 +69,7 @@ const APP = {
       // Check active HQ construction
       if (GL_ENGINE.updateConstructionQueue()) {
          if (APP.currentScreen === 'garage' && window.GL_SCREENS) window.GL_SCREENS.renderGarage();
-         if (window.GL_DASHBOARD) GL_DASHBOARD.updateTopbar(S.getState());
+        if (window.GL_DASHBOARD) GL_DASHBOARD.updateTopbar(GL_STATE.getState());
       }
       
       const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));

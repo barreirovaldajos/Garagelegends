@@ -152,12 +152,36 @@ const CIRCUITS = [
 
 // ---- CALENDAR per season (8 rounds for Div 8) ----
 function generateCalendar(division) {
+  if (typeof window !== 'undefined' && typeof window.RACE_STATUS === 'undefined') {
+    // Cargar enums si no están presentes
+    try { window.RACE_STATUS = require('./game_constants.js').RACE_STATUS; } catch(e) {}
+  }
+  const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
   const count = Math.min(8 + (8 - division), 12);
   const shuffled = [...CIRCUITS].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, count).map((c, i) => ({
+    // Forecast confidence mejora en divisiones altas (mejor data/weather ops)
+    // Div 8: ~58-70%, Div 1: ~72-84%
+    ...(() => {
+      const baseConfidence = 58 + ((8 - division) * 2);
+      const confidence = Math.max(50, Math.min(92, baseConfidence + Math.floor(Math.random() * 13)));
+      const startWetProb = Math.max(5, Math.min(95, 100 - c.weather + (Math.floor(Math.random() * 21) - 10)));
+      const midWetProb = Math.max(5, Math.min(95, startWetProb + (Math.floor(Math.random() * 25) - 12)));
+      const endWetProb = Math.max(5, Math.min(95, midWetProb + (Math.floor(Math.random() * 25) - 12)));
+      return {
+        forecast: {
+          confidence,
+          windows: [
+            { label: 'start', wetProb: startWetProb },
+            { label: 'mid', wetProb: midWetProb },
+            { label: 'end', wetProb: endWetProb }
+          ]
+        }
+      };
+    })(),
     round: i + 1,
     circuit: c,
-    status: i === 0 ? 'next' : 'upcoming',
+    status: i === 0 ? RACE_STATUS_ENUM.NEXT : RACE_STATUS_ENUM.UPCOMING,
     result: null,
     weather: Math.random() * 100 < (100 - c.weather) ? 'wet' : 'dry',
   }));

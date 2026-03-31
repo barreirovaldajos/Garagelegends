@@ -17,6 +17,19 @@
   <link rel="stylesheet" href="css/design-system.css">
   <link rel="stylesheet" href="css/onboarding.css">
   <link rel="stylesheet" href="css/dashboard.css">
+  <script>
+    window.addEventListener('error', function (event) {
+      var existing = document.getElementById('boot-error-overlay');
+      if (existing) return;
+      var overlay = document.createElement('div');
+      overlay.id = 'boot-error-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(10,11,15,0.96);color:#f5f7fa;padding:24px;font-family:monospace;overflow:auto';
+      overlay.innerHTML = '<h2 style="margin:0 0 12px;color:#ff6b6b">Frontend boot error</h2>' +
+        '<div style="margin-bottom:8px;color:#cbd5e1">' + String(event.message || 'Unknown error') + '</div>' +
+        '<div style="color:#94a3b8">' + String(event.filename || '') + (event.lineno ? ':' + event.lineno : '') + (event.colno ? ':' + event.colno : '') + '</div>';
+      document.body.appendChild(overlay);
+    });
+  </script>
 </head>
 <body>
 
@@ -84,8 +97,12 @@
 
 <!-- ===== SCRIPTS (load order matters) ===== -->
 <script src="js/i18n.js"></script>
+<script src="js/game_constants.js"></script>
 <script src="js/state.js"></script>
 <script src="js/data.js"></script>
+<script src="js/divisions.js"></script>
+<script src="js/economy.js"></script>
+<script src="js/academy.js"></script>
 <script src="js/engine.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/onboarding.js"></script>

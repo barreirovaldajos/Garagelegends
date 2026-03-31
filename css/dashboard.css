@@ -227,6 +227,13 @@
 .rec-card-text { font-size: 0.82rem; color: var(--t-secondary); line-height: 1.4; }
 .rec-card-text strong { color: var(--t-primary); display: block; margin-bottom: 2px; }
 
+/* Advisor panel sections */
+.adv-section { padding: 8px 0; border-bottom: 1px solid var(--c-border); }
+.adv-section:last-child { border-bottom: none; }
+.adv-section-hd { font-family: var(--font-label); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; color: var(--c-accent); text-transform: uppercase; margin-bottom: 6px; }
+.adv-row { font-size: 0.72rem; color: var(--t-secondary); margin-bottom: 4px; line-height: 1.5; }
+.adv-row--flex { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
 /* alert items */
 .alert-item { display: flex; align-items: flex-start; gap: var(--s-3); padding: var(--s-3) var(--s-4); border-radius: var(--r-md); border-left: 3px solid; background: var(--c-surface-2); margin-bottom: var(--s-2); }
 .alert-item:last-child { margin-bottom: 0; }

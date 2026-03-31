@@ -1,4 +1,6 @@
-// ===== ONBOARDING.JS – 6-Phase Guided Wizard with NPC Elena =====
+// ===== DEPRECATED: ONBOARDING-OLD.JS =====
+// Este archivo es solo referencia histórica del onboarding anterior.
+// No está en uso. No mantener ni actualizar. No usar Motor Empire.
 'use strict';
 
 const OB = {

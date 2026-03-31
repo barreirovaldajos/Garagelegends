@@ -92,12 +92,12 @@ function statBar(label, value, max = 99, color = '') {
 // ---- Pilot Card HTML ----
 function pilotCardHTML(pilot, selected = false) {
   const hue = pilot.attrs.pace > 70 ? '#e8292a' : pilot.attrs.consistency > 75 ? '#4a9eff' : '#2ecc7a';
-  return `
-    <div class="pilot-card ${selected ? 'selected' : ''}" data-id="${pilot.id}">
-      <div class="pilot-card-header" style="background:linear-gradient(135deg,${hue}22,var(--c-surface-2))">
-        <div class="pilot-avatar" style="background:${hue}33;width:60px;height:60px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:2rem">${pilot.emoji||'🧑'}</div>
-        <div class="pilot-number">${Math.floor(Math.random()*89)+11}</div>
-      </div>
+    return `
+      <div class="pilot-card ${selected ? 'selected' : ''}" data-id="${pilot.id}">
+        <div class="pilot-card-header" style="background:linear-gradient(135deg,${hue}22,var(--c-surface-2))">
+          <div class="pilot-avatar" style="background:${hue}33;width:60px;height:60px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:2rem">${pilot.emoji||'🧑'}</div>
+          <div class="pilot-number">${pilot.number || '--'}</div>
+        </div>
       <div class="pilot-card-body">
         <div class="pilot-name">${pilot.name}</div>
         <div class="pilot-nationality">${pilot.nat} · Age ${pilot.age}</div>

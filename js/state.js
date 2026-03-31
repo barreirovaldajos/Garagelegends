@@ -4,6 +4,13 @@
 const STATE_KEY = 'garage_legends_v1';
 
 const DEFAULT_STATE = {
+  // MMO/social hooks
+  faction: {
+    engineSupplier: '',
+    joinedDate: null,
+    helpRequests: { sent: [], received: [] },
+    contributedEvents: []
+  },
   meta: { version: 1, created: null, saveTime: null },
   team: {
     name: '', country: '', countryFlag: '',
@@ -25,11 +32,16 @@ const DEFAULT_STATE = {
     raceIndex: 0,
     totalRaces: 8,
     division: 8,
-    phase: 'season' // onboarding | season | offseason
+    phase: 'season', // onboarding | season | offseason
+    lastSummary: null,
+    lastSummaryPending: false
   },
+  seasonHistory: [], // [{year, division, finishPosition, points, wins, result, bonusCredits, ts}]
   standings: [],    // [{id, name, color, points, wins, position, bestResult}]
   pilots: [],       // see data.js for shape
   staff: [],        // see data.js for shape
+  academyQueue: [], // [{ pilotId, trainingType, startTime, duration, targetAttr }]
+  scoutingPool: [], // [{ id, name, attrs, ... }]
   car: {
     name: 'GL-001',
     components: {
@@ -61,9 +73,48 @@ const DEFAULT_STATE = {
   facilities: [],   // Legacy, kept for fallback
   sponsors: [],     // see data.js for shape
   raceResults: [],  // [{round, circuit, position, points, events[]}]
+  advisor: {
+    mode: 'balanced', // conservative | balanced | aggressive
+    recent: [], // [{ ts, layout, weather, position, points, improvement, strategy }]
+    layoutWeatherStats: {}, // key: layout_weather -> aggregates
+    practice: { sessions: 0, lastTs: 0 },
+    telemetry: {
+      byMode: {
+        conservative: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 },
+        balanced: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 },
+        aggressive: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 }
+      },
+      last: { mode: 'balanced', source: 'manual', ts: 0 },
+      suggestion: {
+        cooldownWeeks: 2,
+        lastAppliedWeekIndex: 0,
+        lastAppliedMode: 'balanced',
+        stats: {
+          shown: 0,
+          applied: 0,
+          ignored: 0,
+          history: [],
+          byMode: {
+            conservative: { shown: 0, applied: 0, ignored: 0 },
+            balanced: { shown: 0, applied: 0, ignored: 0 },
+            aggressive: { shown: 0, applied: 0, ignored: 0 }
+          },
+          pending: false,
+          pendingMode: '',
+          pendingWeekIndex: 0,
+          pendingReason: ''
+        }
+      }
+    }
+  },
   randomEvents: [], // pending events
   log: [],          // activity log [{text, type, week}]
   achievements: [], // unlocked achievement ids
+  campaign: {
+    phase: 'phase1',
+    activeObjectiveId: 'phase1_survive_prove',
+    history: []
+  },
   objectives: [],   // {id, text, target, current, reward}
   settings: {
     mode: 'assisted', // assisted | expert
@@ -82,12 +133,162 @@ function loadState() {
     const raw = localStorage.getItem(STATE_KEY);
     if (raw) {
       _state = JSON.parse(raw);
+      // Migración engineSupplier a id minúsculas
+      if (_state && _state.team && _state.team.engineSupplier) {
+        _state.team.engineSupplier = (_state.team.engineSupplier + '').toLowerCase();
+      }
       
       // Migrations / Fallbacks
       if (typeof _state.team.engineSupplier === 'undefined') _state.team.engineSupplier = '';
+      if (!_state.finances) _state.finances = { credits: 0, tokens: 20, weeklyIncome: 0, weeklyExpenses: 0, history: [] };
+      if (typeof _state.finances.deficitStreak !== 'number') _state.finances.deficitStreak = 0;
+      if (typeof _state.finances.criticalDeficit !== 'boolean') _state.finances.criticalDeficit = false;
+      if (typeof _state.finances.lastNet !== 'number') _state.finances.lastNet = 0;
+      if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'season', lastSummary: null, lastSummaryPending: false };
+      if (typeof _state.season.lastSummaryPending !== 'boolean') _state.season.lastSummaryPending = false;
+      if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
       if (!_state.hq) _state.hq = { wind_tunnel: 1, rnd: 1, factory: 1, academy: 1, admin: 1 };
       if (!_state.construction) _state.construction = { active: false, buildingId: null, startTime: 0, durationMs: 0, targetLevel: 0 };
-      
+      if (!Array.isArray(_state.seasonHistory)) _state.seasonHistory = [];
+      if (!_state.campaign) _state.campaign = { phase: 'phase1', activeObjectiveId: 'phase1_survive_prove', history: [] };
+      if (!Array.isArray(_state.campaign.history)) _state.campaign.history = [];
+      if (typeof _state.campaign.phase !== 'string') _state.campaign.phase = 'phase1';
+      if (typeof _state.campaign.activeObjectiveId !== 'string' || !_state.campaign.activeObjectiveId) {
+        _state.campaign.activeObjectiveId = 'phase1_survive_prove';
+      }
+      if (!_state.advisor) {
+        _state.advisor = {
+          mode: 'balanced',
+          recent: [],
+          layoutWeatherStats: {},
+          practice: { sessions: 0, lastTs: 0 },
+          telemetry: {
+            byMode: {
+              conservative: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 },
+              balanced: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 },
+              aggressive: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 }
+            },
+            last: { mode: 'balanced', source: 'manual', ts: 0 },
+            suggestion: {
+              cooldownWeeks: 2,
+              lastAppliedWeekIndex: 0,
+              lastAppliedMode: 'balanced',
+              stats: {
+                shown: 0,
+                applied: 0,
+                ignored: 0,
+                history: [],
+                byMode: {
+                  conservative: { shown: 0, applied: 0, ignored: 0 },
+                  balanced: { shown: 0, applied: 0, ignored: 0 },
+                  aggressive: { shown: 0, applied: 0, ignored: 0 }
+                },
+                pending: false,
+                pendingMode: '',
+                pendingWeekIndex: 0,
+                pendingReason: ''
+              }
+            }
+          }
+        };
+      }
+      if (!_state.advisor.mode) _state.advisor.mode = 'balanced';
+      if (!_state.advisor.telemetry) {
+        _state.advisor.telemetry = {
+          byMode: {
+            conservative: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 },
+            balanced: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 },
+            aggressive: { races: 0, recommended: 0, safe: 0, manual: 0, wins: 0, podiums: 0, dnfs: 0, totalPoints: 0, totalPerf: 0 }
+          },
+          last: { mode: _state.advisor.mode || 'balanced', source: 'manual', ts: 0 },
+          suggestion: {
+            cooldownWeeks: 2,
+            lastAppliedWeekIndex: 0,
+            lastAppliedMode: _state.advisor.mode || 'balanced',
+            stats: {
+              shown: 0,
+              applied: 0,
+              ignored: 0,
+              history: [],
+              byMode: {
+                conservative: { shown: 0, applied: 0, ignored: 0 },
+                balanced: { shown: 0, applied: 0, ignored: 0 },
+                aggressive: { shown: 0, applied: 0, ignored: 0 }
+              },
+              pending: false,
+              pendingMode: '',
+              pendingWeekIndex: 0,
+              pendingReason: ''
+            }
+          }
+        };
+      }
+      if (!_state.advisor.telemetry.suggestion) {
+        _state.advisor.telemetry.suggestion = {
+          cooldownWeeks: 2,
+          lastAppliedWeekIndex: 0,
+          lastAppliedMode: _state.advisor.mode || 'balanced',
+          stats: {
+            shown: 0,
+            applied: 0,
+            ignored: 0,
+            history: [],
+            byMode: {
+              conservative: { shown: 0, applied: 0, ignored: 0 },
+              balanced: { shown: 0, applied: 0, ignored: 0 },
+              aggressive: { shown: 0, applied: 0, ignored: 0 }
+            },
+            pending: false,
+            pendingMode: '',
+            pendingWeekIndex: 0,
+            pendingReason: ''
+          }
+        };
+      }
+      if (!_state.advisor.telemetry.suggestion.stats) {
+        _state.advisor.telemetry.suggestion.stats = {
+          shown: 0,
+          applied: 0,
+          ignored: 0,
+          history: [],
+          byMode: {
+            conservative: { shown: 0, applied: 0, ignored: 0 },
+            balanced: { shown: 0, applied: 0, ignored: 0 },
+            aggressive: { shown: 0, applied: 0, ignored: 0 }
+          },
+          pending: false,
+          pendingMode: '',
+          pendingWeekIndex: 0,
+          pendingReason: ''
+        };
+      }
+      if (!_state.advisor.telemetry.suggestion.stats.byMode) {
+        _state.advisor.telemetry.suggestion.stats.byMode = {
+          conservative: { shown: 0, applied: 0, ignored: 0 },
+          balanced: { shown: 0, applied: 0, ignored: 0 },
+          aggressive: { shown: 0, applied: 0, ignored: 0 }
+        };
+      }
+      if (!Array.isArray(_state.advisor.telemetry.suggestion.stats.history)) {
+        _state.advisor.telemetry.suggestion.stats.history = [];
+      }
+      if (typeof _state.advisor.telemetry.suggestion.stats.pendingReason !== 'string') {
+        _state.advisor.telemetry.suggestion.stats.pendingReason = '';
+      }
+
+      // --- Migración de estados legacy de carrera a enums centralizados ---
+      if (_state.season && Array.isArray(_state.season.calendar)) {
+        if (typeof window !== 'undefined' && typeof window.RACE_STATUS === 'undefined') {
+          try { window.RACE_STATUS = require('./game_constants.js').RACE_STATUS; } catch(e) {}
+        }
+        const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
+        _state.season.calendar = _state.season.calendar.map(race => ({
+          ...race,
+          status: (race.status === 'done' || race.status === 'finished' || race.status === 'completed') ? RACE_STATUS_ENUM.COMPLETED :
+                  (race.status === 'next') ? RACE_STATUS_ENUM.NEXT :
+                  RACE_STATUS_ENUM.UPCOMING
+        }));
+      }
       return true;
     }
   } catch(e) { console.warn('State load error', e); }
@@ -180,11 +381,28 @@ function popRandomEvent() {
   return _state.randomEvents.shift() || null;
 }
 
+// Hooks para módulos externos
 window.GL_STATE = {
   loadState, saveState, getState, setState, resetState, hasOnboarded,
   getCredits, getTokens, getDivision, getWeek, getYear,
   getPilots, getStaff, getFacilities, getSponsors, getStandings,
   getMyStanding, getCar, getHQ, getConstruction, getRaceResults,
   addCredits, spendCredits, addTokens, spendTokens,
-  addLog, addRandomEvent, popRandomEvent, deepClone
+  addLog, addRandomEvent, popRandomEvent, deepClone,
+  // Academy/Scouting
+  getAcademyQueue: () => _state.academyQueue,
+  setAcademyQueue: (q) => { _state.academyQueue = q; saveState(); },
+  getScoutingPool: () => _state.scoutingPool,
+  setScoutingPool: (pool) => { _state.scoutingPool = pool; saveState(); },
+  // MMO/social
+  getFaction: () => _state.faction,
+  setFaction: (f) => { _state.faction = f; saveState(); },
+  getHelpRequests: () => _state.faction.helpRequests,
+  addHelpRequest: (req) => { _state.faction.helpRequests.sent.push(req); saveState(); },
+  receiveHelpRequest: (req) => { _state.faction.helpRequests.received.push(req); saveState(); },
+  getContributedEvents: () => _state.faction.contributedEvents,
+  addContributedEvent: (ev) => { _state.faction.contributedEvents.push(ev); saveState(); },
+  // Research/I+D
+  getResearch: () => _state.car.rnd,
+  setResearch: (rnd) => { _state.car.rnd = rnd; saveState(); }
 };
