@@ -573,6 +573,49 @@ function simulateRace(options = {}) {
   };
 }
 
+function processWeeklyAgreementLifecycle(state) {
+  const changes = {
+    sponsorsExpired: 0,
+    contractsExpired: 0
+  };
+
+  const tickEntry = (entry, defaultWeeks) => {
+    if (!entry || entry.expired) return;
+
+    const fallbackWeeks = Number(entry.duration) || defaultWeeks;
+    if (typeof entry.weeksLeft !== 'number' || Number.isNaN(entry.weeksLeft)) {
+      entry.weeksLeft = fallbackWeeks;
+    }
+
+    entry.weeksLeft = Math.max(0, Math.floor(entry.weeksLeft - 1));
+    if (entry.weeksLeft <= 0) {
+      entry.expired = true;
+    }
+  };
+
+  const sponsors = Array.isArray(state.sponsors) ? state.sponsors : [];
+  sponsors.forEach((sp) => {
+    const wasExpired = !!sp.expired;
+    tickEntry(sp, 8);
+    if (!wasExpired && sp.expired) {
+      changes.sponsorsExpired += 1;
+      S.addLog(`📉 Sponsor deal expired: ${sp.name || 'Unknown sponsor'}.`, 'warning');
+    }
+  });
+
+  const contracts = Array.isArray(state.contracts) ? state.contracts : [];
+  contracts.forEach((ct) => {
+    const wasExpired = !!ct.expired;
+    tickEntry(ct, 12);
+    if (!wasExpired && ct.expired) {
+      changes.contractsExpired += 1;
+      S.addLog(`📄 Contract expired: ${ct.name || ct.id || 'Unnamed contract'}.`, 'warning');
+    }
+  });
+
+  return changes;
+}
+
 // ---- weekly economy tick ----
 function weeklyTick() {
   // Generar pool de scouting semanal automáticamente
@@ -606,6 +649,11 @@ function weeklyTick() {
       }
     }
   });
+
+  const agreementChanges = processWeeklyAgreementLifecycle(state);
+  if (agreementChanges.sponsorsExpired > 0 || agreementChanges.contractsExpired > 0) {
+    S.addLog(`Agreements update: ${agreementChanges.sponsorsExpired} sponsor(s) expired, ${agreementChanges.contractsExpired} contract(s) expired.`, 'info');
+  }
 
   // Procesar progresión de pilotos y entrenamientos
   AcademyApi.processActiveTraining(state);

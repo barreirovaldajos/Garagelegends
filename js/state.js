@@ -72,6 +72,7 @@ const DEFAULT_STATE = {
   },
   facilities: [],   // Legacy, kept for fallback
   sponsors: [],     // see data.js for shape
+  contracts: [],    // optional agreements with weekly cost / duration
   raceResults: [],  // [{round, circuit, position, points, events[]}]
   advisor: {
     mode: 'balanced', // conservative | balanced | aggressive
@@ -163,6 +164,8 @@ function loadState() {
       if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
       if (!_state.hq) _state.hq = { wind_tunnel: 1, rnd: 1, factory: 1, academy: 1, admin: 1 };
       if (!_state.construction) _state.construction = { active: false, buildingId: null, startTime: 0, durationMs: 0, targetLevel: 0 };
+      if (!Array.isArray(_state.sponsors)) _state.sponsors = [];
+      if (!Array.isArray(_state.contracts)) _state.contracts = [];
       if (!Array.isArray(_state.seasonHistory)) _state.seasonHistory = [];
       if (!_state.campaign) _state.campaign = { phase: 'phase1', activeObjectiveId: 'phase1_survive_prove', history: [] };
       if (!Array.isArray(_state.campaign.history)) _state.campaign.history = [];
