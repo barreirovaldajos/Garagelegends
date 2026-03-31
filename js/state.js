@@ -137,6 +137,20 @@ function loadState() {
       if (_state && _state.team && _state.team.engineSupplier) {
         _state.team.engineSupplier = (_state.team.engineSupplier + '').toLowerCase();
       }
+
+      // Defensive migrations for legacy / partially corrupted saves.
+      if (!_state.team) _state.team = deepClone(DEFAULT_STATE.team);
+      if (!_state.team.colors) _state.team.colors = deepClone(DEFAULT_STATE.team.colors);
+      if (typeof _state.team.colors.primary !== 'string' || !_state.team.colors.primary) {
+        _state.team.colors.primary = DEFAULT_STATE.team.colors.primary;
+      }
+      if (typeof _state.team.colors.secondary !== 'string' || !_state.team.colors.secondary) {
+        _state.team.colors.secondary = DEFAULT_STATE.team.colors.secondary;
+      }
+      if (typeof _state.team.logo !== 'string' || !_state.team.logo) {
+        _state.team.logo = DEFAULT_STATE.team.logo;
+      }
+      if (!_state.meta) _state.meta = deepClone(DEFAULT_STATE.meta);
       
       // Migrations / Fallbacks
       if (typeof _state.team.engineSupplier === 'undefined') _state.team.engineSupplier = '';

@@ -4,6 +4,40 @@
 const APP = {
   currentScreen: 'dashboard',
 
+  renderBootRecovery(error) {
+    const host = document.getElementById('onboarding-screen') || document.body;
+    const message = error && error.message ? error.message : 'Unknown boot error';
+    host.style.display = 'flex';
+    host.innerHTML = `
+      <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#090b12,#121826);padding:24px;box-sizing:border-box">
+        <div style="max-width:640px;width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:22px;color:#f5f7fa;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
+          <h2 style="margin:0 0 10px;color:#ff8080">No pudimos iniciar el juego</h2>
+          <p style="margin:0 0 12px;color:#cbd5e1">Detectamos un problema de arranque en este navegador. Puedes recuperar con un reinicio limpio local.</p>
+          <div style="font-family:Consolas,monospace;font-size:12px;line-height:1.5;background:rgba(0,0,0,0.28);padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);word-break:break-word">${message}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+            <button id="boot-recover-btn" style="background:#e8292a;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:700">Limpiar datos locales y reintentar</button>
+            <button id="boot-reload-btn" style="background:#1f2937;color:#fff;border:1px solid #334155;border-radius:10px;padding:10px 14px;cursor:pointer">Solo recargar</button>
+          </div>
+        </div>
+      </div>`;
+
+    const recoverBtn = document.getElementById('boot-recover-btn');
+    if (recoverBtn) {
+      recoverBtn.onclick = () => {
+        try {
+          localStorage.removeItem('garage_legends_v1');
+          localStorage.removeItem('leagues');
+        } catch (_) {}
+        window.location.reload();
+      };
+    }
+
+    const reloadBtn = document.getElementById('boot-reload-btn');
+    if (reloadBtn) {
+      reloadBtn.onclick = () => window.location.reload();
+    }
+  },
+
   NAV_ITEMS: [
     { id:'dashboard', labelKey:'nav_dashboard', icon:'🏠', screen:'dashboard' },
     { id:'garage',    labelKey:'nav_garage',    icon:'🏗️', screen:'garage' },
@@ -308,5 +342,10 @@ window.GL_APP = APP;
 
 // ===== BOOT =====
 document.addEventListener('DOMContentLoaded', () => {
-  APP.init();
+  try {
+    APP.init();
+  } catch (e) {
+    console.error('App boot failed:', e);
+    APP.renderBootRecovery(e);
+  }
 });
