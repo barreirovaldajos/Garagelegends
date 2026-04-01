@@ -81,6 +81,14 @@ const DASHBOARD = {
       return;
     }
 
+    const state = GL_STATE.getState();
+    const minAllowedMs = Number(state?.meta?.created || 0);
+    if (Number.isFinite(minAllowedMs) && minAllowedMs > 0 && targetMs < minAllowedMs) {
+      const minDate = new Date(minAllowedMs);
+      GL_UI.toast(`No puedes viajar antes del inicio de partida (${minDate.toLocaleString('es-ES')}).`, 'warning');
+      return;
+    }
+
     const currentMs = (typeof window.GL_ENGINE.getNowMs === 'function') ? window.GL_ENGINE.getNowMs() : Date.now();
     const deltaMs = targetMs - currentMs;
     const result = window.GL_ENGINE.shiftTimeToMs(targetMs);
@@ -211,8 +219,13 @@ const DASHBOARD = {
   renderSkeleton() {
     const el = document.getElementById('screen-dashboard');
     if (!el) return;
+    const state = GL_STATE.getState();
     const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
     const targetDefault = this.formatDateTimeLocal(now);
+    const minAllowedMs = Number(state?.meta?.created || 0);
+    const minAllowedValue = (Number.isFinite(minAllowedMs) && minAllowedMs > 0)
+      ? this.formatDateTimeLocal(new Date(minAllowedMs))
+      : '';
     // Only render skeleton if it's empty to avoid completely destroying DOM on every tick (prevents scroll jumping)
     // Actually, simple rendering is fine for now, but let's just do it
     el.innerHTML = `
@@ -224,7 +237,7 @@ const DASHBOARD = {
         </div>
         <div class="screen-actions">
           <button class="btn btn-primary" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
-          <input id="dash-time-target" type="datetime-local" value="${targetDefault}" style="min-width:210px;padding:8px 10px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--t-primary);border-radius:8px;font-size:0.78rem">
+          <input id="dash-time-target" type="datetime-local" value="${targetDefault}" min="${minAllowedValue}" style="min-width:210px;padding:8px 10px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--t-primary);border-radius:8px;font-size:0.78rem">
           <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.applyExactTime()">Ir a fecha/hora</button>
         </div>
       </div>

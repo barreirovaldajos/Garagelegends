@@ -1719,10 +1719,18 @@ function catchUpOffline() {
   const fromMs = state.meta.saveTime;
   const toMs = now;
 
-  const countScheduleCrossings = (startMs, endMs, dayOfWeek, hour) => {
+  const formatAuditDateTime = (ts) => {
+    const d = new Date(ts);
+    return d.toLocaleString('es-ES', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
+  const listScheduleCrossings = (startMs, endMs, dayOfWeek, hour) => {
     const start = new Date(startMs + 1);
     const end = new Date(endMs);
-    if (start > end) return 0;
+    if (start > end) return [];
 
     const cursor = new Date(start);
     cursor.setSeconds(0, 0);
@@ -1731,16 +1739,18 @@ function catchUpOffline() {
     cursor.setHours(hour, 0, 0, 0);
     if (cursor < start) cursor.setDate(cursor.getDate() + 7);
 
-    let count = 0;
+    const timestamps = [];
     while (cursor <= end) {
-      count++;
+      timestamps.push(cursor.getTime());
       cursor.setDate(cursor.getDate() + 7);
     }
-    return count;
+    return timestamps;
   };
 
-  const practiceCrossings = countScheduleCrossings(fromMs, toMs, 3, 18); // Wed 18:00
-  const raceCrossings = countScheduleCrossings(fromMs, toMs, 0, 18); // Sun 18:00
+  const practiceDates = listScheduleCrossings(fromMs, toMs, 3, 18); // Wed 18:00
+  const raceDates = listScheduleCrossings(fromMs, toMs, 0, 18); // Sun 18:00
+  const practiceCrossings = practiceDates.length;
+  const raceCrossings = raceDates.length;
   const weeklyTicksTarget = Math.min(52, Math.floor(offlineMs / (7 * DAY_MS)));
 
   let simulatedRaces = 0;
@@ -1777,6 +1787,10 @@ function catchUpOffline() {
 
   while (simulatedPractices < practiceCrossings) {
     recordPracticeOutcome({ source: 'offline' });
+    const practiceTs = practiceDates[simulatedPractices];
+    if (practiceTs) {
+      logs.push(`🧪 Practice simulated (${formatAuditDateTime(practiceTs)}).`);
+    }
     simulatedPractices += 1;
   }
 
@@ -1784,7 +1798,8 @@ function catchUpOffline() {
     const nextRaceObj = resolveNextRace();
     if (!nextRaceObj) break;
 
-    logs.push(`⏱️ Practice context prepared for Round ${nextRaceObj.round}.`);
+    const raceTs = raceDates[simulatedRaces];
+    logs.push(`⏱️ Practice context prepared for Round ${nextRaceObj.round}${raceTs ? ` (${formatAuditDateTime(raceTs)})` : ''}.`);
 
     const simResult = simulateRace({
       weather: nextRaceObj.weather || 'dry',
@@ -1818,7 +1833,7 @@ function catchUpOffline() {
       });
     }
 
-    logs.push(`🏁 Round ${nextRaceObj.round}: P${simResult.position} (+${simResult.points} pts, +${GL_UI.fmtCR(simResult.prizeMoney || 0)} CR)`);
+    logs.push(`🏁 Round ${nextRaceObj.round}${raceTs ? ` @ ${formatAuditDateTime(raceTs)}` : ''}: P${simResult.position} (+${simResult.points} pts, +${GL_UI.fmtCR(simResult.prizeMoney || 0)} CR)`);
   }
 
   while (weeklyTicksApplied < weeklyTicksTarget) {
@@ -1835,6 +1850,7 @@ function catchUpOffline() {
         content: `
           <p style="color:var(--t-secondary);margin-bottom:16px">${__('offline_catchup_desc') || 'Your team continued to compete in scheduled races:'}</p>
           <div style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:10px">
+            Ventana: <strong>${formatAuditDateTime(fromMs)}</strong> → <strong>${formatAuditDateTime(toMs)}</strong><br>
             Simulated: <strong>${simulatedRaces}</strong> races${simulatedPractices ? ` · <strong>${simulatedPractices}</strong> practices` : ''}${weeklyTicksApplied ? ` · <strong>${weeklyTicksApplied}</strong> weekly ticks` : ''} · Points: <strong>${totalPoints}</strong> · Credits: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
           </div>
           <div style="background:var(--c-surface-2);padding:16px;border-radius:8px;font-family:monospace;font-size:0.85rem;line-height:1.5;color:var(--t-primary)">
