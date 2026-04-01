@@ -541,7 +541,6 @@ function simulateRace(options = {}) {
     }
 
     const lapProfile = getCircuitProfile(circuits, liveWeather);
-    const setupFx = getSetupEffects(circuits, liveWeather, strategy.setup || {});
 
     // Safety car event
     if (!safetyCarActive && Math.random() < 0.06) {
@@ -552,7 +551,12 @@ function simulateRace(options = {}) {
 
       let liveSafetyCarCall = 'neutral';
       const staffDelta = (staffFx.undercutStrength || 0.5) - (staffFx.overcutStrength || 0.5);
-      if (pitStopsDone < maxPitStops) {
+      const hasPendingPlayerPit = positions.some((e) => {
+        if (!e.isPlayer || e.retired) return false;
+        const rt = runtimes[e.id];
+        return !!rt && rt.pitStopsDone < rt.maxPitStops;
+      });
+      if (hasPendingPlayerPit) {
         if (staffDelta > 0.08) liveSafetyCarCall = 'undercut';
         else if (staffDelta < -0.08) liveSafetyCarCall = 'overcut';
       }
