@@ -228,7 +228,7 @@ const SCREENS = {
   fullPilotCard(p, state) {
     const overall = GL_ENGINE.pilotScore(p);
     const bgColor = state.team.colors.primary;
-    const now = new Date();
+    const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
     const lastDate = p.lastTrained ? new Date(p.lastTrained) : new Date(0);
     const canTrain = lastDate.toDateString() !== now.toDateString();
 

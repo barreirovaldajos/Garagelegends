@@ -37,6 +37,20 @@ const { GL_STATE: S, GL_DATA: D } = window;
 const DivisionsApi = window.Divisions || globalThis.Divisions;
 const EconomyApi = window.Economy || globalThis.Economy;
 const AcademyApi = window.Academy || globalThis.Academy;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getTimeOffsetMs() {
+  const state = S.getState();
+  return (state && state.meta && typeof state.meta.timeOffsetMs === 'number') ? state.meta.timeOffsetMs : 0;
+}
+
+function getNowMs() {
+  return Date.now() + getTimeOffsetMs();
+}
+
+function getNowDate() {
+  return new Date(getNowMs());
+}
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -136,7 +150,7 @@ function startResearch(treeId) {
   }
   if (state.finances.credits < cost) return { error: 'Insufficient funds' };
   state.finances.credits -= cost;
-  rnd.active = { treeId, startTime: Date.now(), duration, targetLevel: nextLevel, progress: 0 };
+  rnd.active = { treeId, startTime: getNowMs(), duration, targetLevel: nextLevel, progress: 0 };
   S.saveState();
   return { success: true, treeId, cost, duration, targetLevel: nextLevel };
 }
@@ -145,7 +159,7 @@ function processResearch(state) {
   const rnd = state.car.rnd;
   if (!rnd.active) return null;
   const tree = RESEARCH_TREES[rnd.active.treeId];
-  const elapsed = Date.now() - rnd.active.startTime;
+  const elapsed = getNowMs() - rnd.active.startTime;
   const progress = Math.min(100, (elapsed / rnd.active.duration) * 100);
   rnd.active.progress = progress;
   if (elapsed >= rnd.active.duration) {
@@ -942,7 +956,7 @@ function updateConstructionQueue() {
   const c = state.construction;
   if (!c || !c.active) return false;
   
-  if (Date.now() >= c.startTime + c.durationMs) {
+  if (getNowMs() >= c.startTime + c.durationMs) {
     // Complete construction
     state.hq[c.buildingId] = c.targetLevel;
     
@@ -989,7 +1003,7 @@ function startHqUpgrade(buildingId, cost, durationMs, targetLevel, useToken = fa
   state.construction = {
     active: true,
     buildingId: buildingId,
-    startTime: Date.now(),
+    startTime: getNowMs(),
     durationMs: finalDuration,
     targetLevel: targetLevel
   };
@@ -1099,7 +1113,7 @@ function updateStandings(raceResult) {
 }
 // ---- get next real-world race date ----
 function getNextRaceDate() {
-  const now = new Date();
+  const now = getNowDate();
   const currentDay = now.getDay();
   const currentHours = now.getHours();
 
@@ -1156,7 +1170,7 @@ function refreshForecastForNextRace() {
     };
   }
 
-  const nowMs = Date.now();
+  const nowMs = getNowMs();
   const nextRaceObj = getNextRaceDate();
   const hoursToRace = Math.max(0, (nextRaceObj.date.getTime() - nowMs) / 3600000);
 
@@ -1461,7 +1475,7 @@ function recordStrategyOutcome(race, strategy, result, meta = {}) {
   if (result && result.position && result.position <= 3) bucket.podiums += 1;
   if (result && result.isDNF) bucket.dnfs += 1;
   telemetry.byMode[mode] = bucket;
-  telemetry.last = { mode, source, ts: Date.now() };
+  telemetry.last = { mode, source, ts: getNowMs() };
 
   state.advisor.recent.unshift({
     ts: telemetry.last.ts,
@@ -1493,8 +1507,24 @@ function recordPracticeOutcome(meta = {}) {
   if (!state.advisor) state.advisor = { recent: [], layoutWeatherStats: {}, practice: { sessions: 0, lastTs: 0 } };
   if (!state.advisor.practice) state.advisor.practice = { sessions: 0, lastTs: 0 };
   state.advisor.practice.sessions += 1;
-  state.advisor.practice.lastTs = Date.now();
+  state.advisor.practice.lastTs = getNowMs();
   S.saveState();
+}
+
+function shiftTimeByDays(days) {
+  const state = S.getState();
+  if (!state) return 0;
+  if (!state.meta) state.meta = { version: 1, created: null, saveTime: null, timeOffsetMs: 0 };
+
+  const safeDays = Number.isFinite(days) ? days : 0;
+  const deltaMs = Math.round(safeDays * DAY_MS);
+  state.meta.timeOffsetMs = (state.meta.timeOffsetMs || 0) + deltaMs;
+  S.saveState();
+
+  if (safeDays > 0) {
+    return catchUpOffline();
+  }
+  return 0;
 }
 
 // ---- offline progression catchup ----
@@ -1502,7 +1532,7 @@ function catchUpOffline() {
   const state = S.getState();
   if (!state || !state.meta || !state.meta.saveTime) return 0;
 
-  const now = Date.now();
+  const now = getNowMs();
   const offlineMs = now - state.meta.saveTime;
   if (offlineMs < (60 * 60 * 1000)) {
     state.meta.saveTime = now;
@@ -1627,7 +1657,7 @@ function trainPilot(pid) {
   const p = state.pilots.find(x => x.id === pid);
   if (!p) return;
   
-  const now = new Date();
+  const now = getNowDate();
   const lastDate = p.lastTrained ? new Date(p.lastTrained) : new Date(0);
   if (lastDate.toDateString() === now.toDateString()) {
     GL_UI.toast(window.__('pilots_trained_today') || 'Trained Today', 'warning');
@@ -1661,6 +1691,9 @@ window.GL_ENGINE = {
   getAdvisorTelemetry,
   recordStrategyOutcome,
   recordPracticeOutcome,
+  getNowMs,
+  getNowDate,
+  shiftTimeByDays,
   generateRandomEvent, applyEventChoice,
   buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot
 };

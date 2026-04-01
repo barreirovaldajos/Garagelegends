@@ -11,7 +11,7 @@ const DEFAULT_STATE = {
     helpRequests: { sent: [], received: [] },
     contributedEvents: []
   },
-  meta: { version: 1, created: null, saveTime: null },
+  meta: { version: 1, created: null, saveTime: null, timeOffsetMs: 0 },
   team: {
     name: '', country: '', countryFlag: '',
     colors: { primary: '#e8292a', secondary: '#0a0b0f' },
@@ -152,6 +152,9 @@ function loadState() {
         _state.team.logo = DEFAULT_STATE.team.logo;
       }
       if (!_state.meta) _state.meta = deepClone(DEFAULT_STATE.meta);
+      if (typeof _state.meta.timeOffsetMs !== 'number' || Number.isNaN(_state.meta.timeOffsetMs)) {
+        _state.meta.timeOffsetMs = 0;
+      }
       
       // Migrations / Fallbacks
       if (typeof _state.team.engineSupplier === 'undefined') _state.team.engineSupplier = '';
@@ -316,7 +319,8 @@ function loadState() {
 function saveState() {
   try {
     if (_state) {
-      _state.meta.saveTime = Date.now();
+      const offset = (_state.meta && typeof _state.meta.timeOffsetMs === 'number') ? _state.meta.timeOffsetMs : 0;
+      _state.meta.saveTime = Date.now() + offset;
       localStorage.setItem(STATE_KEY, JSON.stringify(_state));
     }
   } catch(e) { console.warn('State save error', e); }

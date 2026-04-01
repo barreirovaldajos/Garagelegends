@@ -5,6 +5,13 @@
 
 const Academy = {
 
+  getNowMs() {
+    if (typeof window !== 'undefined' && window.GL_ENGINE && typeof window.GL_ENGINE.getNowMs === 'function') {
+      return window.GL_ENGINE.getNowMs();
+    }
+    return Date.now();
+  },
+
   getAcademyCaps(state) {
     const academyLv = (state.hq && state.hq.academy) || 1;
     return {
@@ -27,7 +34,7 @@ const Academy = {
       return false;
     }
     const adjustedDuration = Math.max(5 * 60 * 1000, Math.floor(duration / caps.trainingSpeedMultiplier));
-    state.academyQueue.push({ pilotId, trainingType, startTime: Date.now(), duration: adjustedDuration, targetAttr });
+    state.academyQueue.push({ pilotId, trainingType, startTime: this.getNowMs(), duration: adjustedDuration, targetAttr });
     if (typeof window !== 'undefined' && window.GL_STATE) {
       window.GL_STATE.setAcademyQueue(state.academyQueue);
     }
@@ -36,7 +43,7 @@ const Academy = {
 
   processActiveTraining(state) {
     if (!state.academyQueue) return;
-    const now = Date.now();
+    const now = this.getNowMs();
     let changed = false;
     state.academyQueue = state.academyQueue.filter(item => {
       if (now - item.startTime >= item.duration) {

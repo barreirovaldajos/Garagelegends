@@ -83,7 +83,7 @@ const APP = {
       const elNext = document.getElementById('rt-clock-next');
       if (!elTime || !elNext) return;
 
-      const now = new Date();
+      const now = (GL_ENGINE && typeof GL_ENGINE.getNowDate === 'function') ? GL_ENGINE.getNowDate() : new Date();
       // Format time safely
       const formatTime = (d) => d.toLocaleTimeString(GL_I18N.currentLang === 'es' ? 'es-ES' : 'en-US', {weekday: 'short', hour: '2-digit', minute:'2-digit'});
       elTime.textContent = formatTime(now).toUpperCase();

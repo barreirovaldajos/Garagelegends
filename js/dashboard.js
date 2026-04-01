@@ -38,6 +38,23 @@ const DASHBOARD = {
     }
   },
 
+  timeTravel(days) {
+    if (!window.GL_ENGINE || typeof window.GL_ENGINE.shiftTimeByDays !== 'function') {
+      GL_UI.toast('Time travel is not available in this build.', 'warning');
+      return;
+    }
+
+    const d = Number(days) || 0;
+    const simulated = window.GL_ENGINE.shiftTimeByDays(d);
+    const sign = d > 0 ? '+' : '';
+    GL_UI.toast(`Time travel ${sign}${d}d aplicado.`, 'info');
+    if (simulated > 0) {
+      GL_UI.toast(`Auto-simulado: ${simulated} evento(s).`, 'good');
+    }
+
+    this.refresh();
+  },
+
   renderFallback(state) {
     const el = document.getElementById('screen-dashboard');
     if (!el) return;
@@ -166,6 +183,10 @@ const DASHBOARD = {
         </div>
         <div class="screen-actions">
           <button class="btn btn-primary" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(-1)">-1d</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(1)">+1d</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(-7)">-1w</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(7)">+1w</button>
         </div>
       </div>
       <div class="dashboard-grid stagger">
