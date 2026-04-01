@@ -1,0 +1,20 @@
+Sistema;Que revisar;Impacto real hoy;Estado;Prioridad;Fuente principal
+Equipo;Reputation y Fans;Afectan ingresos (fans) y sufren penalizacion por deficit;ACTIVE;Alta;js/economy.js
+Economia;Ingreso semanal y gasto semanal;Define neto semanal y salud financiera;ACTIVE;Alta;js/economy.js
+Economia;Deficit streak;Si se acumula castiga reputation y fans, y a 3+ es critico;ACTIVE;Alta;js/economy.js
+Auto;Score de componentes;Determina base de rendimiento por tipo de circuito;ACTIVE;Alta;js/engine.js
+I+D;Arboles de research;Mejoran componentes al completar investigacion;ACTIVE;Alta;js/engine.js
+HQ;Admin / RnD / Wind Tunnel / Academy;Desbloqueos y multiplicadores de sponsor/research/training;ACTIVE;Alta;js/engine.js
+Pilotos;Atributos base (pace, racePace, etc.);Impactan carrera sobre todo via score agregado;PARTIAL;Media;js/engine.js
+Pilotos;Entrenamiento diario;Sube 1 atributo al dia (+1 o +2);ACTIVE;Media;js/engine.js
+Pilotos;Morale y Potential;Hoy son mayormente informativos en UI;DESCRIPTIVE/PARTIAL;Alta;js/screens.js
+Staff;technical/setup/pitStrategy;Afecta pit quality, incidentes y ritmo;ACTIVE;Media;js/engine.js
+Staff;scouting/commercial;Presentes en datos con poco impacto de formula hoy;DESCRIPTIVE;Media;js/data.js
+Estrategia Carrera;Tyre / Aggression / Risk / EngineMode;Mueven degradacion, incidentes, sobrepaso y pace;ACTIVE;Alta;js/engine.js
+Estrategia Carrera;PitPlan / PitLap / SafetyCarReaction;Controla ventanas de pit y reaccion tactica;ACTIVE;Alta;js/engine.js
+Estrategia Carrera;Setup (aeroBalance, wetBias);Ajusta multiplicadores por layout y clima;ACTIVE;Alta;js/engine.js
+Sponsors;Income + weeksLeft;Generan ingreso mientras activos y ahora expiran semanalmente;ACTIVE;Alta;js/engine.js
+Sponsors;Demand y DemandBonus;Todavia con cumplimiento parcial (mas dato y UI);PARTIAL;Alta;js/data.js
+Contratos;weeklyCost + weeksLeft;Afectan gasto y ahora tambien expiran semanalmente;ACTIVE;Alta;js/economy.js; js/engine.js
+Temporada;Ascenso/Descenso y objetivos de campana;Define progresion anual y recompensas;ACTIVE;Media;js/engine.js
+Advisor;Memoria por layout/clima;Ajusta recomendaciones y confianza;ACTIVE;Media;js/engine.js

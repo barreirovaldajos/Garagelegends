@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Garage Legends - Playbook de Atributos</title>
+  <style>
+    body { font-family: Calibri, Segoe UI, Arial, sans-serif; margin: 28px; color: #1f2937; line-height: 1.4; }
+    h1 { color: #0f172a; margin-bottom: 4px; }
+    h2 { color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 4px; margin-top: 28px; }
+    h3 { color: #1f2937; margin-top: 16px; }
+    .sub { color: #4b5563; margin-bottom: 18px; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+    .active { background: #dcfce7; color: #166534; }
+    .partial { background: #fef3c7; color: #92400e; }
+    .desc { background: #fee2e2; color: #991b1b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; }
+    .small { font-size: 13px; color: #4b5563; }
+    ul { margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Garage Legends - Playbook Ejecutivo de Atributos</h1>
+  <div class="sub">Version para socios y decisiones de producto. Basado en la logica real de motor, economia, HQ, pilotos, staff y estrategia de carrera.</div>
+
+  <h2>1) Resumen Ejecutivo</h2>
+  <ul>
+    <li>El juego ya tiene una base solida en economia semanal, simulacion de carrera y progresion estacional.</li>
+    <li>Sponsors y contratos ahora vencen semanalmente por logica real (weeksLeft decrece, luego expired=true).</li>
+    <li>La mayor oportunidad de mejora esta en conectar atributos hoy decorativos (morale, potencial, demands de sponsor) a formulas de performance.</li>
+  </ul>
+
+  <h2>2) Mapa de Sistemas</h2>
+  <table>
+    <thead>
+      <tr><th>Sistema</th><th>Que controla</th><th>Estado actual</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Economia</td><td>Ingresos, gastos, neto, deficit streak, impacto en fans/reputation</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>Carrera</td><td>Tyres, riesgo, pit plan, setup, clima, eventos y resultado final</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>HQ + R&D</td><td>Desbloqueos, multiplicadores de sponsor, velocidad de investigacion</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>Pilotos</td><td>Score agregado de attrs y entrenamiento diario</td><td><span class="pill partial">PARTIAL</span></td></tr>
+      <tr><td>Staff</td><td>Pit quality, setup impact, incident risk, overtake bonus</td><td><span class="pill partial">PARTIAL</span></td></tr>
+      <tr><td>Sponsors/Contratos</td><td>Ingreso/costo semanal, duracion y expiracion</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>Atributos decorativos</td><td>Morale, potential, sponsor demand bonus, filosofia</td><td><span class="pill desc">DESCRIPTIVE/PARTIAL</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>3) Como se calcula el dinero cada semana</h2>
+  <h3>Ingreso</h3>
+  <ul>
+    <li>Sponsor income (sponsors activos) x multiplicador de Admin HQ.</li>
+    <li>Fan revenue = floor(fans x 0.12).</li>
+    <li>Division grant segun division.</li>
+    <li>Bonus income (si existe).</li>
+  </ul>
+
+  <h3>Gasto</h3>
+  <ul>
+    <li>Sueldos de pilotos + staff.</li>
+    <li>Costo semanal HQ por nivel de edificios.</li>
+    <li>Costos de contratos activos.</li>
+    <li>Upkeep de construccion si hay obra activa.</li>
+  </ul>
+
+  <h3>Consecuencia de deficit</h3>
+  <ul>
+    <li>Si neto &lt; 0: sube deficitStreak y baja reputacion/fans.</li>
+    <li>Si deficitStreak &gt;= 3: estado critico con penalizacion mayor.</li>
+    <li>Si hay semana positiva: recuperacion gradual.</li>
+  </ul>
+
+  <h2>4) Carrera: que atributos realmente mueven resultados</h2>
+  <table>
+    <thead>
+      <tr><th>Atributo</th><th>Efecto principal</th><th>Estado</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>tyre</td><td>Pace base y degradacion</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>aggression</td><td>Impulso de grilla y chance de sobrepaso</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>riskLevel</td><td>Probabilidad de incidentes</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>engineMode</td><td>Tradeoff pace/risk/tyre</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>pitPlan + pitLap</td><td>Cantidad y timing de paradas</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>safetyCarReaction</td><td>Undercut/overcut bajo VSC</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>setup (aeroBalance, wetBias)</td><td>Multiplicadores de pace/risk/deg por layout y clima</td><td><span class="pill active">ACTIVE</span></td></tr>
+      <tr><td>interventions[]</td><td>Cambios tacticos en carrera</td><td><span class="pill active">ACTIVE</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>5) Edificios y progresion tecnica</h2>
+  <ul>
+    <li>Admin: mejora ingreso de sponsors por multiplicador.</li>
+    <li>R&D: desbloquea investigacion y acelera progreso.</li>
+    <li>Wind Tunnel: habilita rama weather.</li>
+    <li>Academy: mas slots y velocidad de entrenamiento.</li>
+    <li>Factory: capacidad expuesta, aun con uso parcial en colas.</li>
+  </ul>
+
+  <h2>6) Sponsors y contratos (estado actualizado)</h2>
+  <ul>
+    <li>weeksLeft ahora baja semanalmente.</li>
+    <li>Al llegar a 0 se marca expired=true.</li>
+    <li>Los expirados dejan de impactar ingreso/costo por el filtro de economia.</li>
+    <li>Falta profundidad en renovacion y enforcement de demandas.</li>
+  </ul>
+
+  <h2>7) Recomendaciones de siguiente iteracion</h2>
+  <ol>
+    <li>Enforcement de sponsor demands y demandBonus.</li>
+    <li>Morale del piloto como modificador real de performance.</li>
+    <li>Diferenciar mas attrs de piloto (menos dependencia de promedio simple).</li>
+    <li>Cerrar ciclo completo de contratos (renovar, negociar, liberar).</li>
+  </ol>
+
+  <p class="small">Tip: este archivo se puede abrir en navegador o abrir directamente con Word para presentar.</p>
+</body>
+</html>

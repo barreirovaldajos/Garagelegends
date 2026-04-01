@@ -332,13 +332,15 @@ function simulateRace(options = {}) {
   const staffFx = getRaceStaffEffects(state);
   const advisorMode = (state.advisor && state.advisor.mode) ? state.advisor.mode : 'balanced';
   const { weather = 'dry', circuits, round } = options;
-  const pilot = state.pilots[0] || { attrs:{ pace:55, racePace:55, consistency:60, rain:55, tyre:55, aggression:60, overtake:55, techFB:55, mental:55, charisma:60 }, name:'Driver' };
+  const selectedPilotId = options.pilotId || (options.strategy && options.strategy.pilotId) || null;
+  const pilot = (state.pilots || []).find((p) => p.id === selectedPilotId)
+    || state.pilots[0]
+    || { attrs:{ pace:55, racePace:55, consistency:60, rain:55, tyre:55, aggression:60, overtake:55, techFB:55, mental:55, charisma:60 }, name:'Driver' };
   const strategy = options.strategy || {
-    tyre: 'medium', aggression: 50, pitLap: 35, riskLevel: 50, engineMode: 'normal', strategy: 'balanced', pitPlan: 'single', safetyCarReaction: 'neutral'
+    tyre: 'medium', aggression: 50, pitLap: 35, riskLevel: 50, engineMode: 'normal', strategy: 'balanced', pitPlan: 'single', safetyCarReaction: 'live'
   };
   let currentEngineMode = strategy.engineMode || 'normal';
   const pitPlan = strategy.pitPlan || 'single';
-  const safetyCarReaction = strategy.safetyCarReaction || 'neutral';
   const profile = getCircuitProfile(circuits, weather);
   const forecast = options.forecast || null;
   const layoutLaps = { 'high-speed': 32, power: 31, technical: 30, mixed: 30, endurance: 34 };
@@ -386,14 +388,14 @@ function simulateRace(options = {}) {
   for (let lap = 1; lap <= totalLaps; lap++) {
     const pIdx = positions.findIndex(e => e.isPlayer);
     const intervention = interventions.find(it => Math.floor((it.lapPct || 0) / 100 * totalLaps) + 1 === lap);
-    if (intervention && intervention.engineMode && intervention.engineMode !== currentEngineMode) {
-      currentEngineMode = intervention.engineMode;
-      events.push({ lap, type: 'info', text: `🎛️ Tactical intervention: engine mode switched to <strong>${currentEngineMode.toUpperCase()}</strong>.` });
+    if (intervention) {
       if (intervention.pitBias === 'early' && !playerPit) {
         adaptivePitLap = Math.max(2, adaptivePitLap - 2);
+        events.push({ lap, type: 'info', text: '🎛️ Tactical intervention: pit window pulled earlier.' });
       }
       if (intervention.pitBias === 'late' && !playerPit) {
         adaptivePitLap = Math.min(totalLaps - 2, adaptivePitLap + 2);
+        events.push({ lap, type: 'info', text: '🎛️ Tactical intervention: pit window delayed.' });
       }
     }
 
@@ -415,7 +417,23 @@ function simulateRace(options = {}) {
       events.push({ lap, type: 'safety', text: `🟡 <strong>Virtual Safety Car deployed!</strong> Pack bunches up.` });
       // Shuffle slightly when SC out
       positions.forEach(p => { if (!p.isPlayer && !p.retired) p.pos += (Math.random() < 0.3 ? -1 : 0); });
-      if (safetyCarReaction === 'undercut' && pitStopsDone < maxPitStops) {
+
+      let liveSafetyCarCall = 'neutral';
+      const staffDelta = (staffFx.undercutStrength || 0.5) - (staffFx.overcutStrength || 0.5);
+      if (pitStopsDone < maxPitStops) {
+        if (staffDelta > 0.08) liveSafetyCarCall = 'undercut';
+        else if (staffDelta < -0.08) liveSafetyCarCall = 'overcut';
+      }
+
+      const underPct = Math.round((staffFx.undercutStrength || 0.5) * 100);
+      const overPct = Math.round((staffFx.overcutStrength || 0.5) * 100);
+      events.push({
+        lap,
+        type: 'info',
+        text: `👥 Live pit wall call: <strong>${liveSafetyCarCall.toUpperCase()}</strong> (Undercut ${underPct}% · Overcut ${overPct}%).`
+      });
+
+      if (liveSafetyCarCall === 'undercut' && pitStopsDone < maxPitStops) {
         const undercutWorks = Math.random() < staffFx.undercutStrength;
         if (pitStopsDone === 0 && adaptivePitLap - lap <= 3) {
           adaptivePitLap = Math.max(lap + 1, undercutWorks ? 2 : adaptivePitLap - 1);
@@ -425,7 +443,7 @@ function simulateRace(options = {}) {
           events.push({ lap, type: 'info', text: undercutWorks ? '🧠 Undercut second stop under VSC.' : '🧠 Undercut second stop: no clear window.' });
         }
       }
-      if (safetyCarReaction === 'overcut' && pitStopsDone < maxPitStops) {
+      if (liveSafetyCarCall === 'overcut' && pitStopsDone < maxPitStops) {
         const overcutWorks = Math.random() < staffFx.overcutStrength;
         if (pitStopsDone === 0 && lap >= adaptivePitLap - 2) {
           adaptivePitLap = Math.min(totalLaps - 3, adaptivePitLap + (overcutWorks ? 2 : 1));

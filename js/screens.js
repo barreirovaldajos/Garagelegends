@@ -181,11 +181,21 @@ const SCREENS = {
          if (remaining > 0) {
             c.durationMs = c.durationMs - Math.floor(remaining * 0.7); // cut 70% of remaining time
             GL_STATE.saveState();
+            if (window.GL_DASHBOARD && typeof window.GL_DASHBOARD.updateTopbar === 'function') {
+              window.GL_DASHBOARD.updateTopbar(GL_STATE.getState());
+            }
             GL_UI.toast('⚡ ¡Construcción acelerada!', 'success');
             this.renderGarage();
          }
       }
     });
+  },
+
+  computePilotMarketSalary(pilot) {
+    const overall = GL_ENGINE.pilotScore(pilot);
+    const potential = Number(pilot?.potential) || overall;
+    const weighted = (overall * 0.7) + (potential * 0.3);
+    return Math.max(6000, Math.round(weighted * 230));
   },
 
   // ===== PILOTS SCREEN =====
@@ -723,7 +733,10 @@ const SCREENS = {
 
   marketPilotList(pilots) {
     if (!pilots.length) return `<p style="color:var(--t-secondary);font-size:0.9rem">${__('market_no_pilots')}</p>`;
-    return pilots.map(p => {
+    const ordered = pilots
+      .map((p) => ({ ...p, _marketSalary: this.computePilotMarketSalary(p), _overall: GL_ENGINE.pilotScore(p) }))
+      .sort((a, b) => b._marketSalary - a._marketSalary);
+    return ordered.map(p => {
       const overall = GL_ENGINE.pilotScore(p);
       return `<div class="market-pilot-row">
         <div class="market-pilot-avatar" style="font-size:2rem">${p.emoji||'🧑'}</div>
@@ -738,7 +751,7 @@ const SCREENS = {
           <div class="market-attr"><div class="market-attr-val">${p.attrs.rain}</div><div class="market-attr-label">RAIN</div></div>
         </div>
         <div class="market-pilot-salary">
-          <div class="market-pilot-salary-val">${GL_UI.fmtCR(p.salary)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
+          <div class="market-pilot-salary-val">${GL_UI.fmtCR(p._marketSalary)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
           <div class="market-pilot-salary-label">${__('market_salary')}</div>
           <button class="btn btn-primary btn-sm" style="margin-top:var(--s-2)" onclick="GL_SCREENS.signPilot('${p.id}')">${__('market_sign')}</button>
         </div>
@@ -769,7 +782,13 @@ const SCREENS = {
     if (state.pilots.length >= 3) { GL_UI.toast(__('market_max_pilots'), 'warning'); return; }
     const p = GL_DATA.PILOT_POOL.find(x=>x.id===id);
     if (!p) return;
-    state.pilots.push({ ...GL_STATE.deepClone(p), morale:80, contractWeeks:20, number:Math.floor(Math.random()*89)+11 });
+    state.pilots.push({
+      ...GL_STATE.deepClone(p),
+      salary: this.computePilotMarketSalary(p),
+      morale:80,
+      contractWeeks:20,
+      number:Math.floor(Math.random()*89)+11
+    });
     GL_STATE.addLog(`🧑‍✈️ ${p.name} signed!`, 'good');
     GL_STATE.saveState();
     GL_UI.toast(`${p.name} signed!`, 'success');
@@ -803,14 +822,21 @@ const SCREENS = {
     const advisorMode = (state.advisor && state.advisor.mode) ? state.advisor.mode : 'balanced';
     const fc = next.forecast || { confidence: 60, windows: [{ label: 'start', wetProb: 30 }, { label: 'mid', wetProb: 35 }, { label: 'end', wetProb: 30 }] };
     const defaultStrategy = {
-      tyre:'soft', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'neutral',
+      tyre:'soft', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live',
       setup: { aeroBalance: 50, wetBias: 50 },
       interventions: [
-        { lapPct: 30, engineMode: 'normal', pitBias: 'none' },
-        { lapPct: 70, engineMode: 'push', pitBias: 'none' }
-      ]
+        { lapPct: 30, pitBias: 'none' },
+        { lapPct: 70, pitBias: 'none' }
+      ],
+      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
     };
     const baseStrategy = GL_STATE.deepClone(next.savedStrategy || window._raceStrategy || defaultStrategy);
+    if (!Array.isArray(baseStrategy.interventions) || baseStrategy.interventions.length < 2) {
+      baseStrategy.interventions = [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }];
+    }
+    if (!baseStrategy.pilotId && state.pilots && state.pilots[0]) {
+      baseStrategy.pilotId = state.pilots[0].id;
+    }
     window._raceStrategy = baseStrategy;
     window._advisorStrategySource = 'manual';
     const recommendation = GL_ENGINE.recommendStrategyForRace
@@ -911,13 +937,11 @@ const SCREENS = {
           <div class="slider-group">
             <div class="slider-header">
               <span class="slider-name">Safety Car reaction</span>
-              <span class="slider-val">VSC</span>
+              <span class="slider-val">LIVE</span>
             </div>
-            <select onchange="if(window._raceStrategy){ window._raceStrategy.safetyCarReaction=this.value; }" style="width:100%">
-              <option value="neutral" selected>Neutral</option>
-              <option value="undercut">Undercut</option>
-              <option value="overcut">Overcut</option>
-            </select>
+            <div style="font-size:0.78rem;color:var(--t-secondary);padding:8px 0">
+              Gestionado en carrera en vivo por el staff (undercut/overcut automatico segun fortalezas del equipo).
+            </div>
           </div>
           <div class="slider-group">
             <div class="slider-header">
@@ -939,35 +963,26 @@ const SCREENS = {
           ${this.sliderGroup('setup_wetBias','Weather Bias','Dry setup','Wet setup',50)}
           <div class="divider"></div>
           <div class="prerace-block-title" style="margin-top:0">Intervenciones tacticas</div>
+          <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:6px">Opcional: ajusta solo timing y sesgo de pit para evitar duplicar el modo de motor base.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div>
               <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:4px">Ventana 1 (% carrera)</div>
-              <input type="range" min="10" max="90" value="30" oninput="document.getElementById('iv-l1').textContent=this.value+'%'; if(window._raceStrategy){ window._raceStrategy.interventions[0].lapPct=+this.value; }" style="width:100%">
-              <div id="iv-l1" style="font-size:0.75rem">30%</div>
-              <select onchange="if(window._raceStrategy){ window._raceStrategy.interventions[0].engineMode=this.value; }" style="width:100%;margin-top:4px">
-                <option value="eco">ECO</option>
-                <option value="normal" selected>NORMAL</option>
-                <option value="push">PUSH</option>
-              </select>
+              <input type="range" min="10" max="90" value="${window._raceStrategy?.interventions?.[0]?.lapPct || 30}" oninput="document.getElementById('iv-l1').textContent=this.value+'%'; if(window._raceStrategy){ window._raceStrategy.interventions[0].lapPct=+this.value; }" style="width:100%">
+              <div id="iv-l1" style="font-size:0.75rem">${window._raceStrategy?.interventions?.[0]?.lapPct || 30}%</div>
               <select onchange="if(window._raceStrategy){ window._raceStrategy.interventions[0].pitBias=this.value; }" style="width:100%;margin-top:4px">
-                <option value="none" selected>Pit: neutral</option>
-                <option value="early">Pit: early</option>
-                <option value="late">Pit: late</option>
+                <option value="none" ${(window._raceStrategy?.interventions?.[0]?.pitBias || 'none') === 'none' ? 'selected' : ''}>Pit: neutral</option>
+                <option value="early" ${(window._raceStrategy?.interventions?.[0]?.pitBias || 'none') === 'early' ? 'selected' : ''}>Pit: early</option>
+                <option value="late" ${(window._raceStrategy?.interventions?.[0]?.pitBias || 'none') === 'late' ? 'selected' : ''}>Pit: late</option>
               </select>
             </div>
             <div>
               <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:4px">Ventana 2 (% carrera)</div>
-              <input type="range" min="10" max="95" value="70" oninput="document.getElementById('iv-l2').textContent=this.value+'%'; if(window._raceStrategy){ window._raceStrategy.interventions[1].lapPct=+this.value; }" style="width:100%">
-              <div id="iv-l2" style="font-size:0.75rem">70%</div>
-              <select onchange="if(window._raceStrategy){ window._raceStrategy.interventions[1].engineMode=this.value; }" style="width:100%;margin-top:4px">
-                <option value="eco">ECO</option>
-                <option value="normal">NORMAL</option>
-                <option value="push" selected>PUSH</option>
-              </select>
+              <input type="range" min="10" max="95" value="${window._raceStrategy?.interventions?.[1]?.lapPct || 70}" oninput="document.getElementById('iv-l2').textContent=this.value+'%'; if(window._raceStrategy){ window._raceStrategy.interventions[1].lapPct=+this.value; }" style="width:100%">
+              <div id="iv-l2" style="font-size:0.75rem">${window._raceStrategy?.interventions?.[1]?.lapPct || 70}%</div>
               <select onchange="if(window._raceStrategy){ window._raceStrategy.interventions[1].pitBias=this.value; }" style="width:100%;margin-top:4px">
-                <option value="none" selected>Pit: neutral</option>
-                <option value="early">Pit: early</option>
-                <option value="late">Pit: late</option>
+                <option value="none" ${(window._raceStrategy?.interventions?.[1]?.pitBias || 'none') === 'none' ? 'selected' : ''}>Pit: neutral</option>
+                <option value="early" ${(window._raceStrategy?.interventions?.[1]?.pitBias || 'none') === 'early' ? 'selected' : ''}>Pit: early</option>
+                <option value="late" ${(window._raceStrategy?.interventions?.[1]?.pitBias || 'none') === 'late' ? 'selected' : ''}>Pit: late</option>
               </select>
             </div>
           </div>
@@ -978,7 +993,7 @@ const SCREENS = {
             <div class="morale-pill" style="margin-bottom:var(--s-3)">
               <div class="morale-avatar" style="font-size:1.2rem">${p.emoji||'🧑'}</div>
               <div class="morale-info"><div class="morale-name">${p.name}</div><div style="font-size:0.7rem;color:var(--t-secondary)">${__('overall')} ${GL_ENGINE.pilotScore(p)}</div></div>
-              <button class="btn btn-secondary btn-sm" style="margin-left:auto">${__('prerace_primary_driver')}</button>
+              <button class="btn btn-sm ${window._raceStrategy?.pilotId === p.id ? 'btn-primary' : 'btn-secondary'}" data-pilot-btn="${p.id}" style="margin-left:auto" onclick="GL_SCREENS.selectRacePilot('${p.id}', this)">${window._raceStrategy?.pilotId === p.id ? 'Titular' : __('prerace_primary_driver')}</button>
             </div>`).join('')}
         </div>
         <div class="prerace-block">
@@ -1060,7 +1075,9 @@ const SCREENS = {
       GL_UI.toast('No recommendation available.', 'warning');
       return;
     }
+    const prevPilotId = window._raceStrategy?.pilotId || null;
     window._raceStrategy = GL_STATE.deepClone(window._raceRecommendation.strategy);
+    if (prevPilotId) window._raceStrategy.pilotId = prevPilotId;
     window._advisorStrategySource = 'recommended';
     GL_UI.toast('Recommendation applied. You can fine tune before saving.', 'good');
   },
@@ -1070,9 +1087,24 @@ const SCREENS = {
       GL_UI.toast('No safe variant available.', 'warning');
       return;
     }
+    const prevPilotId = window._raceStrategy?.pilotId || null;
     window._raceStrategy = GL_STATE.deepClone(window._raceRecommendation.safeAlternative);
+    if (prevPilotId) window._raceStrategy.pilotId = prevPilotId;
     window._advisorStrategySource = 'safe';
     GL_UI.toast('Safe variant applied. You can fine tune before saving.', 'good');
+  },
+
+  selectRacePilot(pid, btn) {
+    if (!window._raceStrategy) return;
+    window._raceStrategy.pilotId = pid;
+    window._advisorStrategySource = 'manual';
+    document.querySelectorAll('[data-pilot-btn]').forEach((node) => {
+      const isActive = node.getAttribute('data-pilot-btn') === pid;
+      node.classList.toggle('btn-primary', isActive);
+      node.classList.toggle('btn-secondary', !isActive);
+      node.textContent = isActive ? 'Titular' : (window.__('prerace_primary_driver') || 'Primary driver');
+    });
+    if (btn) btn.blur();
   },
 
   setAdvisorMode(mode) {
@@ -1089,9 +1121,13 @@ const SCREENS = {
     const nextIdx = (state.season.calendar || []).findIndex(r=>r.status==='next');
     if (nextIdx !== -1) {
       state.season.calendar[nextIdx].savedStrategy = window._raceStrategy || {
-        tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'neutral', setup:{ aeroBalance:50, wetBias:50 },
-        interventions: [{ lapPct: 30, engineMode: 'normal', pitBias: 'none' }, { lapPct: 70, engineMode: 'push', pitBias: 'none' }]
+        tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+        interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+        pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
       };
+      if (!state.season.calendar[nextIdx].savedStrategy.pilotId && state.pilots && state.pilots[0]) {
+        state.season.calendar[nextIdx].savedStrategy.pilotId = state.pilots[0].id;
+      }
       GL_STATE.saveState();
       GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
       GL_APP.navigateTo('dashboard');
@@ -1109,9 +1145,11 @@ const SCREENS = {
     const circuit = next?.circuit || GL_DATA.CIRCUITS[0];
     const weather = next?.weather || 'dry';
     const strategy = window._raceStrategy || {
-      tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'neutral', setup:{ aeroBalance:50, wetBias:50 },
-      interventions: [{ lapPct: 30, engineMode: 'normal', pitBias: 'none' }, { lapPct: 70, engineMode: 'push', pitBias: 'none' }]
+      tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
     };
+    const selectedPilot = (state.pilots || []).find((p) => p.id === strategy.pilotId) || (state.pilots || [])[0] || null;
 
     el.innerHTML = `
       <div class="screen-header">
@@ -1151,11 +1189,12 @@ const SCREENS = {
               ${GL_UI.statRow(__('race_compound'), (strategy.tyre||'medium').charAt(0).toUpperCase()+(strategy.tyre||'medium').slice(1), '🏎️')}
               ${GL_UI.statRow('Engine Mode', (strategy.engineMode||'normal').toUpperCase(), '⚙️')}
               ${GL_UI.statRow('Pit Plan', (strategy.pitPlan||'single').toUpperCase(), '🛞')}
-              ${GL_UI.statRow('SC Reaction', (strategy.safetyCarReaction||'neutral').toUpperCase(), '🟡')}
-              ${GL_UI.statRow('Intervention 1', `${strategy.interventions?.[0]?.lapPct || 30}% -> ${(strategy.interventions?.[0]?.engineMode || 'normal').toUpperCase()}`, '🎛️')}
-              ${GL_UI.statRow('Intervention 2', `${strategy.interventions?.[1]?.lapPct || 70}% -> ${(strategy.interventions?.[1]?.engineMode || 'push').toUpperCase()}`, '🎛️')}
+              ${GL_UI.statRow('SC Reaction', 'LIVE (staff-managed)', '🟡')}
+              ${GL_UI.statRow('Intervention 1', `${strategy.interventions?.[0]?.lapPct || 30}% · Pit ${(strategy.interventions?.[0]?.pitBias || 'none').toUpperCase()}`, '🎛️')}
+              ${GL_UI.statRow('Intervention 2', `${strategy.interventions?.[1]?.lapPct || 70}% · Pit ${(strategy.interventions?.[1]?.pitBias || 'none').toUpperCase()}`, '🎛️')}
               ${GL_UI.statRow('Setup Aero', `${strategy.setup?.aeroBalance ?? 50}%`, '🛩️')}
               ${GL_UI.statRow('Setup Weather', `${strategy.setup?.wetBias ?? 50}%`, '🌧️')}
+              ${selectedPilot ? GL_UI.statRow('Primary Driver', `${selectedPilot.name} (${GL_ENGINE.pilotScore(selectedPilot)})`, '🧑‍✈️') : ''}
               ${GL_UI.statRow(__('prerace_aggression'), (strategy.aggression||50)+'%', '🔥')}
               ${GL_UI.statRow(__('prerace_risk'), (strategy.riskLevel||40)+'%', '⚠️')}
               ${GL_UI.statRow(__('prerace_pit_window'), __('race_lap') + ' ~' + (Math.round((strategy.pitLap||50)/100*30)), '🔧')}
@@ -1173,8 +1212,9 @@ const SCREENS = {
     const nextIdx = cal.findIndex(r=>r.status==='next');
     const next = cal[nextIdx];
     const strategy = window._raceStrategy || {
-      tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'neutral', setup:{ aeroBalance:50, wetBias:50 },
-      interventions: [{ lapPct: 30, engineMode: 'normal', pitBias: 'none' }, { lapPct: 70, engineMode: 'push', pitBias: 'none' }]
+      tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
     };
     const strategySource = ['recommended', 'safe', 'manual'].includes(window._advisorStrategySource)
       ? window._advisorStrategySource
@@ -1188,7 +1228,8 @@ const SCREENS = {
       circuits: next?.circuit || GL_DATA.CIRCUITS[0],
       round: next?.round || 1,
       forecast: next?.forecast || null,
-      strategy
+      strategy,
+      pilotId: strategy.pilotId
     });
 
     window._lastRaceResult = result;
