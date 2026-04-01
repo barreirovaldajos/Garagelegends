@@ -810,6 +810,9 @@ const SCREENS = {
   // ===== PRE-RACE SCREEN =====
   renderPreRace() {
     const state = GL_STATE.getState();
+    if (GL_ENGINE.ensureNextRaceAvailable) {
+      GL_ENGINE.ensureNextRaceAvailable();
+    }
     if (GL_ENGINE.refreshForecastForNextRace) {
       GL_ENGINE.refreshForecastForNextRace();
     }
@@ -1259,6 +1262,9 @@ const SCREENS = {
   // ===== RACE SCREEN =====
   renderRace() {
     const state = GL_STATE.getState();
+    if (GL_ENGINE.ensureNextRaceAvailable) {
+      GL_ENGINE.ensureNextRaceAvailable();
+    }
     const staffFx = GL_ENGINE.getRaceStaffEffects ? GL_ENGINE.getRaceStaffEffects(state) : null;
     const cal = state.season.calendar || [];
     const next = cal.find(r=>r.status==='next');
@@ -1342,6 +1348,10 @@ const SCREENS = {
     const cal = state.season.calendar || [];
     const nextIdx = cal.findIndex(r=>r.status==='next');
     const next = cal[nextIdx];
+    if (nextIdx < 0 || !next) {
+      GL_UI.toast('No hay una carrera marcada como siguiente.', 'warning');
+      return;
+    }
     const strategy = window._raceStrategy || {
       tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
       interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
@@ -1367,72 +1377,119 @@ const SCREENS = {
 
     window._lastRaceResult = result;
 
-    // Show events progressively
     const log = document.getElementById('race-event-log');
     if (log) log.innerHTML = '';
     const lapEl = document.getElementById('race-lap');
+    const raceDurationMs = 30 * 60 * 1000;
+    const startTs = Date.now();
+    const allEvents = Array.isArray(result.events) ? result.events : [];
+    const totalLaps = result.totalLaps || 30;
+    const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
+    const finalGrid = Array.isArray(result.finalGrid) ? result.finalGrid : [];
+    const startPosMap = {};
+    const finalPosMap = {};
 
-    let i = 0;
-    const evInterval = setInterval(() => {
-      if (i >= result.events.length) {
-        clearInterval(evInterval);
-        setTimeout(() => {
-          // Update standings and calendar
-          GL_ENGINE.updateStandings(result);
-          if (nextIdx >= 0 && cal[nextIdx]) {
-            cal[nextIdx].status = 'done';
-            cal[nextIdx].result = { position: result.position, points: result.points, playerCars: result.playerCars || [] };
-          }
-          if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
-          state.season.raceIndex = nextIdx + 1;
-          GL_STATE.addCredits(result.prizeMoney);
-          const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
-          GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(result.prizeMoney)} CR`, 'good');
+    gridStart.forEach((car, idx) => { startPosMap[car.id] = idx + 1; });
+    finalGrid.forEach((car, idx) => { finalPosMap[car.id] = idx + 1; });
 
-          // Feed adaptive advisor with real strategy outcome
-          if (GL_ENGINE.recordStrategyOutcome) {
-            GL_ENGINE.recordStrategyOutcome(next, strategy, result, {
-              source: strategySource,
-              mode: (state.advisor && state.advisor.mode) ? state.advisor.mode : 'balanced'
-            });
-          }
-          window._advisorStrategySource = 'manual';
+    let eventCursor = 0;
+    let tick = 0;
+    let finished = false;
 
-          // R&D points
-          state.car.rnd.points = (state.car.rnd.points || 0) + 5 + Math.floor(Math.random() * 5);
+    const formatRemaining = (ms) => {
+      const sec = Math.max(0, Math.ceil(ms / 1000));
+      const mm = Math.floor(sec / 60);
+      const ss = sec % 60;
+      return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+    };
 
-          // Fan growth
-          state.team.fans += 100 + (result.points || 0) * 50;
-
-          GL_STATE.saveState();
-          GL_ENGINE.weeklyTick();
-
-          setTimeout(() => GL_APP.navigateTo('postrace'), 1000);
-        }, 800);
-        return;
-      }
-      const ev = result.events[i];
-      if (log) {
-        const div = document.createElement('div');
-        div.className = `race-event ${ev.type}`;
-        div.innerHTML = `<span class="race-event-lap">${__('race_lap_short')} ${ev.lap}</span><span class="race-event-text">${ev.text}</span>`;
-        log.appendChild(div);
-        log.scrollTop = log.scrollHeight;
-      }
-      if (lapEl) lapEl.textContent = `🏁 ${__('race_lap')} ${ev.lap} / ${result.totalLaps || 30}`;
-
+    const renderLiveGrid = (progress) => {
       const gl = document.getElementById('race-grid-list');
-      if (gl && result.finalGrid && i > result.events.length / 2) {
-        gl.innerHTML = result.finalGrid.slice(0,8).map((car, idx) => `
+      if (!gl) return;
+      const live = finalGrid.map((car) => {
+        const startPos = startPosMap[car.id] || 20;
+        const endPos = finalPosMap[car.id] || startPos;
+        const wobble = Math.sin((tick * 0.45) + (car.id || '').length) * 0.35 * (1 - progress);
+        const score = (startPos * (1 - progress)) + (endPos * progress) + wobble;
+        return { ...car, _liveScore: score };
+      }).sort((a, b) => a._liveScore - b._liveScore);
+
+      gl.innerHTML = live.slice(0, 12).map((car, idx) => {
+        const gap = idx === 0 ? __('race_leader') : `+${(idx * (0.9 + (1 - progress) * 0.35)).toFixed(1)}s`;
+        return `
           <div class="race-pos-row ${car.isPlayer?'my-car':''}">
             <span class="race-pos-num">${idx+1}</span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
             <span class="race-pos-tire">${car.tyre==='soft'?'🔴':car.tyre==='hard'?'⚪':'🟡'}</span>
-            <span class="race-pos-gap">${idx === 0 ? __('race_leader') : '+' + (Math.random()*30+0.5).toFixed(1)+'s'}</span>
-          </div>`).join('');
+            <span class="race-pos-gap">${gap}</span>
+          </div>`;
+      }).join('');
+    };
+
+    const finishRace = () => {
+      if (finished) return;
+      finished = true;
+
+      GL_ENGINE.updateStandings(result);
+      if (nextIdx >= 0 && cal[nextIdx]) {
+        cal[nextIdx].status = 'completed';
+        cal[nextIdx].result = { position: result.position, points: result.points, playerCars: result.playerCars || [] };
       }
-      i++;
-    }, 200);
+      if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
+      if (GL_ENGINE.ensureNextRaceAvailable) GL_ENGINE.ensureNextRaceAvailable();
+      state.season.raceIndex = nextIdx + 1;
+      GL_STATE.addCredits(result.prizeMoney);
+      const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
+      GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(result.prizeMoney)} CR`, 'good');
+
+      if (GL_ENGINE.recordStrategyOutcome) {
+        GL_ENGINE.recordStrategyOutcome(next, strategy, result, {
+          source: strategySource,
+          mode: (state.advisor && state.advisor.mode) ? state.advisor.mode : 'balanced'
+        });
+      }
+      window._advisorStrategySource = 'manual';
+
+      state.car.rnd.points = (state.car.rnd.points || 0) + 5 + Math.floor(Math.random() * 5);
+      state.team.fans += 100 + (result.points || 0) * 50;
+
+      GL_STATE.saveState();
+      GL_ENGINE.weeklyTick();
+
+      setTimeout(() => GL_APP.navigateTo('postrace'), 1000);
+    };
+
+    const liveInterval = setInterval(() => {
+      tick += 1;
+      const elapsed = Date.now() - startTs;
+      const progress = Math.max(0, Math.min(1, elapsed / raceDurationMs));
+      const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(progress * totalLaps) + 1));
+      const remaining = raceDurationMs - elapsed;
+
+      if (lapEl) {
+        lapEl.textContent = `🏁 ${__('race_lap')} ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;
+      }
+
+      const shouldShowEvents = Math.floor(progress * allEvents.length);
+      while (eventCursor < shouldShowEvents) {
+        const ev = allEvents[eventCursor];
+        if (log) {
+          const div = document.createElement('div');
+          div.className = `race-event ${ev.type}`;
+          div.innerHTML = `<span class="race-event-lap">${__('race_lap_short')} ${ev.lap}</span><span class="race-event-text">${ev.text}</span>`;
+          log.appendChild(div);
+          log.scrollTop = log.scrollHeight;
+        }
+        eventCursor += 1;
+      }
+
+      renderLiveGrid(progress);
+
+      if (progress >= 1) {
+        clearInterval(liveInterval);
+        finishRace();
+      }
+    }, 1000);
   },
 
   // ===== POST-RACE SCREEN =====

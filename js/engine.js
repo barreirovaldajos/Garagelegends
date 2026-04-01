@@ -309,20 +309,26 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
     tyre: 'medium', wear: 0, gaps: 0
   }];
 
-  const aiCount = Math.min(D.AI_TEAMS.length, 11);
-  for (let i = 0; i < aiCount; i++) {
-    const t = D.AI_TEAMS[i];
-    const aiBase = 35 + Math.random() * 35;
-    const aiTrackBias = -2 + Math.random() * 5;
-    const rainMod = weather === 'wet' ? (0.8 + Math.random() * 0.4) : 1;
-    grid.push({
-      id: t.id, name: t.name, color: t.color, isPlayer: false,
-      base: (aiBase + aiTrackBias) * rainMod * profile.paceBias,
-      score: (aiBase + aiTrackBias) * rainMod * profile.paceBias + (Math.random() - 0.5) * 10,
-      tyre: ['soft','medium','hard'][Math.floor(Math.random() * 3)],
-      wear: 0, gaps: 0
-    });
-  }
+  const aiTeams = (D.AI_TEAMS || []).slice(0, 9);
+  aiTeams.forEach((t) => {
+    for (let carSlot = 1; carSlot <= 2; carSlot++) {
+      const aiBase = 35 + Math.random() * 35;
+      const aiTrackBias = -2 + Math.random() * 5;
+      const rainMod = weather === 'wet' ? (0.8 + Math.random() * 0.4) : 1;
+      grid.push({
+        id: `${t.id}_${carSlot}`,
+        teamId: t.id,
+        name: `${t.name} #${carSlot}`,
+        color: t.color,
+        isPlayer: false,
+        base: (aiBase + aiTrackBias) * rainMod * profile.paceBias,
+        score: (aiBase + aiTrackBias) * rainMod * profile.paceBias + (Math.random() - 0.5) * 10,
+        tyre: ['soft','medium','hard'][Math.floor(Math.random() * 3)],
+        wear: 0,
+        gaps: 0
+      });
+    }
+  });
   grid.sort((a, b) => b.score - a.score);
   return grid;
 }
@@ -1245,13 +1251,18 @@ function updateStandings(raceResult) {
   }
 
   // Update AI
+  const aiWinners = new Set();
   (Array.isArray(finalGrid) ? finalGrid : []).forEach((car, idx) => {
     if (!car.isPlayer) {
-      const entry = standings.find(s => s.id === car.id);
+      const teamId = car.teamId || car.id;
+      const entry = standings.find(s => s.id === teamId);
       if (entry) {
         const aiPts = D.POINTS_TABLE[idx] || 0;
         entry.points += aiPts;
-        if (idx === 0) entry.wins++;
+        if (idx === 0 && !aiWinners.has(teamId)) {
+          entry.wins++;
+          aiWinners.add(teamId);
+        }
       }
     }
   });
@@ -1300,6 +1311,37 @@ function getNextRaceDate() {
 
   nextEvent.setDate(now.getDate() + daysToAdd);
   return { date: nextEvent, type };
+}
+
+function ensureNextRaceAvailable() {
+  const state = S.getState();
+  if (!state || !state.season || !Array.isArray(state.season.calendar)) return null;
+  const cal = state.season.calendar;
+  let changed = false;
+
+  cal.forEach((r) => {
+    if (!r || !r.status) return;
+    if (r.status === 'done' || r.status === 'finished') {
+      r.status = 'completed';
+      changed = true;
+    }
+  });
+
+  let next = cal.find((r) => r && r.status === 'next');
+  if (next) {
+    if (changed) S.saveState();
+    return next;
+  }
+
+  const upcoming = cal.find((r) => r && (r.status === 'upcoming' || r.status === 'pending'));
+  if (upcoming) {
+    upcoming.status = 'next';
+    changed = true;
+    S.saveState();
+    return upcoming;
+  }
+
+  return null;
 }
 
 function refreshForecastForNextRace() {
@@ -1841,6 +1883,8 @@ function catchUpOffline() {
     weeklyTicksApplied += 1;
   }
 
+  ensureNextRaceAvailable();
+
   const totalSimulated = simulatedRaces + simulatedPractices;
   if (totalSimulated > 0 || logs.length) {
     S.saveState();
@@ -1918,6 +1962,7 @@ window.GL_ENGINE = {
   getNowDate,
   shiftTimeByDays,
   shiftTimeToMs,
+  ensureNextRaceAvailable,
   generateRandomEvent, applyEventChoice,
   buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot
 };

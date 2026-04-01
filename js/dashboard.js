@@ -403,6 +403,9 @@ const DASHBOARD = {
   renderNextEvent(state) {
     const el = document.getElementById('dash-next-event');
     if (!el) return;
+    if (GL_ENGINE && typeof GL_ENGINE.ensureNextRaceAvailable === 'function') {
+      GL_ENGINE.ensureNextRaceAvailable();
+    }
     const cal = state.season.calendar || [];
     const next = cal.find(r => r.status === 'next');
     if (!next) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('no_race_complete')}</p></div>`; return; }
