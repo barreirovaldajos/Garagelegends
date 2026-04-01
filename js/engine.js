@@ -1223,22 +1223,29 @@ function buildInitialStandings(division) {
 // ---- update standings after race ----
 function updateStandings(raceResult) {
   const state = S.getState();
+  if (!Array.isArray(state.standings) || state.standings.length === 0) {
+    state.standings = buildInitialStandings((state.season && state.season.division) || 8);
+  }
   let standings = state.standings;
   const { position, points, finalGrid, playerCars } = raceResult;
+  const earnedPoints = Number.isFinite(points) ? points : 0;
+  const bestPlayerPos = Array.isArray(playerCars) && playerCars.length
+    ? playerCars.reduce((best, c) => Math.min(best, c && Number.isFinite(c.position) ? c.position : 99), 99)
+    : (Number.isFinite(position) ? position : 99);
 
   // Update player
   const playerEntry = standings.find(s => s.id === 'player');
   if (playerEntry) {
-    playerEntry.points += points;
+    playerEntry.points += earnedPoints;
     const hasWin = Array.isArray(playerCars)
       ? playerCars.some((c) => c && c.position === 1)
       : position === 1;
     if (hasWin) playerEntry.wins++;
-    if (!playerEntry.bestResult || position < playerEntry.bestResult) playerEntry.bestResult = position;
+    if (!playerEntry.bestResult || bestPlayerPos < playerEntry.bestResult) playerEntry.bestResult = bestPlayerPos;
   }
 
   // Update AI
-  finalGrid.forEach((car, idx) => {
+  (Array.isArray(finalGrid) ? finalGrid : []).forEach((car, idx) => {
     if (!car.isPlayer) {
       const entry = standings.find(s => s.id === car.id);
       if (entry) {
@@ -1671,6 +1678,30 @@ function shiftTimeByDays(days) {
   return 0;
 }
 
+function shiftTimeToMs(targetMs) {
+  const state = S.getState();
+  if (!state) return { simulatedRaces: 0, simulatedPractices: 0, weeklyTicks: 0, totalSimulated: 0 };
+  if (!state.meta) state.meta = { version: 1, created: null, saveTime: null, timeOffsetMs: 0 };
+
+  const safeTargetMs = Number(targetMs);
+  if (!Number.isFinite(safeTargetMs)) {
+    return { simulatedRaces: 0, simulatedPractices: 0, weeklyTicks: 0, totalSimulated: 0 };
+  }
+
+  const currentVirtualMs = getNowMs();
+  const deltaMs = safeTargetMs - currentVirtualMs;
+  state.meta.timeOffsetMs = (state.meta.timeOffsetMs || 0) + deltaMs;
+  if (!state.meta.saveTime || safeTargetMs < state.meta.saveTime) {
+    state.meta.saveTime = safeTargetMs;
+  }
+  S.saveState();
+
+  if (deltaMs > 0) {
+    return catchUpOffline();
+  }
+  return { simulatedRaces: 0, simulatedPractices: 0, weeklyTicks: 0, totalSimulated: 0 };
+}
+
 // ---- offline progression catchup ----
 function catchUpOffline() {
   const state = S.getState();
@@ -1685,21 +1716,45 @@ function catchUpOffline() {
   }
 
   const offlineHours = Math.floor(offlineMs / (60 * 60 * 1000));
-  let raceSimLimit = 0;
-  if (offlineHours >= 24 * 7) raceSimLimit = 8;
-  else if (offlineHours >= 24) raceSimLimit = 2;
+  const fromMs = state.meta.saveTime;
+  const toMs = now;
+
+  const countScheduleCrossings = (startMs, endMs, dayOfWeek, hour) => {
+    const start = new Date(startMs + 1);
+    const end = new Date(endMs);
+    if (start > end) return 0;
+
+    const cursor = new Date(start);
+    cursor.setSeconds(0, 0);
+    const dayShift = (dayOfWeek - cursor.getDay() + 7) % 7;
+    cursor.setDate(cursor.getDate() + dayShift);
+    cursor.setHours(hour, 0, 0, 0);
+    if (cursor < start) cursor.setDate(cursor.getDate() + 7);
+
+    let count = 0;
+    while (cursor <= end) {
+      count++;
+      cursor.setDate(cursor.getDate() + 7);
+    }
+    return count;
+  };
+
+  const practiceCrossings = countScheduleCrossings(fromMs, toMs, 3, 18); // Wed 18:00
+  const raceCrossings = countScheduleCrossings(fromMs, toMs, 0, 18); // Sun 18:00
+  const weeklyTicksTarget = Math.min(52, Math.floor(offlineMs / (7 * DAY_MS)));
 
   let simulatedRaces = 0;
   let simulatedPractices = 0;
   let totalPoints = 0;
   let totalCredits = 0;
+  let weeklyTicksApplied = 0;
   const logs = [];
 
   // Apply passive progression that should always happen while away.
   updateConstructionQueue();
 
   // Minimal short-offline progression.
-  if (offlineHours >= 4 && raceSimLimit === 0) {
+  if (offlineHours >= 4 && raceCrossings === 0) {
     const passiveIncome = Math.floor(((state.team?.fans || 0) * 0.01));
     if (passiveIncome > 0) {
       S.addCredits(passiveIncome);
@@ -1720,15 +1775,16 @@ function catchUpOffline() {
     return null;
   };
 
-  while (simulatedRaces < raceSimLimit) {
+  while (simulatedPractices < practiceCrossings) {
+    recordPracticeOutcome({ source: 'offline' });
+    simulatedPractices += 1;
+  }
+
+  while (simulatedRaces < raceCrossings) {
     const nextRaceObj = resolveNextRace();
     if (!nextRaceObj) break;
 
-    if (offlineHours >= 24 && simulatedPractices < simulatedRaces + 1) {
-      recordPracticeOutcome({ source: 'offline' });
-      simulatedPractices += 1;
-      logs.push(`⏱️ Practice simulated before Round ${nextRaceObj.round}.`);
-    }
+    logs.push(`⏱️ Practice context prepared for Round ${nextRaceObj.round}.`);
 
     const simResult = simulateRace({
       weather: nextRaceObj.weather || 'dry',
@@ -1738,7 +1794,7 @@ function catchUpOffline() {
     });
     updateStandings(simResult);
     nextRaceObj.status = 'completed';
-    nextRaceObj.result = { position: simResult.position, points: simResult.points };
+    nextRaceObj.result = { position: simResult.position, points: simResult.points, playerCars: simResult.playerCars || [] };
 
     const cal = state.season.calendar || [];
     const newNext = cal.find((r) => r && (r.status === 'upcoming' || r.status === 'pending'));
@@ -1763,9 +1819,11 @@ function catchUpOffline() {
     }
 
     logs.push(`🏁 Round ${nextRaceObj.round}: P${simResult.position} (+${simResult.points} pts, +${GL_UI.fmtCR(simResult.prizeMoney || 0)} CR)`);
+  }
 
-    // Weekly economy + progression tick after each simulated race.
+  while (weeklyTicksApplied < weeklyTicksTarget) {
     weeklyTick();
+    weeklyTicksApplied += 1;
   }
 
   const totalSimulated = simulatedRaces + simulatedPractices;
@@ -1777,7 +1835,7 @@ function catchUpOffline() {
         content: `
           <p style="color:var(--t-secondary);margin-bottom:16px">${__('offline_catchup_desc') || 'Your team continued to compete in scheduled races:'}</p>
           <div style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:10px">
-            Simulated: <strong>${simulatedRaces}</strong> races${simulatedPractices ? ` · <strong>${simulatedPractices}</strong> practices` : ''} · Points: <strong>${totalPoints}</strong> · Credits: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
+            Simulated: <strong>${simulatedRaces}</strong> races${simulatedPractices ? ` · <strong>${simulatedPractices}</strong> practices` : ''}${weeklyTicksApplied ? ` · <strong>${weeklyTicksApplied}</strong> weekly ticks` : ''} · Points: <strong>${totalPoints}</strong> · Credits: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
           </div>
           <div style="background:var(--c-surface-2);padding:16px;border-radius:8px;font-family:monospace;font-size:0.85rem;line-height:1.5;color:var(--t-primary)">
             ${logs.join('<br>')}
@@ -1792,7 +1850,12 @@ function catchUpOffline() {
   state.meta.saveTime = now;
   S.saveState();
 
-  return totalSimulated;
+  return {
+    simulatedRaces,
+    simulatedPractices,
+    weeklyTicks: weeklyTicksApplied,
+    totalSimulated
+  };
 }
 
 // ---- train pilot (once a day) ----
@@ -1838,6 +1901,7 @@ window.GL_ENGINE = {
   getNowMs,
   getNowDate,
   shiftTimeByDays,
+  shiftTimeToMs,
   generateRandomEvent, applyEventChoice,
   buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot
 };

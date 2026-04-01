@@ -48,8 +48,47 @@ const DASHBOARD = {
     const simulated = window.GL_ENGINE.shiftTimeByDays(d);
     const sign = d > 0 ? '+' : '';
     GL_UI.toast(`Time travel ${sign}${d}d aplicado.`, 'info');
-    if (simulated > 0) {
-      GL_UI.toast(`Auto-simulado: ${simulated} evento(s).`, 'good');
+    const totalSimulated = (simulated && typeof simulated === 'object')
+      ? (simulated.totalSimulated || 0)
+      : Number(simulated || 0);
+    if (totalSimulated > 0) {
+      GL_UI.toast(`Auto-simulado: ${totalSimulated} evento(s).`, 'good');
+    }
+
+    this.refresh();
+  },
+
+  formatDateTimeLocal(date) {
+    const d = date instanceof Date ? date : new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  },
+
+  applyExactTime() {
+    const input = document.getElementById('dash-time-target');
+    if (!input || !input.value) {
+      GL_UI.toast('Selecciona fecha y hora objetivo.', 'warning');
+      return;
+    }
+    if (!window.GL_ENGINE || typeof window.GL_ENGINE.shiftTimeToMs !== 'function') {
+      GL_UI.toast('Exact time travel is not available in this build.', 'warning');
+      return;
+    }
+
+    const targetMs = new Date(input.value).getTime();
+    if (!Number.isFinite(targetMs)) {
+      GL_UI.toast('Fecha/hora inválida.', 'warning');
+      return;
+    }
+
+    const currentMs = (typeof window.GL_ENGINE.getNowMs === 'function') ? window.GL_ENGINE.getNowMs() : Date.now();
+    const deltaMs = targetMs - currentMs;
+    const result = window.GL_ENGINE.shiftTimeToMs(targetMs);
+    const deltaHours = Math.round(deltaMs / (60 * 60 * 1000));
+    const sign = deltaHours > 0 ? '+' : '';
+    GL_UI.toast(`Tiempo ajustado (${sign}${deltaHours}h).`, 'info');
+    if ((result?.simulatedRaces || 0) > 0) {
+      GL_UI.toast(`Auto-simulado: ${result.simulatedRaces} carrera(s).`, 'good');
     }
 
     this.refresh();
@@ -172,6 +211,8 @@ const DASHBOARD = {
   renderSkeleton() {
     const el = document.getElementById('screen-dashboard');
     if (!el) return;
+    const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
+    const targetDefault = this.formatDateTimeLocal(now);
     // Only render skeleton if it's empty to avoid completely destroying DOM on every tick (prevents scroll jumping)
     // Actually, simple rendering is fine for now, but let's just do it
     el.innerHTML = `
@@ -183,10 +224,8 @@ const DASHBOARD = {
         </div>
         <div class="screen-actions">
           <button class="btn btn-primary" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(-1)">-1d</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(1)">+1d</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(-7)">-1w</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.timeTravel(7)">+1w</button>
+          <input id="dash-time-target" type="datetime-local" value="${targetDefault}" style="min-width:210px;padding:8px 10px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--t-primary);border-radius:8px;font-size:0.78rem">
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.applyExactTime()">Ir a fecha/hora</button>
         </div>
       </div>
       <div class="dashboard-grid stagger">
