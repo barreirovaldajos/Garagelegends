@@ -905,6 +905,7 @@ const SCREENS = {
         </div>
         <div class="screen-actions">
           <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${window.__('prerace_save_strat') || 'Guardar Estrategia'}</button>
+          <button class="btn btn-secondary btn-lg" onclick="GL_APP.navigateTo('race')">${__('race_sim_btn') || 'Correr carrera'}</button>
         </div>
       </div>
       <div class="prerace-grid">
