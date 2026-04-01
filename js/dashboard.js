@@ -64,6 +64,35 @@ const DASHBOARD = {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   },
 
+  getNextWeekdayAtHour(baseDate, weekday, hour) {
+    const base = baseDate instanceof Date ? baseDate : new Date();
+    const target = new Date(base);
+    const deltaDays = (weekday - target.getDay() + 7) % 7;
+    target.setDate(target.getDate() + deltaDays);
+    target.setHours(hour, 0, 0, 0);
+    if (target <= base) target.setDate(target.getDate() + 7);
+    return target;
+  },
+
+  setTimePreset(presetKey) {
+    const input = document.getElementById('dash-time-target');
+    if (!input) return;
+
+    const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
+    let target = new Date(now);
+
+    if (presetKey === 'next_wed_18') {
+      target = this.getNextWeekdayAtHour(now, 3, 18);
+    } else if (presetKey === 'next_sun_18') {
+      target = this.getNextWeekdayAtHour(now, 0, 18);
+    } else if (presetKey === 'next_week_start') {
+      target = this.getNextWeekdayAtHour(now, 1, 0);
+    }
+
+    input.value = this.formatDateTimeLocal(target);
+    GL_UI.toast(`Preset aplicado: ${target.toLocaleString('es-ES')}`, 'info');
+  },
+
   applyExactTime() {
     const input = document.getElementById('dash-time-target');
     if (!input || !input.value) {
@@ -238,6 +267,9 @@ const DASHBOARD = {
         <div class="screen-actions">
           <button class="btn btn-primary" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
           <input id="dash-time-target" type="datetime-local" value="${targetDefault}" min="${minAllowedValue}" style="min-width:210px;padding:8px 10px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--t-primary);border-radius:8px;font-size:0.78rem">
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_wed_18')">Próx. mié 18:00</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_sun_18')">Próx. dom 18:00</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_week_start')">Inicio próx. semana</button>
           <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.applyExactTime()">Ir a fecha/hora</button>
         </div>
       </div>
