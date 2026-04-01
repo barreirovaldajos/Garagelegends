@@ -9,6 +9,9 @@ const Economy = {
     if (typeof state.finances.deficitStreak !== 'number') state.finances.deficitStreak = 0;
     if (typeof state.finances.criticalDeficit !== 'boolean') state.finances.criticalDeficit = false;
     if (typeof state.finances.lastNet !== 'number') state.finances.lastNet = 0;
+    if (!state.team) state.team = {};
+    if (typeof state.team.reputation !== 'number') state.team.reputation = 100;
+    if (typeof state.team.fans !== 'number') state.team.fans = 0;
   },
 
   calculateTeamIncomeBreakdown(state) {

@@ -206,6 +206,11 @@ function generateAITeamState(team, playerState) {
   const pseudoPilots = [{ salary: 9000 + Math.floor(Math.random() * 6000) }, { salary: 8000 + Math.floor(Math.random() * 5000) }];
   const pseudoStaff = [{ salary: 7000 + Math.floor(Math.random() * 4000) }];
   return {
+    team: {
+      name: (team && team.name) || 'AI Team',
+      reputation: 110,
+      fans: 3000
+    },
     sponsors: pseudoSponsors,
     pilots: pseudoPilots,
     staff: pseudoStaff,
