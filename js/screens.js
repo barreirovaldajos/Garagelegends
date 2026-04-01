@@ -2,6 +2,21 @@
 'use strict';
 
 const SCREENS = {
+  getRaceRuntimeMode() {
+    const mode = window._raceRuntimeMode;
+    return mode === 'qa' ? 'qa' : 'real';
+  },
+
+  getRaceRuntimeDurationMs() {
+    return this.getRaceRuntimeMode() === 'qa' ? (2 * 60 * 1000) : (30 * 60 * 1000);
+  },
+
+  setRaceRuntimeMode(mode) {
+    window._raceRuntimeMode = (mode === 'qa') ? 'qa' : 'real';
+    GL_UI.toast(window._raceRuntimeMode === 'qa' ? 'Modo QA activo (2 min).' : 'Modo REAL activo (30 min).', 'info');
+    this.renderRace();
+  },
+
 
   // ===== GARAGE SCREEN (HQ) =====
   renderGarage() {
@@ -1286,6 +1301,8 @@ const SCREENS = {
       const cfg = (strategy.driverConfigs && strategy.driverConfigs[pid]) || strategy;
       return { pilot, cfg };
     }).filter(Boolean);
+    const runtimeMode = this.getRaceRuntimeMode();
+    const runtimeLabel = runtimeMode === 'qa' ? 'QA · 2 min' : 'REAL · 30 min';
 
     el.innerHTML = `
       <div class="screen-header">
@@ -1295,6 +1312,8 @@ const SCREENS = {
           <div class="screen-subtitle">${weather==='wet'?'🌧️':'☀️'} ${weather} ${__('race_conditions')}</div>
         </div>
         <div class="screen-actions">
+          <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.setRaceRuntimeMode('real')" ${runtimeMode === 'real' ? 'style="border-color:var(--c-accent);color:var(--c-accent)"' : ''}>REAL 30m</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.setRaceRuntimeMode('qa')" ${runtimeMode === 'qa' ? 'style="border-color:var(--c-accent);color:var(--c-accent)"' : ''}>QA 2m</button>
           <button class="btn btn-primary" id="race-sim-btn" onclick="GL_SCREENS.runSimulation()">${__('race_sim_btn')}</button>
         </div>
       </div>
@@ -1304,7 +1323,7 @@ const SCREENS = {
           <div class="race-status-bar" id="race-status-bar">
             <span class="race-lap-counter" id="race-lap">🏁 ${__('race_ready')}</span>
             <span class="race-condition">${weather==='wet'?'🌧️':'☀️'} ${weather.charAt(0).toUpperCase()+weather.slice(1)} · ${circuit.laps} ${__('laps')}</span>
-            <span style="margin-left:auto;font-size:0.8rem;color:var(--t-secondary)">${__('race_tyre')}: <strong>${(strategy.tyre||'M').charAt(0).toUpperCase()}</strong> · ⚙️ ${(strategy.engineMode || 'normal').toUpperCase()}</span>
+            <span style="margin-left:auto;font-size:0.8rem;color:var(--t-secondary)">${__('race_tyre')}: <strong>${(strategy.tyre||'M').charAt(0).toUpperCase()}</strong> · ⚙️ ${(strategy.engineMode || 'normal').toUpperCase()} · ⏱️ ${runtimeLabel}</span>
           </div>
           <div class="race-event-log" id="race-event-log">
             <div class="race-event" style="border-color:var(--c-border)">
@@ -1380,7 +1399,7 @@ const SCREENS = {
     const log = document.getElementById('race-event-log');
     if (log) log.innerHTML = '';
     const lapEl = document.getElementById('race-lap');
-    const raceDurationMs = 30 * 60 * 1000;
+    const raceDurationMs = this.getRaceRuntimeDurationMs();
     const startTs = Date.now();
     const allEvents = Array.isArray(result.events) ? result.events : [];
     const totalLaps = result.totalLaps || 30;
