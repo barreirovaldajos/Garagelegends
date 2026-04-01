@@ -95,6 +95,11 @@ const APP = {
       
       // If time arrived, simulate!
       if (diffMs <= 0) {
+        if (window._raceInProgress || APP.currentScreen === 'race') {
+          const lblStr = nextRaceObj.type === 'practice' ? (window.__('next_practice_lbl') || 'NEXT PRAC') : (window.__('next_race_lbl') || 'NEXT RACE');
+          elNext.textContent = `${lblStr}: LIVE`;
+          return;
+        }
          GL_ENGINE.catchUpOffline();
          if (window.GL_DASHBOARD) GL_DASHBOARD.init();
          return;

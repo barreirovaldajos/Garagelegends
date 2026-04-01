@@ -860,26 +860,18 @@ const SCREENS = {
     const roster = state.pilots || [];
     if (!Array.isArray(baseStrategy.selectedPilotIds)) baseStrategy.selectedPilotIds = [];
     baseStrategy.selectedPilotIds = baseStrategy.selectedPilotIds.filter((id) => roster.some((p) => p.id === id));
-    roster.forEach((p) => {
-      if (baseStrategy.selectedPilotIds.length < 2 && !baseStrategy.selectedPilotIds.includes(p.id)) {
-        baseStrategy.selectedPilotIds.push(p.id);
-      }
-    });
+    if (baseStrategy.selectedPilotIds.length === 0) {
+      roster.forEach((p) => {
+        if (baseStrategy.selectedPilotIds.length < 2 && !baseStrategy.selectedPilotIds.includes(p.id)) {
+          baseStrategy.selectedPilotIds.push(p.id);
+        }
+      });
+    }
     baseStrategy.selectedPilotIds = baseStrategy.selectedPilotIds.slice(0, 2);
     if (!baseStrategy.driverConfigs) baseStrategy.driverConfigs = {};
     baseStrategy.selectedPilotIds.forEach((pid) => {
       if (!baseStrategy.driverConfigs[pid]) {
-        baseStrategy.driverConfigs[pid] = {
-          tyre: baseStrategy.tyre || 'medium',
-          aggression: baseStrategy.aggression || 50,
-          riskLevel: baseStrategy.riskLevel || 40,
-          pitLap: baseStrategy.pitLap || 50,
-          engineMode: baseStrategy.engineMode || 'normal',
-          pitPlan: baseStrategy.pitPlan || 'single',
-          strategy: baseStrategy.strategy || 'balanced',
-          setup: GL_STATE.deepClone(baseStrategy.setup || { aeroBalance: 50, wetBias: 50 }),
-          interventions: GL_STATE.deepClone(baseStrategy.interventions || [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
-        };
+        baseStrategy.driverConfigs[pid] = {};
       }
     });
     window._raceStrategy = baseStrategy;
@@ -966,6 +958,7 @@ const SCREENS = {
             <div class="tire-btn soft ${baseStrategy.tyre === 'soft' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('soft',this)">🔴 Soft<br><span style="font-size:0.65rem;opacity:0.7">Fast, high wear</span></div>
             <div class="tire-btn medium ${baseStrategy.tyre === 'medium' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('medium',this)">🟡 Medium<br><span style="font-size:0.65rem;opacity:0.7">Balanced</span></div>
             <div class="tire-btn hard ${baseStrategy.tyre === 'hard' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('hard',this)">⚪ Hard<br><span style="font-size:0.65rem;opacity:0.7">Durable, slower</span></div>
+            <div class="tire-btn ${baseStrategy.tyre === 'wet' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('wet',this)">🔵 Wet<br><span style="font-size:0.65rem;opacity:0.7">Rain optimized</span></div>
           </div>
           <div class="divider"></div>
           <div class="prerace-block-title" style="margin-top:0">${__('prerace_params')}</div>
@@ -1053,13 +1046,21 @@ const SCREENS = {
                     <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>Tyre: Soft</option>
                     <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>Tyre: Medium</option>
                     <option value="hard" ${cfg.tyre === 'hard' ? 'selected' : ''}>Tyre: Hard</option>
+                    <option value="wet" ${cfg.tyre === 'wet' ? 'selected' : ''}>Tyre: Wet</option>
                   </select>
                   <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','engineMode',this.value)">
                     <option value="eco" ${cfg.engineMode === 'eco' ? 'selected' : ''}>Engine: ECO</option>
                     <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>Engine: NORMAL</option>
                     <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>Engine: PUSH</option>
                   </select>
+                  <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','pitPlan',this.value)">
+                    <option value="single" ${cfg.pitPlan === 'single' || !cfg.pitPlan ? 'selected' : ''}>Pit Plan: Single</option>
+                    <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>Pit Plan: Double</option>
+                    <option value="adaptive" ${cfg.pitPlan === 'adaptive' ? 'selected' : ''}>Pit Plan: Adaptive</option>
+                  </select>
+                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">Pit Window: <strong style="margin-left:6px">${cfg.pitLap ?? (window._raceStrategy?.pitLap ?? 50)}%</strong></div>
                 </div>
+                <input type="range" min="0" max="100" value="${cfg.pitLap ?? (window._raceStrategy?.pitLap ?? 50)}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','pitLap',+this.value,true)">
                 <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:8px">Aggression: <strong>${cfg.aggression ?? 50}</strong></div>
                 <input type="range" min="0" max="100" value="${cfg.aggression ?? 50}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
                 <div style="font-size:0.7rem;color:var(--t-tertiary)">Risk: <strong>${cfg.riskLevel ?? 40}</strong></div>
@@ -1129,7 +1130,7 @@ const SCREENS = {
   },
 
   selectTyre(t, el) {
-    document.querySelectorAll('.tire-btn').forEach(e=>{ e.classList.remove('selected','soft','medium','hard'); });
+    document.querySelectorAll('.tire-btn').forEach(e=>{ e.classList.remove('selected','soft','medium','hard','wet'); });
     el.classList.add('selected', t);
     if (window._raceStrategy) window._raceStrategy.tyre = t;
     window._advisorStrategySource = 'manual';
@@ -1191,17 +1192,7 @@ const SCREENS = {
       selected.push(pid);
       if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
       if (!window._raceStrategy.driverConfigs[pid]) {
-        window._raceStrategy.driverConfigs[pid] = {
-          tyre: window._raceStrategy.tyre || 'medium',
-          aggression: window._raceStrategy.aggression || 50,
-          riskLevel: window._raceStrategy.riskLevel || 40,
-          pitLap: window._raceStrategy.pitLap || 50,
-          engineMode: window._raceStrategy.engineMode || 'normal',
-          pitPlan: window._raceStrategy.pitPlan || 'single',
-          strategy: window._raceStrategy.strategy || 'balanced',
-          setup: GL_STATE.deepClone(window._raceStrategy.setup || { aeroBalance: 50, wetBias: 50 }),
-          interventions: GL_STATE.deepClone(window._raceStrategy.interventions || [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
-        };
+        window._raceStrategy.driverConfigs[pid] = {};
       }
     }
     window._raceStrategy.pilotId = window._raceStrategy.selectedPilotIds[0] || null;
@@ -1230,9 +1221,7 @@ const SCREENS = {
         pitLap: window._raceStrategy.pitLap || 50,
         engineMode: window._raceStrategy.engineMode || 'normal',
         pitPlan: window._raceStrategy.pitPlan || 'single',
-        strategy: window._raceStrategy.strategy || 'balanced',
-        setup: GL_STATE.deepClone(window._raceStrategy.setup || { aeroBalance: 50, wetBias: 50 }),
-        interventions: GL_STATE.deepClone(window._raceStrategy.interventions || [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
+        strategy: window._raceStrategy.strategy || 'balanced'
       };
     });
     window._advisorStrategySource = 'manual';
@@ -1383,17 +1372,27 @@ const SCREENS = {
 
     document.getElementById('race-sim-btn').disabled = true;
     document.getElementById('race-sim-btn').textContent = `⏳ ${__('race_racing')}`;
+    window._raceInProgress = true;
 
-    const result = GL_ENGINE.simulateRace({
-      weather: next?.weather || 'dry',
-      circuits: next?.circuit || GL_DATA.CIRCUITS[0],
-      round: next?.round || 1,
-      forecast: next?.forecast || null,
-      strategy,
-      pilotId: strategy.pilotId,
-      selectedPilotIds: strategy.selectedPilotIds || [],
-      driverStrategies: strategy.driverConfigs || {}
-    });
+    let result;
+    try {
+      result = GL_ENGINE.simulateRace({
+        weather: next?.weather || 'dry',
+        circuits: next?.circuit || GL_DATA.CIRCUITS[0],
+        round: next?.round || 1,
+        forecast: next?.forecast || null,
+        strategy,
+        pilotId: strategy.pilotId,
+        selectedPilotIds: strategy.selectedPilotIds || [],
+        driverStrategies: strategy.driverConfigs || {}
+      });
+    } catch (err) {
+      window._raceInProgress = false;
+      document.getElementById('race-sim-btn').disabled = false;
+      document.getElementById('race-sim-btn').textContent = __('race_sim_btn');
+      GL_UI.toast('Error al iniciar simulación de carrera.', 'warning');
+      throw err;
+    }
 
     window._lastRaceResult = result;
 
@@ -1440,7 +1439,7 @@ const SCREENS = {
           <div class="race-pos-row ${car.isPlayer?'my-car':''}">
             <span class="race-pos-num">${idx+1}</span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
-            <span class="race-pos-tire">${car.tyre==='soft'?'🔴':car.tyre==='hard'?'⚪':'🟡'}</span>
+            <span class="race-pos-tire">${car.tyre==='soft'?'🔴':car.tyre==='hard'?'⚪':car.tyre==='wet'?'🔵':'🟡'}</span>
             <span class="race-pos-gap">${gap}</span>
           </div>`;
       }).join('');
@@ -1458,9 +1457,10 @@ const SCREENS = {
       if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
       if (GL_ENGINE.ensureNextRaceAvailable) GL_ENGINE.ensureNextRaceAvailable();
       state.season.raceIndex = nextIdx + 1;
-      GL_STATE.addCredits(result.prizeMoney);
+      const prize = Number.isFinite(result.prizeMoney) ? result.prizeMoney : Number(result.prizeMoney || 0);
+      GL_STATE.addCredits(prize);
       const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
-      GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(result.prizeMoney)} CR`, 'good');
+      GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(prize)} CR`, 'good');
 
       if (GL_ENGINE.recordStrategyOutcome) {
         GL_ENGINE.recordStrategyOutcome(next, strategy, result, {
@@ -1475,6 +1475,7 @@ const SCREENS = {
 
       GL_STATE.saveState();
       GL_ENGINE.weeklyTick();
+      window._raceInProgress = false;
 
       setTimeout(() => GL_APP.navigateTo('postrace'), 1000);
     };

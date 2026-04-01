@@ -5,6 +5,7 @@
 
 const Economy = {
   ensureFinanceMeta(state) {
+    if (!state) return;
     if (!state.finances) state.finances = {};
     if (typeof state.finances.deficitStreak !== 'number') state.finances.deficitStreak = 0;
     if (typeof state.finances.criticalDeficit !== 'boolean') state.finances.criticalDeficit = false;
@@ -15,6 +16,9 @@ const Economy = {
   },
 
   calculateTeamIncomeBreakdown(state) {
+    if (!state) {
+      return { sponsorIncome: 0, fanRevenue: 0, divisionGrant: 0, bonusIncome: 0, income: 0 };
+    }
     const sponsors = (state.sponsors || []).filter(s => !s.expired);
     const baseSponsorIncome = sponsors.reduce((sum, s) => sum + (s.weeklyValue || s.income || 0), 0);
     const adminLv = (state.hq && state.hq.admin) || 1;
@@ -40,6 +44,9 @@ const Economy = {
   },
 
   calculateTeamExpenseBreakdown(state) {
+    if (!state) {
+      return { salaries: 0, hqCost: 0, contractCost: 0, constructionUpkeep: 0, expenses: 0 };
+    }
     const pilots = state.pilots || [];
     const staff = state.staff || [];
     const salaries = pilots.reduce((sum, p) => sum + (p.salary || 0), 0) + staff.reduce((sum, s) => sum + (s.salary || 0), 0);
@@ -71,6 +78,9 @@ const Economy = {
   },
 
   handleDeficitStatus(state, net) {
+    if (!state) {
+      return { streak: 0, critical: false, reputationDelta: 0, fansDelta: 0, notes: [] };
+    }
     this.ensureFinanceMeta(state);
 
     const effects = {
@@ -117,6 +127,9 @@ const Economy = {
   },
 
   processWeeklyBalance(state) {
+    if (!state) {
+      return { income: 0, expenses: 0, net: 0, effects: { streak: 0, critical: false, reputationDelta: 0, fansDelta: 0, notes: [] } };
+    }
     this.ensureFinanceMeta(state);
     const income = this.calculateTeamIncome(state);
     const expenses = this.calculateTeamExpenses(state);

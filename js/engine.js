@@ -328,7 +328,7 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
         isPlayer: false,
         base: (aiBase + aiTrackBias) * rainMod * profile.paceBias,
         score: (aiBase + aiTrackBias) * rainMod * profile.paceBias + (Math.random() - 0.5) * 10,
-        tyre: ['soft','medium','hard'][Math.floor(Math.random() * 3)],
+        tyre: weather === 'wet' ? 'wet' : ['soft','medium','hard'][Math.floor(Math.random() * 3)],
         wear: 0,
         gaps: 0
       });
@@ -339,8 +339,8 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
 }
 
 // ---- tyre degradation per compound ----
-const TYRE_DEG = { soft: 1.5, medium: 0.9, hard: 0.5 };
-const TYRE_PACE = { soft: 8, medium: 0, hard: -4 };
+const TYRE_DEG = { soft: 1.5, medium: 0.9, hard: 0.5, wet: 0.7 };
+const TYRE_PACE = { soft: 8, medium: 0, hard: -4, wet: -2 };
 
 function getEngineModeFx(mode) {
   const map = {
@@ -625,8 +625,8 @@ function simulateRace(options = {}) {
       if (rt.pitStopsDone < rt.maxPitStops && lap === nextPitLap) {
         rt.pitStopsDone++;
         rt.wear = 0;
-        const newTyre = liveWeather === 'wet'
-          ? 'medium'
+          const newTyre = liveWeather === 'wet'
+            ? 'wet'
           : (rt.pitStopsDone === 1
               ? (s.tyre === 'soft' ? 'hard' : (s.tyre === 'hard' ? 'medium' : 'hard'))
               : 'soft');
@@ -690,8 +690,10 @@ function simulateRace(options = {}) {
         }
       }
 
-      const weatherTyreMult = liveWeather === 'wet' ? 1.15 : 1;
       const currentTyre = entry.tyre || s.tyre || 'medium';
+      const weatherTyreMult = liveWeather === 'wet'
+        ? (currentTyre === 'wet' ? 0.82 : 1.24)
+        : (currentTyre === 'wet' ? 1.45 : 1);
       rt.wear += (TYRE_DEG[currentTyre] || 0.9) * lapProfile.tyreDegMult * weatherTyreMult * (1 + engineFx.tyre) * setup.tyreMult;
       if (rt.wear > 30 && rt.wear < 32 && !entry.retired) {
         events.push({ lap, type: 'incident', text: `⚠️ Tyre performance dropping for <strong>${entry.pilotName}</strong>.` });
