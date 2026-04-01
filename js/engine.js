@@ -344,30 +344,128 @@ function getEngineModeFx(mode) {
 function simulateRace(options = {}) {
   const state = S.getState();
   const staffFx = getRaceStaffEffects(state);
-  const advisorMode = (state.advisor && state.advisor.mode) ? state.advisor.mode : 'balanced';
   const { weather = 'dry', circuits, round } = options;
-  const selectedPilotId = options.pilotId || (options.strategy && options.strategy.pilotId) || null;
-  const pilot = (state.pilots || []).find((p) => p.id === selectedPilotId)
-    || state.pilots[0]
-    || { attrs:{ pace:55, racePace:55, consistency:60, rain:55, tyre:55, aggression:60, overtake:55, techFB:55, mental:55, charisma:60 }, name:'Driver' };
-  const strategy = options.strategy || {
+  const baseStrategy = options.strategy || {
     tyre: 'medium', aggression: 50, pitLap: 35, riskLevel: 50, engineMode: 'normal', strategy: 'balanced', pitPlan: 'single', safetyCarReaction: 'live'
   };
-  let currentEngineMode = strategy.engineMode || 'normal';
-  const pitPlan = strategy.pitPlan || 'single';
+
+  const fallbackPilot = { attrs:{ pace:55, racePace:55, consistency:60, rain:55, tyre:55, aggression:60, overtake:55, techFB:55, mental:55, charisma:60 }, name:'Driver' };
+  const allPilots = (state.pilots && state.pilots.length) ? state.pilots : [fallbackPilot];
+  const requestedIds = [];
+  if (Array.isArray(options.selectedPilotIds)) requestedIds.push(...options.selectedPilotIds);
+  if (Array.isArray(baseStrategy.selectedPilotIds)) requestedIds.push(...baseStrategy.selectedPilotIds);
+  if (options.pilotId) requestedIds.push(options.pilotId);
+  if (baseStrategy.pilotId) requestedIds.push(baseStrategy.pilotId);
+
+  const selectedPilots = [];
+  requestedIds.forEach((id) => {
+    if (!id || selectedPilots.find((p) => p.id === id)) return;
+    const found = allPilots.find((p) => p.id === id);
+    if (found) selectedPilots.push(found);
+  });
+  allPilots.forEach((p) => {
+    if (selectedPilots.length >= 2) return;
+    if (!selectedPilots.find((x) => x.id === p.id)) selectedPilots.push(p);
+  });
+
+  const normalizeDriverStrategy = (driverStrategy = {}) => {
+    return {
+      tyre: driverStrategy.tyre || baseStrategy.tyre || 'medium',
+      aggression: Number.isFinite(driverStrategy.aggression) ? driverStrategy.aggression : (baseStrategy.aggression || 50),
+      pitLap: Number.isFinite(driverStrategy.pitLap) ? driverStrategy.pitLap : (baseStrategy.pitLap || 50),
+      riskLevel: Number.isFinite(driverStrategy.riskLevel) ? driverStrategy.riskLevel : (baseStrategy.riskLevel || 40),
+      engineMode: driverStrategy.engineMode || baseStrategy.engineMode || 'normal',
+      strategy: driverStrategy.strategy || baseStrategy.strategy || 'balanced',
+      pitPlan: driverStrategy.pitPlan || baseStrategy.pitPlan || 'single',
+      safetyCarReaction: 'live',
+      setup: {
+        aeroBalance: Number.isFinite(driverStrategy?.setup?.aeroBalance) ? driverStrategy.setup.aeroBalance : (baseStrategy?.setup?.aeroBalance ?? 50),
+        wetBias: Number.isFinite(driverStrategy?.setup?.wetBias) ? driverStrategy.setup.wetBias : (baseStrategy?.setup?.wetBias ?? 50)
+      },
+      interventions: Array.isArray(driverStrategy.interventions)
+        ? driverStrategy.interventions
+        : (Array.isArray(baseStrategy.interventions) ? baseStrategy.interventions : [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
+    };
+  };
+
+  const driverConfigs = (baseStrategy && baseStrategy.driverConfigs) ? baseStrategy.driverConfigs : {};
+  const selectedDrivers = selectedPilots.slice(0, 2).map((pilot, idx) => {
+    const raw = driverConfigs[pilot.id] || {};
+    return {
+      slot: idx + 1,
+      id: `player_${idx + 1}`,
+      pilotId: pilot.id || `pilot_${idx + 1}`,
+      pilot,
+      strategy: normalizeDriverStrategy(raw)
+    };
+  });
+
+  const leadDriver = selectedDrivers[0] || {
+    slot: 1,
+    id: 'player_1',
+    pilotId: 'pilot_1',
+    pilot: fallbackPilot,
+    strategy: normalizeDriverStrategy({})
+  };
+
   const profile = getCircuitProfile(circuits, weather);
   const forecast = options.forecast || null;
   const layoutLaps = { 'high-speed': 32, power: 31, technical: 30, mixed: 30, endurance: 34 };
   const totalLaps = layoutLaps[profile.layout] || 30;
   let liveWeather = weather;
-  const interventions = Array.isArray(strategy.interventions) ? strategy.interventions : [];
 
-  let grid = buildRaceGrid(pilot, liveWeather, circuits, strategy);
-  const initialEngineFx = getEngineModeFx(currentEngineMode);
-  grid = grid.map(g => ({
-    ...g,
-    score: g.score * (1 + initialEngineFx.pace * (g.isPlayer ? 1 : 0.35)) * (1 + (g.isPlayer ? staffFx.paceBonus : 0))
-  }));
+  let grid = buildRaceGrid(leadDriver.pilot, liveWeather, circuits, leadDriver.strategy).map((entry) => {
+    if (!entry.isPlayer) return entry;
+    const fx = getEngineModeFx(leadDriver.strategy.engineMode || 'normal');
+    return {
+      ...entry,
+      id: leadDriver.id,
+      name: `${state.team.name || 'Your Team'} · ${leadDriver.pilot.name}`,
+      pilotId: leadDriver.pilotId,
+      pilotName: leadDriver.pilot.name,
+      teamSlot: leadDriver.slot,
+      strategy: GL_STATE.deepClone(leadDriver.strategy),
+      score: entry.score * (1 + fx.pace) * (1 + staffFx.paceBonus)
+    };
+  });
+
+  if (selectedDrivers[1]) {
+    const secondDriver = selectedDrivers[1];
+    const carData = S.getCar().components;
+    const car = carScore();
+    const pilotSc = pilotScore(secondDriver.pilot);
+    const setupFx = getSetupEffects(circuits, liveWeather, secondDriver.strategy.setup || {});
+    const layout = profile.layout;
+    const layoutCarComponent = {
+      'high-speed': (carData.engine.score + carData.efficiency.score) / 2,
+      power: (carData.engine.score + carData.gearbox.score) / 2,
+      technical: (carData.brakes.score + carData.chassis.score + carData.aero.score) / 3,
+      mixed: (carData.chassis.score + carData.aero.score + carData.reliability.score) / 3,
+      endurance: (carData.reliability.score + carData.tyreManage.score + carData.efficiency.score) / 3
+    };
+    const trackCarBonus = ((layoutCarComponent[layout] || car) - 50) * 0.12;
+    const aggressionBonus = ((secondDriver.strategy.aggression || 50) - 50) * 0.04;
+    const rain = liveWeather === 'wet' ? ((secondDriver.pilot && secondDriver.pilot.attrs && secondDriver.pilot.attrs.rain) ? secondDriver.pilot.attrs.rain / 100 : 0.6) : 1;
+    const base = ((car * 0.5 + pilotSc * 0.5) + trackCarBonus + aggressionBonus) * rain * profile.paceBias * setupFx.paceMult;
+    const fx = getEngineModeFx(secondDriver.strategy.engineMode || 'normal');
+    grid.push({
+      id: secondDriver.id,
+      name: `${state.team.name || 'Your Team'} · ${secondDriver.pilot.name}`,
+      pilotId: secondDriver.pilotId,
+      pilotName: secondDriver.pilot.name,
+      teamSlot: secondDriver.slot,
+      isPlayer: true,
+      base,
+      score: (base + (Math.random() - 0.5) * 10) * (1 + fx.pace) * (1 + staffFx.paceBonus),
+      tyre: secondDriver.strategy.tyre || 'medium',
+      wear: 0,
+      gaps: 0,
+      strategy: GL_STATE.deepClone(secondDriver.strategy)
+    });
+  }
+
+  grid.sort((a, b) => b.score - a.score);
+
   const events = [];
   let safetyCarActive = false;
 
@@ -375,45 +473,59 @@ function simulateRace(options = {}) {
   grid.forEach(e => {
     e.qualyScore = e.score + (Math.random() - 0.5) * 8;
     if (e.isPlayer) {
-      e.tyre = strategy.tyre;
+      e.tyre = (e.strategy && e.strategy.tyre) || leadDriver.strategy.tyre;
     }
   });
   grid.sort((a, b) => b.qualyScore - a.qualyScore);
   const gridStart = grid.map(e => ({...e}));
-  const playerStart = gridStart.findIndex(e => e.isPlayer) + 1;
+  const playerStarts = gridStart.filter(e => e.isPlayer).map((e) => ({
+    carId: e.id,
+    pilotName: e.pilotName || 'Driver',
+    startPos: gridStart.findIndex((x) => x.id === e.id) + 1
+  }));
 
-  events.push({ lap: 0, type: 'info', text: `<strong>Qualifying P${playerStart}.</strong> ${liveWeather === 'wet' ? '🌧️ Wet track!' : '☀️ Dry conditions.'} ${circuits?.layout ? `· ${circuits.layout}` : ''}` });
-  if (currentEngineMode !== 'normal') {
-    events.push({ lap: 0, type: 'info', text: `⚙️ Engine mode set to <strong>${currentEngineMode.toUpperCase()}</strong>.` });
-  }
+  const qualyText = playerStarts
+    .map((x) => `${x.pilotName}: P${x.startPos}`)
+    .join(' · ');
+  events.push({ lap: 0, type: 'info', text: `<strong>Qualifying:</strong> ${qualyText}. ${liveWeather === 'wet' ? '🌧️ Wet track!' : '☀️ Dry conditions.'} ${circuits?.layout ? `· ${circuits.layout}` : ''}` });
 
   // Race ticks
   const positions = grid.map((e, i) => ({ ...e, pos: i + 1, laps: 0, pit: false, retired: false }));
-  let playerPit = false;
-  let pitStopsDone = 0;
-  let playerWear = 0;
-  let adaptivePitLap = Math.floor(strategy.pitLap / 100 * totalLaps) + 1;
-  let maxPitStops = pitPlan === 'double' ? 2 : 1;
-  if (pitPlan === 'adaptive' && (profile.tyreDegMult > 1.05 || weather === 'wet')) {
-    maxPitStops = 2;
-  }
-  let adaptivePitLap2 = Math.min(totalLaps - 2, adaptivePitLap + Math.max(7, Math.round(totalLaps * 0.35)));
+  const runtimes = {};
+  positions.filter((e) => e.isPlayer).forEach((entry) => {
+    const s = entry.strategy || leadDriver.strategy;
+    let maxPitStops = (s.pitPlan || 'single') === 'double' ? 2 : 1;
+    if ((s.pitPlan || 'single') === 'adaptive' && (profile.tyreDegMult > 1.05 || weather === 'wet')) {
+      maxPitStops = 2;
+    }
+    const firstPit = Math.floor((s.pitLap || 50) / 100 * totalLaps) + 1;
+    const secondPit = Math.min(totalLaps - 2, firstPit + Math.max(7, Math.round(totalLaps * 0.35)));
+    runtimes[entry.id] = {
+      wear: 0,
+      pitStopsDone: 0,
+      maxPitStops,
+      adaptivePitLap: firstPit,
+      adaptivePitLap2: secondPit
+    };
+  });
 
   for (let lap = 1; lap <= totalLaps; lap++) {
-    const pIdx = positions.findIndex(e => e.isPlayer);
-    const intervention = interventions.find(it => Math.floor((it.lapPct || 0) / 100 * totalLaps) + 1 === lap);
-    if (intervention) {
-      if (intervention.pitBias === 'early' && !playerPit) {
-        adaptivePitLap = Math.max(2, adaptivePitLap - 2);
-        events.push({ lap, type: 'info', text: '🎛️ Tactical intervention: pit window pulled earlier.' });
+    positions.filter((e) => e.isPlayer && !e.retired).forEach((entry) => {
+      const rt = runtimes[entry.id];
+      if (!rt) return;
+      const s = entry.strategy || leadDriver.strategy;
+      const interventions = Array.isArray(s.interventions) ? s.interventions : [];
+      const intervention = interventions.find((it) => Math.floor((it.lapPct || 0) / 100 * totalLaps) + 1 === lap);
+      if (!intervention) return;
+      if (intervention.pitBias === 'early' && rt.pitStopsDone === 0) {
+        rt.adaptivePitLap = Math.max(2, rt.adaptivePitLap - 2);
+        events.push({ lap, type: 'info', text: `🎛️ ${entry.pilotName}: pit window pulled earlier.` });
       }
-      if (intervention.pitBias === 'late' && !playerPit) {
-        adaptivePitLap = Math.min(totalLaps - 2, adaptivePitLap + 2);
-        events.push({ lap, type: 'info', text: '🎛️ Tactical intervention: pit window delayed.' });
+      if (intervention.pitBias === 'late' && rt.pitStopsDone === 0) {
+        rt.adaptivePitLap = Math.min(totalLaps - 2, rt.adaptivePitLap + 2);
+        events.push({ lap, type: 'info', text: `🎛️ ${entry.pilotName}: pit window delayed.` });
       }
-    }
-
-    const engineFx = getEngineModeFx(currentEngineMode);
+    });
 
     const uncertainty = forecast ? (1 - ((forecast.confidence || 60) / 100)) : 0.35;
     const weatherFlipChance = 0.02 + (uncertainty * 0.08);
@@ -447,74 +559,81 @@ function simulateRace(options = {}) {
         text: `👥 Live pit wall call: <strong>${liveSafetyCarCall.toUpperCase()}</strong> (Undercut ${underPct}% · Overcut ${overPct}%).`
       });
 
-      if (liveSafetyCarCall === 'undercut' && pitStopsDone < maxPitStops) {
-        const undercutWorks = Math.random() < staffFx.undercutStrength;
-        if (pitStopsDone === 0 && adaptivePitLap - lap <= 3) {
-          adaptivePitLap = Math.max(lap + 1, undercutWorks ? 2 : adaptivePitLap - 1);
-          events.push({ lap, type: 'info', text: undercutWorks ? '🧠 Undercut call under VSC: pit brought forward.' : '🧠 Undercut attempt: minor gain only.' });
-        } else if (pitStopsDone === 1 && adaptivePitLap2 - lap <= 3) {
-          adaptivePitLap2 = Math.max(lap + 1, undercutWorks ? adaptivePitLap2 - 1 : adaptivePitLap2);
-          events.push({ lap, type: 'info', text: undercutWorks ? '🧠 Undercut second stop under VSC.' : '🧠 Undercut second stop: no clear window.' });
+      positions.filter((e) => e.isPlayer && !e.retired).forEach((entry) => {
+        const rt = runtimes[entry.id];
+        if (!rt || rt.pitStopsDone >= rt.maxPitStops) return;
+        if (liveSafetyCarCall === 'undercut') {
+          const undercutWorks = Math.random() < staffFx.undercutStrength;
+          if (rt.pitStopsDone === 0 && rt.adaptivePitLap - lap <= 3) {
+            rt.adaptivePitLap = Math.max(lap + 1, undercutWorks ? 2 : rt.adaptivePitLap - 1);
+            events.push({ lap, type: 'info', text: undercutWorks ? `🧠 ${entry.pilotName}: undercut call under VSC.` : `🧠 ${entry.pilotName}: undercut attempt, minor gain.` });
+          } else if (rt.pitStopsDone === 1 && rt.adaptivePitLap2 - lap <= 3) {
+            rt.adaptivePitLap2 = Math.max(lap + 1, undercutWorks ? rt.adaptivePitLap2 - 1 : rt.adaptivePitLap2);
+            events.push({ lap, type: 'info', text: undercutWorks ? `🧠 ${entry.pilotName}: undercut second stop.` : `🧠 ${entry.pilotName}: no clear undercut window.` });
+          }
         }
-      }
-      if (liveSafetyCarCall === 'overcut' && pitStopsDone < maxPitStops) {
-        const overcutWorks = Math.random() < staffFx.overcutStrength;
-        if (pitStopsDone === 0 && lap >= adaptivePitLap - 2) {
-          adaptivePitLap = Math.min(totalLaps - 3, adaptivePitLap + (overcutWorks ? 2 : 1));
-          events.push({ lap, type: 'info', text: overcutWorks ? '🧠 Overcut call under VSC: extending current stint.' : '🧠 Overcut attempt: small extension only.' });
-        } else if (pitStopsDone === 1 && lap >= adaptivePitLap2 - 2) {
-          adaptivePitLap2 = Math.min(totalLaps - 2, adaptivePitLap2 + (overcutWorks ? 2 : 1));
-          events.push({ lap, type: 'info', text: overcutWorks ? '🧠 Overcut second stop under VSC.' : '🧠 Overcut second stop: weak delta.' });
+        if (liveSafetyCarCall === 'overcut') {
+          const overcutWorks = Math.random() < staffFx.overcutStrength;
+          if (rt.pitStopsDone === 0 && lap >= rt.adaptivePitLap - 2) {
+            rt.adaptivePitLap = Math.min(totalLaps - 3, rt.adaptivePitLap + (overcutWorks ? 2 : 1));
+            events.push({ lap, type: 'info', text: overcutWorks ? `🧠 ${entry.pilotName}: overcut call under VSC.` : `🧠 ${entry.pilotName}: overcut attempt, small extension.` });
+          } else if (rt.pitStopsDone === 1 && lap >= rt.adaptivePitLap2 - 2) {
+            rt.adaptivePitLap2 = Math.min(totalLaps - 2, rt.adaptivePitLap2 + (overcutWorks ? 2 : 1));
+            events.push({ lap, type: 'info', text: overcutWorks ? `🧠 ${entry.pilotName}: overcut second stop.` : `🧠 ${entry.pilotName}: weak overcut delta.` });
+          }
         }
-      }
+      });
     }
     if (safetyCarActive && Math.random() < 0.4) {
       safetyCarActive = false;
       events.push({ lap, type: 'info', text: `🟢 Safety car period ends. Green flag!` });
     }
 
-    if ((strategy.strategy === 'tactical' || strategy.strategy === 'balanced') && pitStopsDone < maxPitStops) {
-      const nextPlannedPit = pitStopsDone === 0 ? adaptivePitLap : adaptivePitLap2;
-      if (liveWeather === 'wet' && playerWear > 18 && lap >= nextPlannedPit - 3) {
-        if (pitStopsDone === 0) adaptivePitLap = Math.max(2, lap);
-        else adaptivePitLap2 = Math.max(lap, Math.min(totalLaps - 1, adaptivePitLap2));
-        events.push({ lap, type: 'info', text: '🧠 Tactical call: early pit due to rain transition.' });
-      } else if (liveWeather === 'dry' && playerWear < 12 && lap < nextPlannedPit - 3) {
-        if (pitStopsDone === 0) adaptivePitLap = Math.min(totalLaps - 2, adaptivePitLap + 1);
-        else adaptivePitLap2 = Math.min(totalLaps - 1, adaptivePitLap2 + 1);
-      }
-    }
+    positions.filter((e) => e.isPlayer && !e.retired).forEach((entry) => {
+      const rt = runtimes[entry.id];
+      const s = entry.strategy || leadDriver.strategy;
+      if (!rt) return;
 
-    // Player pit stop
-    const nextPitLap = pitStopsDone === 0 ? adaptivePitLap : adaptivePitLap2;
-    if (pitStopsDone < maxPitStops && lap === nextPitLap) {
-      playerPit = true;
-      pitStopsDone++;
-      playerWear = 0;
-      const newTyre = liveWeather === 'wet'
-        ? 'medium'
-        : (pitStopsDone === 1
-            ? (strategy.tyre === 'soft' ? 'hard' : (strategy.tyre === 'hard' ? 'medium' : 'hard'))
-            : 'soft');
-      const cleanStop = Math.random() < staffFx.pitTimeGainChance;
-      const pitError = Math.random() < (0.14 * staffFx.pitErrorChanceMult);
-      const playerIdx = positions.findIndex(p => p.isPlayer);
-      positions[playerIdx].tyre = newTyre;
-      if (pitError) {
-        positions[playerIdx].pos = Math.min(positions.length, positions[playerIdx].pos + 2);
-        events.push({ lap, type: 'incident', text: `🔧 <strong>${pilot.name}</strong> pit error! Loses time leaving the box.` });
-      } else if (cleanStop) {
-        positions[playerIdx].pos = Math.max(1, positions[playerIdx].pos - 1);
-        events.push({ lap, type: 'good', text: `🔵 <strong>${pilot.name}</strong> nails the pit stop and gains track position!` });
-      } else {
-        events.push({ lap, type: 'pit', text: `🔵 <strong>${pilot.name} pits (stop ${pitStopsDone}/${maxPitStops})!</strong> Switches to ${newTyre} tyres. Standard execution.` });
+      if ((s.strategy === 'tactical' || s.strategy === 'balanced') && rt.pitStopsDone < rt.maxPitStops) {
+        const nextPlannedPit = rt.pitStopsDone === 0 ? rt.adaptivePitLap : rt.adaptivePitLap2;
+        if (liveWeather === 'wet' && rt.wear > 18 && lap >= nextPlannedPit - 3) {
+          if (rt.pitStopsDone === 0) rt.adaptivePitLap = Math.max(2, lap);
+          else rt.adaptivePitLap2 = Math.max(lap, Math.min(totalLaps - 1, rt.adaptivePitLap2));
+          events.push({ lap, type: 'info', text: `🧠 ${entry.pilotName}: early pit due to rain transition.` });
+        } else if (liveWeather === 'dry' && rt.wear < 12 && lap < nextPlannedPit - 3) {
+          if (rt.pitStopsDone === 0) rt.adaptivePitLap = Math.min(totalLaps - 2, rt.adaptivePitLap + 1);
+          else rt.adaptivePitLap2 = Math.min(totalLaps - 1, rt.adaptivePitLap2 + 1);
+        }
       }
 
-      if (pitStopsDone === 1 && maxPitStops > 1) {
-        adaptivePitLap2 = Math.max(adaptivePitLap2, lap + 6);
-        adaptivePitLap2 = Math.min(adaptivePitLap2, totalLaps - 2);
+      const nextPitLap = rt.pitStopsDone === 0 ? rt.adaptivePitLap : rt.adaptivePitLap2;
+      if (rt.pitStopsDone < rt.maxPitStops && lap === nextPitLap) {
+        rt.pitStopsDone++;
+        rt.wear = 0;
+        const newTyre = liveWeather === 'wet'
+          ? 'medium'
+          : (rt.pitStopsDone === 1
+              ? (s.tyre === 'soft' ? 'hard' : (s.tyre === 'hard' ? 'medium' : 'hard'))
+              : 'soft');
+        const cleanStop = Math.random() < staffFx.pitTimeGainChance;
+        const pitError = Math.random() < (0.14 * staffFx.pitErrorChanceMult);
+        entry.tyre = newTyre;
+        if (pitError) {
+          entry.pos = Math.min(positions.length, entry.pos + 2);
+          events.push({ lap, type: 'incident', text: `🔧 <strong>${entry.pilotName}</strong> pit error! Loses time leaving the box.` });
+        } else if (cleanStop) {
+          entry.pos = Math.max(1, entry.pos - 1);
+          events.push({ lap, type: 'good', text: `🔵 <strong>${entry.pilotName}</strong> nails the pit stop and gains track position!` });
+        } else {
+          events.push({ lap, type: 'pit', text: `🔵 <strong>${entry.pilotName} pits (stop ${rt.pitStopsDone}/${rt.maxPitStops})!</strong> Switches to ${newTyre} tyres.` });
+        }
+
+        if (rt.pitStopsDone === 1 && rt.maxPitStops > 1) {
+          rt.adaptivePitLap2 = Math.max(rt.adaptivePitLap2, lap + 6);
+          rt.adaptivePitLap2 = Math.min(rt.adaptivePitLap2, totalLaps - 2);
+        }
       }
-    }
+    });
 
     // Incidents
     positions.forEach(p => {
@@ -525,74 +644,96 @@ function simulateRace(options = {}) {
         }
       }
     });
-    // Player incident
-    if (pIdx >= 0 && !positions[pIdx].retired) {
-      const riskFactor = strategy.riskLevel / 100;
-      if (Math.random() < (0.008 * riskFactor + 0.005) * lapProfile.riskBias * (1 + engineFx.risk) * staffFx.incidentRiskMult * setupFx.riskMult) {
+    positions.filter((e) => e.isPlayer && !e.retired).forEach((entry) => {
+      const s = entry.strategy || leadDriver.strategy;
+      const setup = getSetupEffects(circuits, liveWeather, s.setup || {});
+      const engineFx = getEngineModeFx(s.engineMode || 'normal');
+      const rt = runtimes[entry.id];
+      if (!rt) return;
+
+      const riskFactor = (s.riskLevel || 40) / 100;
+      if (Math.random() < (0.008 * riskFactor + 0.005) * lapProfile.riskBias * (1 + engineFx.risk) * staffFx.incidentRiskMult * setup.riskMult) {
         if (Math.random() < 0.3) {
-          positions[pIdx].retired = true;
-          events.push({ lap, type: 'incident', text: `💥 <strong>${pilot.name} retires!</strong> Mechanical issue. DNF.` });
+          entry.retired = true;
+          events.push({ lap, type: 'incident', text: `💥 <strong>${entry.pilotName} retires!</strong> Mechanical issue. DNF.` });
         } else {
           const lostPos = Math.floor(Math.random() * 3) + 1;
-          positions[pIdx].pos = Math.min(positions.length, positions[pIdx].pos + lostPos);
-          events.push({ lap, type: 'incident', text: `⚠️ <strong>${pilot.name}</strong> has a spin! Drops ${lostPos} position(s).` });
+          entry.pos = Math.min(positions.length, entry.pos + lostPos);
+          events.push({ lap, type: 'incident', text: `⚠️ <strong>${entry.pilotName}</strong> has a spin! Drops ${lostPos} position(s).` });
         }
       }
-    }
 
-    // Overtake / position battles every 5 laps
-    if (lap % 5 === 0 && pIdx >= 0 && !positions[pIdx].retired) {
-      const p = positions[pIdx];
-      const ahead = positions.find(x => x.pos === p.pos - 1 && !x.retired);
-      if (ahead && Math.random() < ((((0.3 + (strategy.aggression / 200)) * lapProfile.overtakeBias) + staffFx.overtakeBonus) * (1 + Math.max(0, engineFx.pace)) * Math.max(0.9, setupFx.paceMult))) {
-        p.pos--;
-        ahead.pos++;
-        events.push({ lap, type: 'good', text: `✅ <strong>${pilot.name}</strong> overtakes <strong>${ahead.name}</strong>! Moves up to P${p.pos}.` });
+      if (lap % 5 === 0 && !entry.retired) {
+        const ahead = positions.find((x) => x.pos === entry.pos - 1 && !x.retired);
+        if (ahead && Math.random() < ((((0.3 + ((s.aggression || 50) / 200)) * lapProfile.overtakeBias) + staffFx.overtakeBonus) * (1 + Math.max(0, engineFx.pace)) * Math.max(0.9, setup.paceMult))) {
+          entry.pos--;
+          ahead.pos++;
+          events.push({ lap, type: 'good', text: `✅ <strong>${entry.pilotName}</strong> overtakes <strong>${ahead.name}</strong>! Moves up to P${entry.pos}.` });
+        }
+        if (Math.random() < 0.12) {
+          events.push({ lap, type: 'good', text: `🟢 Personal best lap by <strong>${entry.pilotName}</strong> on lap ${lap}.` });
+        }
       }
 
-      // Good laptime
-      if (Math.random() < 0.15) {
-        events.push({ lap, type: 'good', text: `🟢 Personal best lap by <strong>${pilot.name}</strong> on lap ${lap}.` });
+      const weatherTyreMult = liveWeather === 'wet' ? 1.15 : 1;
+      const currentTyre = entry.tyre || s.tyre || 'medium';
+      rt.wear += (TYRE_DEG[currentTyre] || 0.9) * lapProfile.tyreDegMult * weatherTyreMult * (1 + engineFx.tyre) * setup.tyreMult;
+      if (rt.wear > 30 && rt.wear < 32 && !entry.retired) {
+        events.push({ lap, type: 'incident', text: `⚠️ Tyre performance dropping for <strong>${entry.pilotName}</strong>.` });
       }
-    }
-
-    // Tyre wear event
-    const weatherTyreMult = liveWeather === 'wet' ? 1.15 : 1;
-    const currentTyre = positions[pIdx] && positions[pIdx].tyre ? positions[pIdx].tyre : strategy.tyre;
-    playerWear += (TYRE_DEG[currentTyre] || 0.9) * lapProfile.tyreDegMult * weatherTyreMult * (1 + engineFx.tyre) * setupFx.tyreMult;
-    if (playerWear > 30 && playerWear < 32 && pIdx >= 0 && !positions[pIdx].retired) {
-      events.push({ lap, type: 'incident', text: `⚠️ Tyre performance dropping significantly for <strong>${pilot.name}</strong>.` });
-    }
+    });
   }
 
   // Final sort and position
   const activePositions = positions.filter(p => !p.retired).sort((a, b) => a.pos - b.pos);
   const retiredPositions = positions.filter(p => p.retired);
   const finalGrid = [...activePositions, ...retiredPositions];
-  const playerIdxFinal = positions.findIndex((p) => p.isPlayer);
+  const playerCars = positions
+    .filter((p) => p.isPlayer)
+    .map((entry) => {
+      const start = playerStarts.find((x) => x.carId === entry.id)?.startPos || 20;
+      const finalPos = finalGrid.findIndex((x) => x.id === entry.id) + 1;
+      const dnf = !!entry.retired;
+      const pts = dnf ? 0 : (D.POINTS_TABLE[finalPos - 1] || 0);
+      return {
+        id: entry.id,
+        pilotId: entry.pilotId,
+        pilotName: entry.pilotName,
+        position: finalPos,
+        isDNF: dnf,
+        points: pts,
+        startPos: start,
+        improvement: finalPos - start,
+        tyre: entry.tyre || 'medium',
+        strategy: entry.strategy || leadDriver.strategy
+      };
+    })
+    .sort((a, b) => a.position - b.position);
 
-  let playerFinalPos = finalGrid.findIndex(p => p.isPlayer) + 1;
-  if (playerIdxFinal >= 0 && positions[playerIdxFinal].retired) playerFinalPos = finalGrid.length;
+  const leadResult = playerCars[0] || { position: finalGrid.length, isDNF: true, points: 0, improvement: 0, pilotName: 'Driver' };
+  const teamPoints = playerCars.reduce((sum, x) => sum + (x.points || 0), 0);
 
-  const points = D.POINTS_TABLE[playerFinalPos - 1] || 0;
-  const isDNF = playerIdxFinal >= 0 ? positions[playerIdxFinal].retired : false;
+  playerCars.forEach((car) => {
+    if (!car.isDNF) {
+      events.push({
+        lap: totalLaps,
+        type: car.position <= 3 ? 'good' : 'info',
+        text: `🏁 <strong>${car.pilotName}</strong> finishes P${car.position}. ${car.points > 0 ? `${car.points} pts` : 'No points'}.`
+      });
+    }
+  });
 
-  // Closing event
-  if (!isDNF) {
-    events.push({ lap: totalLaps, type: playerFinalPos <= 3 ? 'good' : 'info', text: `🏁 <strong>RACE FINISH: P${playerFinalPos}</strong> for ${pilot.name}. ${points > 0 ? points + ' points scored!' : 'No points this time.'}` });
-  }
-
-  // Calculate financials
   const prizeMap = [50000,40000,35000,25000,20000,15000,12000,10000,8000,5000,3000,2000,1500,1000,500,300];
-  const prizeMoney = prizeMap[playerFinalPos - 1] || 200;
+  const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || 200), 0);
 
   return {
-    position: playerFinalPos,
-    isDNF,
-    points,
+    position: leadResult.position,
+    isDNF: leadResult.isDNF,
+    points: teamPoints,
     events,
     finalGrid,
     gridStart,
+    playerCars,
     weather: liveWeather,
     circuit: circuits,
     circuitProfile: profile,
@@ -600,8 +741,8 @@ function simulateRace(options = {}) {
     forecastUsed: forecast,
     totalLaps,
     prizeMoney,
-    fastestLap: !isDNF && playerFinalPos <= 5 && Math.random() < 0.2,
-    improvement: playerFinalPos - playerStart,
+    fastestLap: !leadResult.isDNF && leadResult.position <= 5 && Math.random() < 0.2,
+    improvement: leadResult.improvement,
   };
 }
 
@@ -1083,13 +1224,16 @@ function buildInitialStandings(division) {
 function updateStandings(raceResult) {
   const state = S.getState();
   let standings = state.standings;
-  const { position, points, finalGrid } = raceResult;
+  const { position, points, finalGrid, playerCars } = raceResult;
 
   // Update player
   const playerEntry = standings.find(s => s.id === 'player');
   if (playerEntry) {
     playerEntry.points += points;
-    if (position === 1) playerEntry.wins++;
+    const hasWin = Array.isArray(playerCars)
+      ? playerCars.some((c) => c && c.position === 1)
+      : position === 1;
+    if (hasWin) playerEntry.wins++;
     if (!playerEntry.bestResult || position < playerEntry.bestResult) playerEntry.bestResult = position;
   }
 

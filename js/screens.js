@@ -828,7 +828,9 @@ const SCREENS = {
         { lapPct: 30, pitBias: 'none' },
         { lapPct: 70, pitBias: 'none' }
       ],
-      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
+      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
+      selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
+      driverConfigs: {}
     };
     const baseStrategy = GL_STATE.deepClone(next.savedStrategy || window._raceStrategy || defaultStrategy);
     if (!Array.isArray(baseStrategy.interventions) || baseStrategy.interventions.length < 2) {
@@ -837,6 +839,31 @@ const SCREENS = {
     if (!baseStrategy.pilotId && state.pilots && state.pilots[0]) {
       baseStrategy.pilotId = state.pilots[0].id;
     }
+    const roster = state.pilots || [];
+    if (!Array.isArray(baseStrategy.selectedPilotIds)) baseStrategy.selectedPilotIds = [];
+    baseStrategy.selectedPilotIds = baseStrategy.selectedPilotIds.filter((id) => roster.some((p) => p.id === id));
+    roster.forEach((p) => {
+      if (baseStrategy.selectedPilotIds.length < 2 && !baseStrategy.selectedPilotIds.includes(p.id)) {
+        baseStrategy.selectedPilotIds.push(p.id);
+      }
+    });
+    baseStrategy.selectedPilotIds = baseStrategy.selectedPilotIds.slice(0, 2);
+    if (!baseStrategy.driverConfigs) baseStrategy.driverConfigs = {};
+    baseStrategy.selectedPilotIds.forEach((pid) => {
+      if (!baseStrategy.driverConfigs[pid]) {
+        baseStrategy.driverConfigs[pid] = {
+          tyre: baseStrategy.tyre || 'medium',
+          aggression: baseStrategy.aggression || 50,
+          riskLevel: baseStrategy.riskLevel || 40,
+          pitLap: baseStrategy.pitLap || 50,
+          engineMode: baseStrategy.engineMode || 'normal',
+          pitPlan: baseStrategy.pitPlan || 'single',
+          strategy: baseStrategy.strategy || 'balanced',
+          setup: GL_STATE.deepClone(baseStrategy.setup || { aeroBalance: 50, wetBias: 50 }),
+          interventions: GL_STATE.deepClone(baseStrategy.interventions || [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
+        };
+      }
+    });
     window._raceStrategy = baseStrategy;
     window._advisorStrategySource = 'manual';
     const recommendation = GL_ENGINE.recommendStrategyForRace
@@ -989,12 +1016,39 @@ const SCREENS = {
         </div>
         <div class="prerace-block">
           <div class="prerace-block-title">${__('prerace_driver_assign')}</div>
-          ${state.pilots.map(p => `
+          <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:6px">Selecciona hasta 2 pilotos para correr. Cada uno puede tener estrategia propia.</div>
+          ${state.pilots.map(p => {
+            const selected = (window._raceStrategy?.selectedPilotIds || []).includes(p.id);
+            const cfg = window._raceStrategy?.driverConfigs?.[p.id] || {};
+            return `
             <div class="morale-pill" style="margin-bottom:var(--s-3)">
               <div class="morale-avatar" style="font-size:1.2rem">${p.emoji||'🧑'}</div>
               <div class="morale-info"><div class="morale-name">${p.name}</div><div style="font-size:0.7rem;color:var(--t-secondary)">${__('overall')} ${GL_ENGINE.pilotScore(p)}</div></div>
-              <button class="btn btn-sm ${window._raceStrategy?.pilotId === p.id ? 'btn-primary' : 'btn-secondary'}" data-pilot-btn="${p.id}" style="margin-left:auto" onclick="GL_SCREENS.selectRacePilot('${p.id}', this)">${window._raceStrategy?.pilotId === p.id ? 'Titular' : __('prerace_primary_driver')}</button>
-            </div>`).join('')}
+              <button class="btn btn-sm ${selected ? 'btn-primary' : 'btn-secondary'}" data-pilot-btn="${p.id}" style="margin-left:auto" onclick="GL_SCREENS.toggleRacePilot('${p.id}')">${selected ? 'En carrera' : 'Reserva'}</button>
+            </div>
+            ${selected ? `
+              <div class="card" style="margin:-8px 0 10px 0;padding:10px;background:var(--c-surface-2)">
+                <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:6px">Estrategia de ${p.name}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                  <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','tyre',this.value)">
+                    <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>Tyre: Soft</option>
+                    <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>Tyre: Medium</option>
+                    <option value="hard" ${cfg.tyre === 'hard' ? 'selected' : ''}>Tyre: Hard</option>
+                  </select>
+                  <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','engineMode',this.value)">
+                    <option value="eco" ${cfg.engineMode === 'eco' ? 'selected' : ''}>Engine: ECO</option>
+                    <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>Engine: NORMAL</option>
+                    <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>Engine: PUSH</option>
+                  </select>
+                </div>
+                <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:8px">Aggression: <strong>${cfg.aggression ?? 50}</strong></div>
+                <input type="range" min="0" max="100" value="${cfg.aggression ?? 50}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
+                <div style="font-size:0.7rem;color:var(--t-tertiary)">Risk: <strong>${cfg.riskLevel ?? 40}</strong></div>
+                <input type="range" min="0" max="100" value="${cfg.riskLevel ?? 40}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','riskLevel',+this.value,true)">
+              </div>
+            ` : ''}`;
+          }).join('')}
+          <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.syncSharedToDrivers()">Copiar estrategia compartida a los 2 pilotos</button>
         </div>
         <div class="prerace-block">
           <div class="prerace-block-title">${__('prerace_circuit_intel')}</div>
@@ -1094,17 +1148,77 @@ const SCREENS = {
     GL_UI.toast('Safe variant applied. You can fine tune before saving.', 'good');
   },
 
-  selectRacePilot(pid, btn) {
+  toggleRacePilot(pid) {
     if (!window._raceStrategy) return;
-    window._raceStrategy.pilotId = pid;
+    const state = GL_STATE.getState();
+    const rosterIds = (state.pilots || []).map((p) => p.id);
+    if (!rosterIds.includes(pid)) return;
+    if (!Array.isArray(window._raceStrategy.selectedPilotIds)) window._raceStrategy.selectedPilotIds = [];
+
+    const selected = window._raceStrategy.selectedPilotIds;
+    const idx = selected.indexOf(pid);
+    if (idx >= 0) {
+      if (selected.length <= 1) {
+        GL_UI.toast('Debes mantener al menos 1 piloto en carrera.', 'warning');
+        return;
+      }
+      selected.splice(idx, 1);
+      delete window._raceStrategy.driverConfigs?.[pid];
+    } else {
+      if (selected.length >= 2) {
+        GL_UI.toast('Solo pueden correr 2 pilotos.', 'warning');
+        return;
+      }
+      selected.push(pid);
+      if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
+      if (!window._raceStrategy.driverConfigs[pid]) {
+        window._raceStrategy.driverConfigs[pid] = {
+          tyre: window._raceStrategy.tyre || 'medium',
+          aggression: window._raceStrategy.aggression || 50,
+          riskLevel: window._raceStrategy.riskLevel || 40,
+          pitLap: window._raceStrategy.pitLap || 50,
+          engineMode: window._raceStrategy.engineMode || 'normal',
+          pitPlan: window._raceStrategy.pitPlan || 'single',
+          strategy: window._raceStrategy.strategy || 'balanced',
+          setup: GL_STATE.deepClone(window._raceStrategy.setup || { aeroBalance: 50, wetBias: 50 }),
+          interventions: GL_STATE.deepClone(window._raceStrategy.interventions || [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
+        };
+      }
+    }
+    window._raceStrategy.pilotId = window._raceStrategy.selectedPilotIds[0] || null;
     window._advisorStrategySource = 'manual';
-    document.querySelectorAll('[data-pilot-btn]').forEach((node) => {
-      const isActive = node.getAttribute('data-pilot-btn') === pid;
-      node.classList.toggle('btn-primary', isActive);
-      node.classList.toggle('btn-secondary', !isActive);
-      node.textContent = isActive ? 'Titular' : (window.__('prerace_primary_driver') || 'Primary driver');
+    this.renderPreRace();
+  },
+
+  updateDriverStrategy(pid, key, value, silent = false) {
+    if (!window._raceStrategy) return;
+    if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
+    if (!window._raceStrategy.driverConfigs[pid]) window._raceStrategy.driverConfigs[pid] = {};
+    window._raceStrategy.driverConfigs[pid][key] = value;
+    window._advisorStrategySource = 'manual';
+    if (!silent) this.renderPreRace();
+  },
+
+  syncSharedToDrivers() {
+    if (!window._raceStrategy) return;
+    const ids = window._raceStrategy.selectedPilotIds || [];
+    if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
+    ids.forEach((pid) => {
+      window._raceStrategy.driverConfigs[pid] = {
+        tyre: window._raceStrategy.tyre || 'medium',
+        aggression: window._raceStrategy.aggression || 50,
+        riskLevel: window._raceStrategy.riskLevel || 40,
+        pitLap: window._raceStrategy.pitLap || 50,
+        engineMode: window._raceStrategy.engineMode || 'normal',
+        pitPlan: window._raceStrategy.pitPlan || 'single',
+        strategy: window._raceStrategy.strategy || 'balanced',
+        setup: GL_STATE.deepClone(window._raceStrategy.setup || { aeroBalance: 50, wetBias: 50 }),
+        interventions: GL_STATE.deepClone(window._raceStrategy.interventions || [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
+      };
     });
-    if (btn) btn.blur();
+    window._advisorStrategySource = 'manual';
+    GL_UI.toast('Estrategia compartida copiada a pilotos en carrera.', 'good');
+    this.renderPreRace();
   },
 
   setAdvisorMode(mode) {
@@ -1123,10 +1237,18 @@ const SCREENS = {
       state.season.calendar[nextIdx].savedStrategy = window._raceStrategy || {
         tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
         interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
-        pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
+        pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
+        selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
+        driverConfigs: {}
       };
       if (!state.season.calendar[nextIdx].savedStrategy.pilotId && state.pilots && state.pilots[0]) {
         state.season.calendar[nextIdx].savedStrategy.pilotId = state.pilots[0].id;
+      }
+      if (!Array.isArray(state.season.calendar[nextIdx].savedStrategy.selectedPilotIds)) {
+        state.season.calendar[nextIdx].savedStrategy.selectedPilotIds = (state.pilots || []).slice(0, 2).map((p) => p.id);
+      }
+      if (!state.season.calendar[nextIdx].savedStrategy.driverConfigs) {
+        state.season.calendar[nextIdx].savedStrategy.driverConfigs = {};
       }
       GL_STATE.saveState();
       GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
@@ -1147,9 +1269,17 @@ const SCREENS = {
     const strategy = window._raceStrategy || {
       tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
       interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
-      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
+      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
+      selectedPilotIds: (state.pilots || []).slice(0,2).map((p) => p.id),
+      driverConfigs: {}
     };
     const selectedPilot = (state.pilots || []).find((p) => p.id === strategy.pilotId) || (state.pilots || [])[0] || null;
+    const racePilots = (strategy.selectedPilotIds || []).map((pid) => {
+      const pilot = (state.pilots || []).find((p) => p.id === pid);
+      if (!pilot) return null;
+      const cfg = (strategy.driverConfigs && strategy.driverConfigs[pid]) || strategy;
+      return { pilot, cfg };
+    }).filter(Boolean);
 
     el.innerHTML = `
       <div class="screen-header">
@@ -1194,7 +1324,8 @@ const SCREENS = {
               ${GL_UI.statRow('Intervention 2', `${strategy.interventions?.[1]?.lapPct || 70}% · Pit ${(strategy.interventions?.[1]?.pitBias || 'none').toUpperCase()}`, '🎛️')}
               ${GL_UI.statRow('Setup Aero', `${strategy.setup?.aeroBalance ?? 50}%`, '🛩️')}
               ${GL_UI.statRow('Setup Weather', `${strategy.setup?.wetBias ?? 50}%`, '🌧️')}
-              ${selectedPilot ? GL_UI.statRow('Primary Driver', `${selectedPilot.name} (${GL_ENGINE.pilotScore(selectedPilot)})`, '🧑‍✈️') : ''}
+              ${racePilots.map((rp, idx) => GL_UI.statRow(`Driver ${idx+1}`, `${rp.pilot.name} · ${(rp.cfg.engineMode || 'normal').toUpperCase()} · ${rp.cfg.tyre || 'medium'}`, '🧑‍✈️')).join('')}
+              ${racePilots.length === 0 && selectedPilot ? GL_UI.statRow('Primary Driver', `${selectedPilot.name} (${GL_ENGINE.pilotScore(selectedPilot)})`, '🧑‍✈️') : ''}
               ${GL_UI.statRow(__('prerace_aggression'), (strategy.aggression||50)+'%', '🔥')}
               ${GL_UI.statRow(__('prerace_risk'), (strategy.riskLevel||40)+'%', '⚠️')}
               ${GL_UI.statRow(__('prerace_pit_window'), __('race_lap') + ' ~' + (Math.round((strategy.pitLap||50)/100*30)), '🔧')}
@@ -1229,7 +1360,9 @@ const SCREENS = {
       round: next?.round || 1,
       forecast: next?.forecast || null,
       strategy,
-      pilotId: strategy.pilotId
+      pilotId: strategy.pilotId,
+      selectedPilotIds: strategy.selectedPilotIds || [],
+      driverStrategies: strategy.driverConfigs || {}
     });
 
     window._lastRaceResult = result;
@@ -1248,12 +1381,13 @@ const SCREENS = {
           GL_ENGINE.updateStandings(result);
           if (nextIdx >= 0 && cal[nextIdx]) {
             cal[nextIdx].status = 'done';
-            cal[nextIdx].result = { position: result.position, points: result.points };
+            cal[nextIdx].result = { position: result.position, points: result.points, playerCars: result.playerCars || [] };
           }
           if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
           state.season.raceIndex = nextIdx + 1;
           GL_STATE.addCredits(result.prizeMoney);
-          GL_STATE.addLog(`🏁 Round ${next?.round}: P${result.position} · ${result.points} pts · +${GL_UI.fmtCR(result.prizeMoney)} CR`, 'good');
+          const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
+          GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(result.prizeMoney)} CR`, 'good');
 
           // Feed adaptive advisor with real strategy outcome
           if (GL_ENGINE.recordStrategyOutcome) {
@@ -1268,7 +1402,7 @@ const SCREENS = {
           state.car.rnd.points = (state.car.rnd.points || 0) + 5 + Math.floor(Math.random() * 5);
 
           // Fan growth
-          state.team.fans += 100 + result.points * 50;
+          state.team.fans += 100 + (result.points || 0) * 50;
 
           GL_STATE.saveState();
           GL_ENGINE.weeklyTick();
@@ -1307,7 +1441,9 @@ const SCREENS = {
     const el = document.getElementById('screen-postrace');
     if (!el) return;
     if (!result) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('postrace_no_result')}</p></div>`; return; }
-    const posColor = result.position <= 1 ? 'var(--c-gold)' : result.position <= 3 ? '#cd7c32' : result.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
+    const playerCars = Array.isArray(result.playerCars) ? result.playerCars : [];
+    const leadCar = playerCars[0] || { position: result.position, isDNF: result.isDNF, pilotName: 'Driver', points: result.points };
+    const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
     el.innerHTML = `
       <div class="screen-header">
@@ -1323,21 +1459,27 @@ const SCREENS = {
       </div>
       <div class="post-race-hero">
         <div class="post-race-position">
-          <div class="post-race-pos-num" style="color:${posColor}">${result.isDNF ? 'DNF' : 'P'+result.position}</div>
-          <div class="post-race-pos-label">${result.isDNF ? __('postrace_dnf') : result.position === 1 ? '🏆 '+__('postrace_winner') : result.position <= 3 ? '🥇 '+__('postrace_podium') : __('postrace_classified')}</div>
+          <div class="post-race-pos-num" style="color:${posColor}">${leadCar.isDNF ? 'DNF' : 'P'+leadCar.position}</div>
+          <div class="post-race-pos-label">${leadCar.isDNF ? __('postrace_dnf') : leadCar.position === 1 ? '🏆 '+__('postrace_winner') : leadCar.position <= 3 ? '🥇 '+__('postrace_podium') : __('postrace_classified')}</div>
         </div>
         <div class="post-race-info">
-          <div class="post-race-title">${result.isDNF ? __('postrace_mech_fail') : result.position === 1 ? __('postrace_victory') : result.position <= 3 ? __('postrace_podium_fin') : `P${result.position} ${__('postrace_finish')}`}</div>
+          <div class="post-race-title">${leadCar.isDNF ? __('postrace_mech_fail') : leadCar.position === 1 ? __('postrace_victory') : leadCar.position <= 3 ? __('postrace_podium_fin') : `P${leadCar.position} ${__('postrace_finish')}`}</div>
           <div style="color:var(--t-secondary)">${result.circuit?.name} · ${__('prerace_weather')}: ${result.weather}</div>
           <div class="post-race-metrics">
-            <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('points')}</div></div>
+            <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">Team ${__('points')}</div></div>
             <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
-            <div class="post-race-metric"><div class="post-race-metric-val">${result.improvement < 0 ? '▲'+Math.abs(result.improvement) : result.improvement > 0 ? '▼'+result.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
+            <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
           </div>
         </div>
       </div>
       <div class="grid-2">
         <div class="card">
+          <div class="section-eyebrow">Team cars</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin:8px 0 14px 0">
+            ${(playerCars.length ? playerCars : [{ pilotName: 'Driver', position: result.position, points: result.points, isDNF: result.isDNF }]).map((car) => `
+              <div class="fin-item"><span>${car.pilotName}</span><strong>${car.isDNF ? 'DNF' : ('P'+car.position)} · ${car.points || 0} pts</strong></div>
+            `).join('')}
+          </div>
           <div class="section-eyebrow">${__('postrace_events')}</div>
           <div class="race-event-log" style="max-height:250px;overflow-y:auto">
             ${result.events.map(ev => `<div class="race-event ${ev.type}"><span class="race-event-lap">L${ev.lap}</span><span class="race-event-text">${ev.text}</span></div>`).join('')}
