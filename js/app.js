@@ -88,7 +88,9 @@ const APP = {
   },
 
   resumeAuthenticatedSession() {
-    GL_UI.closeTopModal();
+    if (window.GL_UI && typeof GL_UI.closeAllModals === 'function') {
+      GL_UI.closeAllModals();
+    }
     this.closeFabMenu();
     this.bootForCurrentSession();
   },
@@ -308,7 +310,9 @@ const APP = {
     );
     if (!ok) return;
     try {
-      GL_UI.closeTopModal();
+      if (window.GL_UI && typeof GL_UI.closeAllModals === 'function') {
+        GL_UI.closeAllModals();
+      }
       if (window.GL_STATE && typeof GL_STATE.saveState === 'function') {
         GL_STATE.saveState();
       }

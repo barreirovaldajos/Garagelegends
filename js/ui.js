@@ -39,10 +39,18 @@ function openModal({ title = '', content = '', size = '', onClose = null } = {})
   `;
   overlay.appendChild(modal);
 
+  let isClosed = false;
+
   const close = () => {
+    if (isClosed) return;
+    isClosed = true;
     overlay.style.opacity = '0';
     overlay.style.transition = 'opacity 0.2s ease';
-    setTimeout(() => { overlay.remove(); _modalStack.pop(); if (onClose) onClose(); }, 200);
+    setTimeout(() => {
+      overlay.remove();
+      _modalStack = _modalStack.filter(m => m.overlay !== overlay);
+      if (onClose) onClose();
+    }, 200);
   };
 
   modal.querySelector('.modal-close').addEventListener('click', close);
@@ -55,6 +63,11 @@ function openModal({ title = '', content = '', size = '', onClose = null } = {})
 
 function closeTopModal() {
   if (_modalStack.length) _modalStack[_modalStack.length - 1].close();
+}
+
+function closeAllModals() {
+  const stack = _modalStack.slice();
+  stack.forEach(entry => entry.close());
 }
 
 // ---- Confirm Dialog ----
@@ -204,7 +217,7 @@ function circuitSVG(layout) {
 }
 
 window.GL_UI = {
-  toast, openModal, closeTopModal, confirm,
+  toast, openModal, closeTopModal, closeAllModals, confirm,
   progressBar, statBar, pilotCardHTML, fmtCR, fmtSign, relTime,
   sponsorChipHTML, colorSwatchesHTML, TEAM_COLORS, statRow,
   showRandomEvent, handleEventChoice, circuitSVG
