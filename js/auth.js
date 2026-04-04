@@ -9,6 +9,7 @@
     role: 'player',
     profile: null,
     readyFired: false,
+    readyCallback: null,
 
     isConfigured() {
       const cfg = window.GL_SUPABASE_CONFIG || {};
@@ -16,9 +17,10 @@
     },
 
     async init({ onReady } = {}) {
+      this.readyCallback = onReady;
       if (!this.isConfigured()) {
         this.enabled = false;
-        this.fireReady(onReady);
+        this.fireReady();
         return;
       }
 
@@ -36,7 +38,12 @@
       const session = data && data.session ? data.session : null;
       if (session && session.user) {
         const valid = await this.adoptSessionUser(session.user);
-        if (!valid) this.renderGate();
+        if (valid) {
+          this.hideGate();
+          this.fireReady();
+        } else {
+          this.renderGate();
+        }
       } else {
         this.renderGate();
       }
@@ -44,7 +51,10 @@
       this.client.auth.onAuthStateChange(async (event, sessionState) => {
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && sessionState && sessionState.user) {
           const valid = await this.adoptSessionUser(sessionState.user);
-          if (valid) this.hideGate();
+          if (valid) {
+            this.hideGate();
+            this.fireReady();
+          }
         }
         if (event === 'SIGNED_OUT') {
           this.user = null;
@@ -53,14 +63,12 @@
           this.renderGate();
         }
       });
-
-      this.fireReady(onReady);
     },
 
-    fireReady(onReady) {
+    fireReady() {
       if (this.readyFired) return;
       this.readyFired = true;
-      if (typeof onReady === 'function') onReady();
+      if (typeof this.readyCallback === 'function') this.readyCallback();
     },
 
     async adoptSessionUser(user) {
@@ -249,7 +257,7 @@
 
         setMsg('Access granted. Loading game...', 'success');
         this.hideGate();
-        window.location.reload();
+        this.fireReady();
       });
     }
   };
