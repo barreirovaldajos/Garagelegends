@@ -69,6 +69,8 @@ const OB = {
     const el = document.getElementById('onboarding-screen');
     if (!el) return;
     el.style.display = 'flex';
+    el.style.opacity = '1';
+    el.style.transition = 'none';
     this.renderPhase0();
   },
 

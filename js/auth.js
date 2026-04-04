@@ -8,6 +8,7 @@
     user: null,
     role: 'player',
     profile: null,
+    storageKeySuffix: '',
     readyFired: false,
     readyCallback: null,
 
@@ -89,6 +90,7 @@
         return false;
       }
       this.user = user;
+      this.storageKeySuffix = String(user.id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
       await this.ensureProfile();
       return true;
     },
@@ -112,8 +114,7 @@
     },
 
     getStorageKeySuffix() {
-      if (!this.enabled || !this.user || !this.user.id) return '';
-      return String(this.user.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+      return this.storageKeySuffix || '';
     },
 
     isAuthenticated() {

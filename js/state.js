@@ -137,6 +137,17 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+function isMeaningfulSave(candidate) {
+  return Boolean(
+    candidate &&
+    candidate.team &&
+    typeof candidate.team.name === 'string' &&
+    candidate.team.name.trim() &&
+    candidate.season &&
+    candidate.season.phase !== 'onboarding'
+  );
+}
+
 function loadState() {
   try {
     const scopedKey = getStateStorageKey();
@@ -145,8 +156,13 @@ function loadState() {
       // One-time migration path: keep old save if it exists.
       const legacy = localStorage.getItem(STATE_KEY);
       if (legacy) {
-        raw = legacy;
-        localStorage.setItem(scopedKey, legacy);
+        try {
+          const parsedLegacy = JSON.parse(legacy);
+          if (isMeaningfulSave(parsedLegacy)) {
+            raw = legacy;
+            localStorage.setItem(scopedKey, legacy);
+          }
+        } catch (_) {}
       }
     }
     if (raw) {
