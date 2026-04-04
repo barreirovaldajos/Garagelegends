@@ -309,6 +309,9 @@ const APP = {
     if (!ok) return;
     try {
       GL_UI.closeTopModal();
+      if (window.GL_STATE && typeof GL_STATE.saveState === 'function') {
+        GL_STATE.saveState();
+      }
       await GL_AUTH.signOut();
     } catch (e) {
       GL_UI.toast((e && e.message) ? e.message : 'Could not sign out.', 'error');

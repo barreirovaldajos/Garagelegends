@@ -267,7 +267,11 @@
 
         setMsg('Access granted. Loading game...', 'success');
         this.hideGate();
-        this.fireReady();
+        if (this.readyFired && window.GL_APP && typeof GL_APP.resumeAuthenticatedSession === 'function') {
+          GL_APP.resumeAuthenticatedSession();
+        } else {
+          this.fireReady();
+        }
       });
     }
   };
