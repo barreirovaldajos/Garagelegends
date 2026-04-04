@@ -24,6 +24,8 @@ This project now supports **optional Supabase auth**. If Supabase config is empt
 1. Open SQL Editor in Supabase.
 2. Run script from `scripts/supabase_setup.sql`.
 3. Verify table `public.profiles` exists.
+4. The script also creates a trigger so every new auth user gets a `public.profiles` row automatically.
+5. The same script backfills missing profile rows for users that already existed before the trigger.
 
 ## 3) Configure project file (manual)
 

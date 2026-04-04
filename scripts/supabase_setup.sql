@@ -18,6 +18,32 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+create or replace function public.handle_new_user_profile()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, email, role)
+  values (new.id, coalesce(new.email, ''), 'player')
+  on conflict (id) do update
+    set email = excluded.email;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute procedure public.handle_new_user_profile();
+
+insert into public.profiles (id, email, role)
+select au.id, coalesce(au.email, ''), 'player'
+from auth.users au
+left join public.profiles p on p.id = au.id
+where p.id is null;
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
