@@ -88,8 +88,8 @@ const APP = {
   },
 
   resumeAuthenticatedSession() {
-    if (window.GL_UI && typeof GL_UI.closeAllModals === 'function') {
-      GL_UI.closeAllModals();
+    if (window.GL_UI && typeof GL_UI.forceCloseAllModals === 'function') {
+      GL_UI.forceCloseAllModals();
     }
     this.closeFabMenu();
     this.bootForCurrentSession();
@@ -310,8 +310,8 @@ const APP = {
     );
     if (!ok) return;
     try {
-      if (window.GL_UI && typeof GL_UI.closeAllModals === 'function') {
-        GL_UI.closeAllModals();
+      if (window.GL_UI && typeof GL_UI.forceCloseAllModals === 'function') {
+        GL_UI.forceCloseAllModals();
       }
       if (window.GL_STATE && typeof GL_STATE.saveState === 'function') {
         GL_STATE.saveState();

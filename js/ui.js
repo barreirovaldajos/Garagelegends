@@ -70,6 +70,15 @@ function closeAllModals() {
   stack.forEach(entry => entry.close());
 }
 
+function forceCloseAllModals() {
+  _modalStack.forEach(entry => {
+    if (entry && entry.overlay && entry.overlay.parentNode) {
+      entry.overlay.remove();
+    }
+  });
+  _modalStack = [];
+}
+
 // ---- Confirm Dialog ----
 function confirm(title, message, okLabel = 'Confirm', cancelLabel = 'Cancel') {
   return new Promise(resolve => {
@@ -217,7 +226,7 @@ function circuitSVG(layout) {
 }
 
 window.GL_UI = {
-  toast, openModal, closeTopModal, closeAllModals, confirm,
+  toast, openModal, closeTopModal, closeAllModals, forceCloseAllModals, confirm,
   progressBar, statBar, pilotCardHTML, fmtCR, fmtSign, relTime,
   sponsorChipHTML, colorSwatchesHTML, TEAM_COLORS, statRow,
   showRandomEvent, handleEventChoice, circuitSVG
