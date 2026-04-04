@@ -282,12 +282,20 @@ function getSetupEffects(circuit, weather, setup = {}) {
   };
 }
 
+function getTeamDriverBaseline(state) {
+  const pilots = (state && Array.isArray(state.pilots)) ? state.pilots : [];
+  if (!pilots.length) return 65;
+  const scores = pilots.map((p) => pilotScore(p)).filter((x) => Number.isFinite(x));
+  if (!scores.length) return 65;
+  return scores.reduce((a, b) => a + b, 0) / scores.length;
+}
+
 // ---- build full grid (player + AI teams) ----
 function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
   const state = S.getState();
   const carData = S.getCar().components;
   const car = carScore();
-  const pilot = pilotScore(playerPilot);
+  const teamDriverBase = getTeamDriverBaseline(state);
   const profile = getCircuitProfile(circuit, weather);
   const setupFx = getSetupEffects(circuit, weather, strategy.setup || {});
   const layout = profile.layout;
@@ -301,8 +309,8 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
   };
   const trackCarBonus = ((layoutCarComponent[layout] || car) - 50) * 0.12;
   const aggressionBonus = ((strategy.aggression || 50) - 50) * 0.04;
-  const rain = weather === 'wet' ? (playerPilot ? playerPilot.attrs.rain / 100 : 0.6) : 1;
-  const playerBase = ((car * 0.5 + pilot * 0.5) + trackCarBonus + aggressionBonus) * rain * profile.paceBias * setupFx.paceMult;
+  const weatherDriverMult = weather === 'wet' ? 0.92 : 1;
+  const playerBase = ((car * 0.5 + teamDriverBase * 0.5) + trackCarBonus + aggressionBonus) * weatherDriverMult * profile.paceBias * setupFx.paceMult;
 
   const grid = [{
     id: 'player',
@@ -432,6 +440,7 @@ function simulateRace(options = {}) {
 
   const profile = getCircuitProfile(circuits, weather);
   const forecast = options.forecast || null;
+  const teamDriverBase = getTeamDriverBaseline(state);
   const layoutLaps = { 'high-speed': 32, power: 31, technical: 30, mixed: 30, endurance: 34 };
   const totalLaps = layoutLaps[profile.layout] || 30;
   let liveWeather = weather;
@@ -455,7 +464,7 @@ function simulateRace(options = {}) {
     const secondDriver = selectedDrivers[1];
     const carData = S.getCar().components;
     const car = carScore();
-    const pilotSc = pilotScore(secondDriver.pilot);
+    const pilotSc = teamDriverBase;
     const setupFx = getSetupEffects(circuits, liveWeather, secondDriver.strategy.setup || {});
     const layout = profile.layout;
     const layoutCarComponent = {
@@ -467,8 +476,8 @@ function simulateRace(options = {}) {
     };
     const trackCarBonus = ((layoutCarComponent[layout] || car) - 50) * 0.12;
     const aggressionBonus = ((secondDriver.strategy.aggression || 50) - 50) * 0.04;
-    const rain = liveWeather === 'wet' ? ((secondDriver.pilot && secondDriver.pilot.attrs && secondDriver.pilot.attrs.rain) ? secondDriver.pilot.attrs.rain / 100 : 0.6) : 1;
-    const base = ((car * 0.5 + pilotSc * 0.5) + trackCarBonus + aggressionBonus) * rain * profile.paceBias * setupFx.paceMult;
+    const weatherDriverMult = liveWeather === 'wet' ? 0.92 : 1;
+    const base = ((car * 0.5 + pilotSc * 0.5) + trackCarBonus + aggressionBonus) * weatherDriverMult * profile.paceBias * setupFx.paceMult;
     const fx = getEngineModeFx(secondDriver.strategy.engineMode || 'normal');
     grid.push({
       id: secondDriver.id,

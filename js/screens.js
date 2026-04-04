@@ -1035,7 +1035,7 @@ const SCREENS = {
             return `
             <div class="morale-pill" style="margin-bottom:var(--s-3)">
               <div class="morale-avatar" style="font-size:1.2rem">${p.emoji||'🧑'}</div>
-              <div class="morale-info"><div class="morale-name">${p.name}</div><div style="font-size:0.7rem;color:var(--t-secondary)">${__('overall')} ${GL_ENGINE.pilotScore(p)}</div></div>
+              <div class="morale-info"><div class="morale-name">${p.name}</div><div style="font-size:0.7rem;color:var(--t-secondary)">Base igualada · diferencia por estrategia</div></div>
               <button class="btn btn-sm ${selected ? 'btn-primary' : 'btn-secondary'}" data-pilot-btn="${p.id}" style="margin-left:auto" onclick="GL_SCREENS.toggleRacePilot('${p.id}')">${selected ? 'En carrera' : 'Reserva'}</button>
             </div>
             ${selected ? `
