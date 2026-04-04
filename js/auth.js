@@ -252,26 +252,13 @@
           setMsg(signInResult.error.message || 'Login failed.', 'error');
           return;
         }
-
-        const user = signInResult.data && signInResult.data.user ? signInResult.data.user : null;
-        if (!user) {
+        const sessionUser = signInResult.data && signInResult.data.user ? signInResult.data.user : null;
+        if (!sessionUser) {
           setMsg('Login failed: no user session.', 'error');
           return;
         }
 
-        const valid = await this.adoptSessionUser(user);
-        if (!valid) {
-          setMsg(requireEmailConfirmation ? 'Verify your email first, then log in again.' : 'Account access is not ready yet.', 'error');
-          return;
-        }
-
         setMsg('Access granted. Loading game...', 'success');
-        this.hideGate();
-        if (this.readyFired && window.GL_APP && typeof GL_APP.resumeAuthenticatedSession === 'function') {
-          GL_APP.resumeAuthenticatedSession();
-        } else {
-          this.fireReady();
-        }
       });
     }
   };
