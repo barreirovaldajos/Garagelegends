@@ -342,6 +342,17 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
 const TYRE_DEG = { soft: 1.5, medium: 0.9, hard: 0.5, wet: 0.7 };
 const TYRE_PACE = { soft: 8, medium: 0, hard: -4, wet: -2 };
 
+function getTyreWeatherPaceDelta(tyre, weather) {
+  if (weather === 'wet') {
+    if (tyre === 'wet') return 4;
+    if (tyre === 'soft') return -5;
+    if (tyre === 'medium') return -7;
+    return -9;
+  }
+  if (tyre === 'wet') return -8;
+  return TYRE_PACE[tyre] || 0;
+}
+
 function getEngineModeFx(mode) {
   const map = {
     eco: { pace: -0.05, risk: -0.15, tyre: -0.1 },
@@ -632,9 +643,11 @@ function simulateRace(options = {}) {
               : 'soft');
         const cleanStop = Math.random() < staffFx.pitTimeGainChance;
         const pitError = Math.random() < (0.14 * staffFx.pitErrorChanceMult);
+        const basePitLoss = safetyCarActive ? 1 : 2;
+        entry.pos = Math.min(positions.length, entry.pos + basePitLoss);
         entry.tyre = newTyre;
         if (pitError) {
-          entry.pos = Math.min(positions.length, entry.pos + 2);
+          entry.pos = Math.min(positions.length, entry.pos + 1);
           events.push({ lap, type: 'incident', text: `🔧 <strong>${entry.pilotName}</strong> pit error! Loses time leaving the box.` });
         } else if (cleanStop) {
           entry.pos = Math.max(1, entry.pos - 1);
@@ -695,6 +708,23 @@ function simulateRace(options = {}) {
         ? (currentTyre === 'wet' ? 0.82 : 1.24)
         : (currentTyre === 'wet' ? 1.45 : 1);
       rt.wear += (TYRE_DEG[currentTyre] || 0.9) * lapProfile.tyreDegMult * weatherTyreMult * (1 + engineFx.tyre) * setup.tyreMult;
+      const paceDelta = getTyreWeatherPaceDelta(currentTyre, liveWeather);
+      const wearPenalty = Math.max(0, (rt.wear - 16) * 0.06);
+      const perfScore = paceDelta - wearPenalty + ((s.aggression || 50) - 50) * 0.01;
+
+      if (perfScore > 2.2 && Math.random() < 0.12) {
+        const ahead = positions.find((x) => x.pos === entry.pos - 1 && !x.retired);
+        if (ahead) {
+          entry.pos = Math.max(1, entry.pos - 1);
+          ahead.pos = Math.min(positions.length, ahead.pos + 1);
+          events.push({ lap, type: 'good', text: `⚡ <strong>${entry.pilotName}</strong> gains pace advantage on ${currentTyre.toUpperCase()} and moves up.` });
+        }
+      }
+      if (perfScore < -2.2 && Math.random() < 0.14) {
+        entry.pos = Math.min(positions.length, entry.pos + 1);
+        events.push({ lap, type: 'incident', text: `📉 <strong>${entry.pilotName}</strong> struggles with ${currentTyre.toUpperCase()} in ${liveWeather}.` });
+      }
+
       if (rt.wear > 30 && rt.wear < 32 && !entry.retired) {
         events.push({ lap, type: 'incident', text: `⚠️ Tyre performance dropping for <strong>${entry.pilotName}</strong>.` });
       }

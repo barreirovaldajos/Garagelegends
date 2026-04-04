@@ -304,6 +304,7 @@
 .race-pos-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--c-surface-2); font-size: 0.82rem; transition: all var(--tr-fast); }
 .race-pos-row.my-car { background: rgba(232,41,42,0.1); border: 1px solid rgba(232,41,42,0.2); }
 .race-pos-num { font-family: var(--font-display); font-weight: 800; flex: 0 0 24px; }
+.race-pos-teamdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset; flex: 0 0 10px; }
 .race-pos-name { flex: 1; font-weight: 500; }
 .race-pos-gap { color: var(--t-tertiary); font-size: 0.75rem; flex: 0 0 60px; text-align: right; }
 .race-pos-tire { font-size: 0.8rem; }
@@ -324,6 +325,7 @@
 .tire-btn.selected.soft { border-color: var(--c-red); background: rgba(255,69,69,0.1); color: var(--c-red); }
 .tire-btn.selected.medium { border-color: var(--c-gold); background: rgba(245,200,66,0.1); color: var(--c-gold); }
 .tire-btn.selected.hard { border-color: var(--t-secondary); background: rgba(139,144,158,0.1); color: var(--t-primary); }
+.tire-btn.selected.wet { border-color: #3aa4ff; background: rgba(58,164,255,0.12); color: #7fc3ff; }
 .slider-group { margin-bottom: var(--s-4); }
 .slider-header { display: flex; justify-content: space-between; margin-bottom: var(--s-2); }
 .slider-name { font-size: 0.82rem; font-weight: 600; }

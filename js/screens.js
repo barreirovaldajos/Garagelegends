@@ -1125,6 +1125,7 @@ const SCREENS = {
       window._raceStrategy.engineMode = 'normal';
       window._raceStrategy.riskLevel = 45;
     }
+    this.syncSharedToDrivers(true);
     const modeEl = document.getElementById('sv-engineMode');
     if (modeEl) modeEl.textContent = (window._raceStrategy.engineMode || 'normal').toUpperCase();
   },
@@ -1133,12 +1134,14 @@ const SCREENS = {
     document.querySelectorAll('.tire-btn').forEach(e=>{ e.classList.remove('selected','soft','medium','hard','wet'); });
     el.classList.add('selected', t);
     if (window._raceStrategy) window._raceStrategy.tyre = t;
+    this.syncSharedToDrivers(true);
     window._advisorStrategySource = 'manual';
   },
 
   selectEngineMode(mode) {
     if (!window._raceStrategy) return;
     window._raceStrategy.engineMode = mode;
+    this.syncSharedToDrivers(true);
     window._advisorStrategySource = 'manual';
     const el = document.getElementById('sv-engineMode');
     if (el) el.textContent = mode.toUpperCase();
@@ -1209,7 +1212,7 @@ const SCREENS = {
     if (!silent) this.renderPreRace();
   },
 
-  syncSharedToDrivers() {
+  syncSharedToDrivers(silent = false) {
     if (!window._raceStrategy) return;
     const ids = window._raceStrategy.selectedPilotIds || [];
     if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
@@ -1225,8 +1228,10 @@ const SCREENS = {
       };
     });
     window._advisorStrategySource = 'manual';
-    GL_UI.toast('Estrategia compartida copiada a pilotos en carrera.', 'good');
-    this.renderPreRace();
+    if (!silent) {
+      GL_UI.toast('Estrategia compartida copiada a pilotos en carrera.', 'good');
+      this.renderPreRace();
+    }
   },
 
   setAdvisorMode(mode) {
@@ -1435,9 +1440,11 @@ const SCREENS = {
 
       gl.innerHTML = live.slice(0, 12).map((car, idx) => {
         const gap = idx === 0 ? __('race_leader') : `+${(idx * (0.9 + (1 - progress) * 0.35)).toFixed(1)}s`;
+        const dotColor = car.color || '#888';
         return `
           <div class="race-pos-row ${car.isPlayer?'my-car':''}">
             <span class="race-pos-num">${idx+1}</span>
+            <span class="race-pos-teamdot" style="background:${dotColor}"></span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
             <span class="race-pos-tire">${car.tyre==='soft'?'🔴':car.tyre==='hard'?'⚪':car.tyre==='wet'?'🔵':'🟡'}</span>
             <span class="race-pos-gap">${gap}</span>
@@ -1457,6 +1464,7 @@ const SCREENS = {
       if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
       if (GL_ENGINE.ensureNextRaceAvailable) GL_ENGINE.ensureNextRaceAvailable();
       state.season.raceIndex = nextIdx + 1;
+      GL_ENGINE.weeklyTick();
       const prize = Number.isFinite(result.prizeMoney) ? result.prizeMoney : Number(result.prizeMoney || 0);
       GL_STATE.addCredits(prize);
       const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
@@ -1474,7 +1482,6 @@ const SCREENS = {
       state.team.fans += 100 + (result.points || 0) * 50;
 
       GL_STATE.saveState();
-      GL_ENGINE.weeklyTick();
       window._raceInProgress = false;
 
       setTimeout(() => GL_APP.navigateTo('postrace'), 1000);
