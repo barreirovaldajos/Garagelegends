@@ -50,6 +50,10 @@
 
       this.client.auth.onAuthStateChange(async (event, sessionState) => {
         if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && sessionState && sessionState.user) {
+          if (this.user && this.user.id === sessionState.user.id && this.readyFired) {
+            this.user = sessionState.user;
+            return;
+          }
           const valid = await this.adoptSessionUser(sessionState.user);
           if (valid) {
             this.hideGate();

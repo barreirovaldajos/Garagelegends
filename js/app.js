@@ -5,8 +5,6 @@ const APP = {
   currentScreen: 'dashboard',
   _handlersAttached: false,
   _clockStarted: false,
-  _bootSequence: 0,
-  _pendingOnboardingTimer: null,
 
   renderBootRecovery(error) {
     const host = document.getElementById('onboarding-screen') || document.body;
@@ -67,17 +65,7 @@ const APP = {
   },
 
   bootForCurrentSession() {
-    const bootSequence = ++this._bootSequence;
-    if (this._pendingOnboardingTimer) {
-      clearTimeout(this._pendingOnboardingTimer);
-      this._pendingOnboardingTimer = null;
-    }
-
     const loaded = GL_STATE.loadState();
-    const appEl = document.getElementById('app');
-    const obEl = document.getElementById('onboarding-screen');
-    if (appEl) appEl.style.display = 'none';
-    if (obEl) obEl.style.display = 'none';
 
     if (loaded && GL_STATE.hasOnboarded()) {
       this.showApp();
@@ -87,17 +75,15 @@ const APP = {
       if (window.GL_DASHBOARD) GL_DASHBOARD.init();
       this.navigateTo('dashboard');
     } else {
+      console.log('App: State not onboarded or missing. Starting onboarding.');
+      document.getElementById('app').style.display = 'none';
       this.buildSidebar();
       this.buildTopbar();
-      this._pendingOnboardingTimer = setTimeout(() => {
-        if (bootSequence !== this._bootSequence) return;
-        console.log('App: State not onboarded or missing. Starting onboarding.');
-        const onboardingEl = document.getElementById('onboarding-screen');
-        if (onboardingEl) {
-          onboardingEl.style.display = 'flex';
-          GL_OB.start();
-        }
-      }, 120);
+      const onboardingEl = document.getElementById('onboarding-screen');
+      if (onboardingEl) {
+        onboardingEl.style.display = 'flex';
+        GL_OB.start();
+      }
     }
   },
 
