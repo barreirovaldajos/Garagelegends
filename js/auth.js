@@ -65,7 +65,10 @@
 
     async adoptSessionUser(user) {
       const cfg = window.GL_SUPABASE_CONFIG || {};
-      if (cfg.requireEmailConfirmation && !user.email_confirmed_at) {
+      const isEmailConfirmed = Boolean(
+        user && (user.email_confirmed_at || user.confirmed_at)
+      );
+      if (cfg.requireEmailConfirmation && !isEmailConfirmed) {
         await this.client.auth.signOut();
         return false;
       }
