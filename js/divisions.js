@@ -10,7 +10,32 @@ const DEFAULT_LEAGUES = [
   { id: 3, name: 'National League', tier: 3, teams: [], mmo: false }
 ];
 
-let leagues = JSON.parse(localStorage.getItem('leagues')) || DEFAULT_LEAGUES;
+function getLeaguesStorageKey() {
+  if (window.GL_AUTH && typeof GL_AUTH.getStorageKeySuffix === 'function') {
+    const suffix = GL_AUTH.getStorageKeySuffix();
+    if (suffix) return `leagues_${suffix}`;
+  }
+  return 'leagues';
+}
+
+function loadLeagues() {
+  const key = getLeaguesStorageKey();
+  let raw = localStorage.getItem(key);
+  if (!raw && key !== 'leagues') {
+    const legacy = localStorage.getItem('leagues');
+    if (legacy) {
+      raw = legacy;
+      localStorage.setItem(key, legacy);
+    }
+  }
+  try {
+    return raw ? JSON.parse(raw) : DEFAULT_LEAGUES;
+  } catch (_) {
+    return DEFAULT_LEAGUES;
+  }
+}
+
+let leagues = loadLeagues();
 
 const Divisions = {
     // MMO/social: hooks y placeholders
@@ -19,7 +44,7 @@ const Divisions = {
     },
     setLeagues(newLeagues) {
       leagues = newLeagues;
-      localStorage.setItem('leagues', JSON.stringify(leagues));
+      localStorage.setItem(getLeaguesStorageKey(), JSON.stringify(leagues));
     },
     registerMMOEvent(event) {
       // Placeholder: integrar con backend MMO

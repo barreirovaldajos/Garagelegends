@@ -3,6 +3,14 @@
 
 const STATE_KEY = 'garage_legends_v1';
 
+function getStateStorageKey() {
+  if (window.GL_AUTH && typeof GL_AUTH.getStorageKeySuffix === 'function') {
+    const suffix = GL_AUTH.getStorageKeySuffix();
+    if (suffix) return `${STATE_KEY}_${suffix}`;
+  }
+  return STATE_KEY;
+}
+
 const DEFAULT_STATE = {
   // MMO/social hooks
   faction: {
@@ -131,7 +139,16 @@ function deepClone(obj) {
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STATE_KEY);
+    const scopedKey = getStateStorageKey();
+    let raw = localStorage.getItem(scopedKey);
+    if (!raw && scopedKey !== STATE_KEY) {
+      // One-time migration path: keep old save if it exists.
+      const legacy = localStorage.getItem(STATE_KEY);
+      if (legacy) {
+        raw = legacy;
+        localStorage.setItem(scopedKey, legacy);
+      }
+    }
     if (raw) {
       _state = JSON.parse(raw);
       // Migración engineSupplier a id minúsculas
@@ -321,7 +338,7 @@ function saveState() {
     if (_state) {
       const offset = (_state.meta && typeof _state.meta.timeOffsetMs === 'number') ? _state.meta.timeOffsetMs : 0;
       _state.meta.saveTime = Date.now() + offset;
-      localStorage.setItem(STATE_KEY, JSON.stringify(_state));
+      localStorage.setItem(getStateStorageKey(), JSON.stringify(_state));
     }
   } catch(e) { console.warn('State save error', e); }
 }
@@ -340,7 +357,7 @@ function setState(updater) {
 function resetState() {
   _state = deepClone(DEFAULT_STATE);
   _state.meta.created = Date.now();
-  localStorage.removeItem(STATE_KEY);
+  localStorage.removeItem(getStateStorageKey());
 }
 
 function hasOnboarded() {

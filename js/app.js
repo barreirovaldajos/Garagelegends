@@ -25,8 +25,11 @@ const APP = {
     if (recoverBtn) {
       recoverBtn.onclick = () => {
         try {
-          localStorage.removeItem('garage_legends_v1');
-          localStorage.removeItem('leagues');
+          Object.keys(localStorage).forEach((k) => {
+            if (k.indexOf('garage_legends_v1') === 0 || k.indexOf('leagues') === 0) {
+              localStorage.removeItem(k);
+            }
+          });
         } catch (_) {}
         window.location.reload();
       };
@@ -256,6 +259,9 @@ const APP = {
 
   showProfile() {
     const state = GL_STATE.getState();
+    const authEnabled = window.GL_AUTH && GL_AUTH.enabled;
+    const authEmail = authEnabled ? (GL_AUTH.getUserEmail() || 'unknown') : '';
+    const authRole = authEnabled ? (GL_AUTH.getRole() || 'player') : '';
     GL_UI.openModal({
       title: __('profile_title') || 'Team Profile',
       size: 'sm',
@@ -265,18 +271,40 @@ const APP = {
           <h3 style="font-size:1.6rem;margin:0;color:var(--t-primary)">${state.team.name}</h3>
           <p style="color:var(--t-tertiary);margin:var(--s-1) 0 0;font-size:0.9rem">${state.team.origin || state.team.country} · ${__('division')} ${state.season.division}</p>
         </div>
+        ${authEnabled ? `<div style="margin:0 0 var(--s-4);padding:10px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border);font-size:0.8rem;color:var(--t-secondary)">
+          <div style="margin-bottom:4px"><strong style="color:var(--t-primary)">Account:</strong> ${authEmail}</div>
+          <div><strong style="color:var(--t-primary)">Role:</strong> ${authRole}</div>
+        </div>` : ''}
         <hr style="border:0;border-top:1px solid var(--c-border-hi);margin:var(--s-5) 0"/>
-        <p style="color:var(--t-secondary);font-size:0.85rem;margin-bottom:var(--s-4);text-align:center">${__('profile_logout_desc') || 'Log out to reset progress and start a new team.'}</p>
-        <button class="btn btn-danger w-full" style="justify-content:center" onclick="GL_APP.logout()">${__('profile_logout') || 'Log Out / Delete Data'}</button>
+        <p style="color:var(--t-secondary);font-size:0.85rem;margin-bottom:var(--s-4);text-align:center">${__('profile_logout_desc') || 'Session logout and local reset are separate actions.'}</p>
+        ${authEnabled ? `<button class="btn btn-secondary w-full" style="justify-content:center;margin-bottom:10px" onclick="GL_APP.sessionLogout()">Sign out account session</button>` : ''}
+        <button class="btn btn-danger w-full" style="justify-content:center" onclick="GL_APP.logout()">Reset local team data</button>
       `
     });
   },
 
+  async sessionLogout() {
+    if (!(window.GL_AUTH && GL_AUTH.enabled)) return;
+    const ok = await GL_UI.confirm(
+      'Sign out?',
+      'This signs out your account session but keeps local save data for this account.',
+      'Sign out',
+      'Cancel'
+    );
+    if (!ok) return;
+    try {
+      await GL_AUTH.signOut();
+      window.location.reload();
+    } catch (e) {
+      GL_UI.toast((e && e.message) ? e.message : 'Could not sign out.', 'error');
+    }
+  },
+
   logout() {
     GL_UI.confirm(
-      __('logout_confirm_title') || 'Log Out?',
-      __('logout_confirm_desc') || 'Are you sure you want to log out? All your current team data will be lost forever.',
-      __('logout_yes') || 'Yes, Log Out',
+      __('logout_confirm_title') || 'Reset local data?',
+      __('logout_confirm_desc') || 'This deletes local team progress for the current account on this browser.',
+      __('logout_yes') || 'Yes, reset data',
       __('logout_no') || 'Cancel'
     ).then(res => {
       if (res) {
@@ -348,7 +376,13 @@ window.GL_APP = APP;
 // ===== BOOT =====
 document.addEventListener('DOMContentLoaded', () => {
   try {
-    APP.init();
+    if (window.GL_AUTH && typeof GL_AUTH.init === 'function') {
+      GL_AUTH.init({
+        onReady: () => APP.init()
+      });
+    } else {
+      APP.init();
+    }
   } catch (e) {
     console.error('App boot failed:', e);
     APP.renderBootRecovery(e);
