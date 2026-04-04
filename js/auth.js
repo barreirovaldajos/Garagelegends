@@ -117,6 +117,16 @@
       return this.storageKeySuffix || '';
     },
 
+    getStorageKeyAliases() {
+      const aliases = [];
+      if (this.storageKeySuffix) aliases.push(this.storageKeySuffix);
+      const email = this.getUserEmail();
+      if (email) {
+        aliases.push(`email_${String(email).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
+      }
+      return Array.from(new Set(aliases.filter(Boolean)));
+    },
+
     isAuthenticated() {
       return Boolean(this.user && this.user.id);
     },

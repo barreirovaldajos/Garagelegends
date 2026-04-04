@@ -3,12 +3,22 @@
 
 const STATE_KEY = 'garage_legends_v1';
 
-function getStateStorageKey() {
+function getStateStorageKeys() {
+  if (window.GL_AUTH && typeof GL_AUTH.getStorageKeyAliases === 'function') {
+    const aliases = GL_AUTH.getStorageKeyAliases();
+    if (aliases && aliases.length) {
+      return aliases.map(alias => `${STATE_KEY}_${alias}`);
+    }
+  }
   if (window.GL_AUTH && typeof GL_AUTH.getStorageKeySuffix === 'function') {
     const suffix = GL_AUTH.getStorageKeySuffix();
-    if (suffix) return `${STATE_KEY}_${suffix}`;
+    if (suffix) return [`${STATE_KEY}_${suffix}`];
   }
-  return STATE_KEY;
+  return [STATE_KEY];
+}
+
+function getPrimaryStateStorageKey() {
+  return getStateStorageKeys()[0] || STATE_KEY;
 }
 
 const DEFAULT_STATE = {
@@ -150,9 +160,21 @@ function isMeaningfulSave(candidate) {
 
 function loadState() {
   try {
-    const scopedKey = getStateStorageKey();
-    let raw = localStorage.getItem(scopedKey);
-    if (!raw && scopedKey !== STATE_KEY) {
+    const scopedKeys = getStateStorageKeys();
+    const primaryKey = scopedKeys[0] || STATE_KEY;
+    let raw = null;
+    let sourceKey = '';
+
+    for (const candidateKey of scopedKeys) {
+      const candidateRaw = localStorage.getItem(candidateKey);
+      if (candidateRaw) {
+        raw = candidateRaw;
+        sourceKey = candidateKey;
+        break;
+      }
+    }
+
+    if (!raw && primaryKey !== STATE_KEY) {
       // One-time migration path: keep old save if it exists.
       const legacy = localStorage.getItem(STATE_KEY);
       if (legacy) {
@@ -160,11 +182,21 @@ function loadState() {
           const parsedLegacy = JSON.parse(legacy);
           if (isMeaningfulSave(parsedLegacy)) {
             raw = legacy;
-            localStorage.setItem(scopedKey, legacy);
+            sourceKey = STATE_KEY;
+            scopedKeys.forEach(key => localStorage.setItem(key, legacy));
           }
         } catch (_) {}
       }
     }
+
+    if (raw && sourceKey && sourceKey !== primaryKey) {
+      scopedKeys.forEach(key => {
+        if (!localStorage.getItem(key)) {
+          localStorage.setItem(key, raw);
+        }
+      });
+    }
+
     if (raw) {
       _state = JSON.parse(raw);
       // Migración engineSupplier a id minúsculas
@@ -354,7 +386,8 @@ function saveState() {
     if (_state) {
       const offset = (_state.meta && typeof _state.meta.timeOffsetMs === 'number') ? _state.meta.timeOffsetMs : 0;
       _state.meta.saveTime = Date.now() + offset;
-      localStorage.setItem(getStateStorageKey(), JSON.stringify(_state));
+      const serialized = JSON.stringify(_state);
+      getStateStorageKeys().forEach(key => localStorage.setItem(key, serialized));
     }
   } catch(e) { console.warn('State save error', e); }
 }
@@ -373,7 +406,7 @@ function setState(updater) {
 function resetState() {
   _state = deepClone(DEFAULT_STATE);
   _state.meta.created = Date.now();
-  localStorage.removeItem(getStateStorageKey());
+  getStateStorageKeys().forEach(key => localStorage.removeItem(key));
 }
 
 function hasOnboarded() {
