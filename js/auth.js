@@ -146,6 +146,12 @@
 
       const cfg = window.GL_SUPABASE_CONFIG || {};
       const allowSignup = cfg.allowSignup !== false;
+      const requireEmailConfirmation = cfg.requireEmailConfirmation !== false;
+      const subtitle = allowSignup
+        ? (requireEmailConfirmation
+          ? 'Use your invite email. Accounts must verify email before first login.'
+          : 'Use your invite email to access the closed beta.')
+        : 'Closed beta access. Accounts are created manually by admin.';
 
       const gate = document.createElement('div');
       gate.id = 'auth-gate';
@@ -153,7 +159,7 @@
       gate.innerHTML = `
         <div class="auth-card">
           <h2 class="auth-title">Garage Legends Access</h2>
-          <p class="auth-subtitle">Use your invite email. Accounts must verify email before first login.</p>
+          <p class="auth-subtitle">${subtitle}</p>
           <div class="auth-tabs">
             <button class="auth-tab active" data-mode="login">Login</button>
             <button class="auth-tab" data-mode="register" ${allowSignup ? '' : 'disabled'}>Register</button>
@@ -233,7 +239,7 @@
             setMsg(signUpResult.error.message || 'Registration failed.', 'error');
             return;
           }
-          setMsg('Account created. Verify your email before first login.', 'success');
+          setMsg(requireEmailConfirmation ? 'Account created. Verify your email before first login.' : 'Account created. You can log in now.', 'success');
           return;
         }
 
@@ -251,7 +257,7 @@
 
         const valid = await this.adoptSessionUser(user);
         if (!valid) {
-          setMsg('Verify your email first, then log in again.', 'error');
+          setMsg(requireEmailConfirmation ? 'Verify your email first, then log in again.' : 'Account access is not ready yet.', 'error');
           return;
         }
 

@@ -3,8 +3,8 @@
 'use strict';
 
 window.GL_SUPABASE_CONFIG = {
-  url: '',
-  anonKey: '',
-  requireEmailConfirmation: true,
-  allowSignup: true
+  url: 'https://ijyfgylrurvgbwqgusfo.supabase.co',
+  anonKey: 'sb_publishable_TxsxJuY0oTggNarlg9mNMA_8QjRFi9v',
+  requireEmailConfirmation: false,
+  allowSignup: false
 };

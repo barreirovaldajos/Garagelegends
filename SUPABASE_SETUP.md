@@ -33,8 +33,8 @@ Edit `js/supabase-config.js` and set:
 
 - `url`: Supabase project URL
 - `anonKey`: Supabase anon key
-- `requireEmailConfirmation`: `true`
-- `allowSignup`: `true` for open beta invite flow, `false` for admin-only invites
+- `requireEmailConfirmation`: `false` for current closed-beta production mode without SMTP, `true` once SMTP is configured
+- `allowSignup`: `false` for current admin-created closed beta, `true` only when self-service signup is ready
 
 Example:
 
@@ -42,8 +42,8 @@ Example:
 window.GL_SUPABASE_CONFIG = {
   url: 'https://YOUR_PROJECT.supabase.co',
   anonKey: 'YOUR_ANON_KEY',
-  requireEmailConfirmation: true,
-  allowSignup: true
+  requireEmailConfirmation: false,
+  allowSignup: false
 };
 ```
 
@@ -61,17 +61,21 @@ where email = 'admin@yourdomain.com';
 
 ## 5) Closed beta recommendations
 
-- Keep `allowSignup: false` and create invited users from Supabase dashboard, OR
-- Keep `allowSignup: true` but only share URL with invited users and monitor signup list.
+- Current recommended production mode:
+  - `allowSignup: false`
+  - `requireEmailConfirmation: false`
+  - Create invited users manually from Supabase dashboard or SQL
+- When custom SMTP is configured later, switch back to:
+  - `allowSignup: true`
+  - `requireEmailConfirmation: true`
 
 ## 6) Smoke test checklist
 
-1. Register with new email -> sees "verify email" message.
-2. Try login before verify -> blocked.
-3. Verify email and login -> app opens.
-4. Confirm profile row exists with role `player`.
-5. Promote one user to `admin` and re-login -> role reflects in profile panel.
-6. Login with second account -> confirms separate local save key.
+1. Login with admin-created account -> app opens.
+2. Confirm profile row exists with role `player` or `admin`.
+3. Promote one user to `admin` and re-login -> role reflects in profile panel.
+4. Login with second account -> confirms separate local save key.
+5. After SMTP is configured, re-enable signup and email confirmation and repeat the mail flow test.
 
 ## 7) Rollback plan
 
