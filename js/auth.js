@@ -53,7 +53,11 @@
           const valid = await this.adoptSessionUser(sessionState.user);
           if (valid) {
             this.hideGate();
-            this.fireReady();
+            if (this.readyFired && window.GL_APP && typeof GL_APP.resumeAuthenticatedSession === 'function') {
+              GL_APP.resumeAuthenticatedSession();
+            } else {
+              this.fireReady();
+            }
           }
         }
         if (event === 'SIGNED_OUT') {

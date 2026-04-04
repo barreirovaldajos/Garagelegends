@@ -3,6 +3,8 @@
 
 const APP = {
   currentScreen: 'dashboard',
+  _handlersAttached: false,
+  _clockStarted: false,
 
   renderBootRecovery(error) {
     const host = document.getElementById('onboarding-screen') || document.body;
@@ -57,30 +59,43 @@ const APP = {
   ],
 
   init() {
+    this.attachGlobalHandlers();
+    this.startRealTimeClock();
+    this.bootForCurrentSession();
+  },
+
+  bootForCurrentSession() {
     const loaded = GL_STATE.loadState();
 
     if (loaded && GL_STATE.hasOnboarded()) {
       this.showApp();
       GL_ENGINE.catchUpOffline();
+      this.buildSidebar();
+      this.buildTopbar();
       if (window.GL_DASHBOARD) GL_DASHBOARD.init();
       this.navigateTo('dashboard');
     } else {
       console.log('App: State not onboarded or missing. Starting onboarding.');
       document.getElementById('app').style.display = 'none';
+      this.buildSidebar();
+      this.buildTopbar();
       const obEl = document.getElementById('onboarding-screen');
       if (obEl) {
         obEl.style.display = 'flex';
         GL_OB.start();
       }
     }
+  },
 
-    this.buildSidebar();
-    this.buildTopbar();
-    this.attachGlobalHandlers();
-    this.startRealTimeClock();
+  resumeAuthenticatedSession() {
+    GL_UI.closeTopModal();
+    this.closeFabMenu();
+    this.bootForCurrentSession();
   },
 
   startRealTimeClock() {
+    if (this._clockStarted) return;
+    this._clockStarted = true;
     const updateTime = () => {
       const elTime = document.getElementById('rt-clock-time');
       const elNext = document.getElementById('rt-clock-next');
@@ -293,8 +308,8 @@ const APP = {
     );
     if (!ok) return;
     try {
+      GL_UI.closeTopModal();
       await GL_AUTH.signOut();
-      window.location.reload();
     } catch (e) {
       GL_UI.toast((e && e.message) ? e.message : 'Could not sign out.', 'error');
     }
@@ -315,6 +330,8 @@ const APP = {
   },
 
   attachGlobalHandlers() {
+    if (this._handlersAttached) return;
+    this._handlersAttached = true;
     // Keyboard: ESC closes modals
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
