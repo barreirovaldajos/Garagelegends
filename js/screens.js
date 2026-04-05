@@ -874,6 +874,10 @@ const SCREENS = {
         baseStrategy.driverConfigs[pid] = {};
       }
     });
+    if (!baseStrategy.strategy) baseStrategy.strategy = 'balanced';
+    if (!baseStrategy.pitPlan) baseStrategy.pitPlan = 'single';
+    if (!baseStrategy.engineMode) baseStrategy.engineMode = 'normal';
+    if (!baseStrategy.safetyCarReaction) baseStrategy.safetyCarReaction = 'live';
     window._raceStrategy = baseStrategy;
     window._advisorStrategySource = 'manual';
     const recommendation = GL_ENGINE.recommendStrategyForRace
@@ -946,7 +950,7 @@ const SCREENS = {
               {id:'conservative',icon:'🛡️',name:__('prerace_conservative'),desc:__('prerace_conservative_desc')},
               {id:'tactical',icon:'🧠',name:__('prerace_tactical'),desc:__('prerace_tactical_desc')}
             ].map(s => `
-              <div class="strategy-preset ${s.id==='balanced'?'selected':''}" data-strat="${s.id}" onclick="GL_SCREENS.selectStrategy('${s.id}', this)">
+              <div class="strategy-preset ${s.id === baseStrategy.strategy ? 'selected' : ''}" data-strat="${s.id}" onclick="GL_SCREENS.selectStrategy('${s.id}', this)">
                 <span class="strategy-preset-icon">${s.icon}</span>
                 <div><div class="strategy-preset-name">${s.name}</div><div class="strategy-preset-desc">${s.desc}</div></div>
               </div>`).join('')}
@@ -965,18 +969,18 @@ const SCREENS = {
           <div class="slider-group">
             <div class="slider-header">
               <span class="slider-name">Plan de pit</span>
-              <span class="slider-val">Strategy</span>
+              <span class="slider-val" id="sv-pitPlan">${String(baseStrategy.pitPlan || 'single').toUpperCase()}</span>
             </div>
-            <select onchange="if(window._raceStrategy){ window._raceStrategy.pitPlan=this.value; }" style="width:100%">
-              <option value="single" selected>Single Stop</option>
-              <option value="double">Double Stop</option>
-              <option value="adaptive">Adaptive</option>
+            <select onchange="if(window._raceStrategy){ window._raceStrategy.pitPlan=this.value; } const pitPlanEl=document.getElementById('sv-pitPlan'); if(pitPlanEl){ pitPlanEl.textContent=this.value.toUpperCase(); }" style="width:100%">
+              <option value="single" ${baseStrategy.pitPlan === 'single' ? 'selected' : ''}>Single Stop</option>
+              <option value="double" ${baseStrategy.pitPlan === 'double' ? 'selected' : ''}>Double Stop</option>
+              <option value="adaptive" ${baseStrategy.pitPlan === 'adaptive' ? 'selected' : ''}>Adaptive</option>
             </select>
           </div>
           <div class="slider-group">
             <div class="slider-header">
               <span class="slider-name">Safety Car reaction</span>
-              <span class="slider-val">LIVE</span>
+              <span class="slider-val">${String(baseStrategy.safetyCarReaction || 'live').toUpperCase()}</span>
             </div>
             <div style="font-size:0.78rem;color:var(--t-secondary);padding:8px 0">
               Gestionado en carrera en vivo por el staff (undercut/overcut automatico segun fortalezas del equipo).
@@ -985,7 +989,7 @@ const SCREENS = {
           <div class="slider-group">
             <div class="slider-header">
               <span class="slider-name">Modo de motor</span>
-              <span class="slider-val" id="sv-engineMode">Normal</span>
+              <span class="slider-val" id="sv-engineMode">${String(baseStrategy.engineMode || 'normal').toUpperCase()}</span>
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.selectEngineMode('eco')">ECO</button>
@@ -1247,13 +1251,13 @@ const SCREENS = {
     const state = GL_STATE.getState();
     const nextIdx = (state.season.calendar || []).findIndex(r=>r.status==='next');
     if (nextIdx !== -1) {
-      state.season.calendar[nextIdx].savedStrategy = window._raceStrategy || {
+      state.season.calendar[nextIdx].savedStrategy = GL_STATE.deepClone(window._raceStrategy || {
         tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
         interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
         pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
         selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
         driverConfigs: {}
-      };
+      });
       if (!state.season.calendar[nextIdx].savedStrategy.pilotId && state.pilots && state.pilots[0]) {
         state.season.calendar[nextIdx].savedStrategy.pilotId = state.pilots[0].id;
       }
@@ -1282,13 +1286,14 @@ const SCREENS = {
     if (!el) return;
     const circuit = next?.circuit || GL_DATA.CIRCUITS[0];
     const weather = next?.weather || 'dry';
-    const strategy = window._raceStrategy || {
+    const strategy = GL_STATE.deepClone(window._raceStrategy || next?.savedStrategy || {
       tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
       interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
       pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
       selectedPilotIds: (state.pilots || []).slice(0,2).map((p) => p.id),
       driverConfigs: {}
-    };
+    });
+    window._raceStrategy = strategy;
     const selectedPilot = (state.pilots || []).find((p) => p.id === strategy.pilotId) || (state.pilots || [])[0] || null;
     const racePilots = (strategy.selectedPilotIds || []).map((pid) => {
       const pilot = (state.pilots || []).find((p) => p.id === pid);
