@@ -8,6 +8,7 @@ This project now supports **optional Supabase auth**. If Supabase config is empt
 - Added email verification enforcement before game access.
 - Added role model (`admin`, `player`) from database profile.
 - Isolated local saves per account in this browser.
+- Added server-side save snapshot in `public.profiles.save_data` for authenticated account recovery.
 - Kept backwards compatibility: if user-scoped save does not exist, legacy save is copied once.
 
 ## 1) Create Supabase project (manual)

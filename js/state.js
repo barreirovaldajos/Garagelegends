@@ -162,6 +162,17 @@ function loadState() {
   try {
     const scopedKeys = getStateStorageKeys();
     const primaryKey = scopedKeys[0] || STATE_KEY;
+    const remoteSnapshot = window.GL_AUTH && typeof GL_AUTH.getRemoteSaveSnapshot === 'function'
+      ? GL_AUTH.getRemoteSaveSnapshot()
+      : null;
+
+    if (isMeaningfulSave(remoteSnapshot)) {
+      const remoteRaw = JSON.stringify(remoteSnapshot);
+      scopedKeys.forEach(key => localStorage.setItem(key, remoteRaw));
+      _state = remoteSnapshot;
+      return true;
+    }
+
     let raw = null;
     let sourceKey = '';
 
@@ -388,6 +399,9 @@ function saveState() {
       _state.meta.saveTime = Date.now() + offset;
       const serialized = JSON.stringify(_state);
       getStateStorageKeys().forEach(key => localStorage.setItem(key, serialized));
+      if (isMeaningfulSave(_state) && window.GL_AUTH && typeof GL_AUTH.saveRemoteStateSnapshot === 'function') {
+        GL_AUTH.saveRemoteStateSnapshot(_state);
+      }
     }
   } catch(e) { console.warn('State save error', e); }
 }
@@ -407,6 +421,9 @@ function resetState() {
   _state = deepClone(DEFAULT_STATE);
   _state.meta.created = Date.now();
   getStateStorageKeys().forEach(key => localStorage.removeItem(key));
+  if (window.GL_AUTH && typeof GL_AUTH.clearRemoteStateSnapshot === 'function') {
+    GL_AUTH.clearRemoteStateSnapshot();
+  }
 }
 
 function hasOnboarded() {

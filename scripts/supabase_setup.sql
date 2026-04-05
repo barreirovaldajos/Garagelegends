@@ -14,9 +14,14 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   email text not null,
   role public.app_role not null default 'player',
+  save_data jsonb,
+  save_updated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists save_data jsonb;
+alter table public.profiles add column if not exists save_updated_at timestamptz;
 
 create or replace function public.handle_new_user_profile()
 returns trigger

@@ -8,9 +8,11 @@
     user: null,
     role: 'player',
     profile: null,
+    remoteSave: null,
     storageKeySuffix: '',
     readyFired: false,
     readyCallback: null,
+    saveTimer: null,
 
     isConfigured() {
       const cfg = window.GL_SUPABASE_CONFIG || {};
@@ -69,6 +71,7 @@
           this.user = null;
           this.profile = null;
           this.role = 'player';
+          this.remoteSave = null;
           this.renderGate();
         }
       });
@@ -111,6 +114,10 @@
         this.profile = profResult.data;
         this.role = profResult.data.role || 'player';
       }
+      const saveResult = await this.client.from('profiles').select('save_data').eq('id', this.user.id).single();
+      if (!saveResult.error && saveResult.data) {
+        this.remoteSave = saveResult.data.save_data || null;
+      }
     },
 
     getStorageKeySuffix() {
@@ -125,6 +132,46 @@
         aliases.push(`email_${String(email).toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`);
       }
       return Array.from(new Set(aliases.filter(Boolean)));
+    },
+
+    getRemoteSaveSnapshot() {
+      return this.remoteSave ? JSON.parse(JSON.stringify(this.remoteSave)) : null;
+    },
+
+    saveRemoteStateSnapshot(state) {
+      if (!this.client || !this.user || !state) return;
+      this.remoteSave = JSON.parse(JSON.stringify(state));
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(async () => {
+        try {
+          await this.client
+            .from('profiles')
+            .update({
+              save_data: this.remoteSave,
+              save_updated_at: new Date().toISOString()
+            })
+            .eq('id', this.user.id);
+        } catch (e) {
+          console.warn('Remote save warning:', e && e.message ? e.message : e);
+        }
+      }, 250);
+    },
+
+    async clearRemoteStateSnapshot() {
+      this.remoteSave = null;
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = null;
+      }
+      if (!this.client || !this.user) return;
+      try {
+        await this.client
+          .from('profiles')
+          .update({ save_data: null, save_updated_at: new Date().toISOString() })
+          .eq('id', this.user.id);
+      } catch (e) {
+        console.warn('Remote save clear warning:', e && e.message ? e.message : e);
+      }
     },
 
     isAuthenticated() {

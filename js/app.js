@@ -295,7 +295,7 @@ const APP = {
         <hr style="border:0;border-top:1px solid var(--c-border-hi);margin:var(--s-5) 0"/>
         <p style="color:var(--t-secondary);font-size:0.85rem;margin-bottom:var(--s-4);text-align:center">${__('profile_logout_desc') || 'Session logout and local reset are separate actions.'}</p>
         ${authEnabled ? `<button class="btn btn-secondary w-full" style="justify-content:center;margin-bottom:10px" onclick="GL_APP.sessionLogout()">Sign out account session</button>` : ''}
-        <button class="btn btn-danger w-full" style="justify-content:center" onclick="GL_APP.logout()">Reset local team data</button>
+        <button class="btn btn-danger w-full" style="justify-content:center" onclick="GL_APP.logout()">Reset team data</button>
       `
     });
   },
@@ -324,9 +324,9 @@ const APP = {
 
   logout() {
     GL_UI.confirm(
-      __('logout_confirm_title') || 'Reset local data?',
-      __('logout_confirm_desc') || 'This deletes local team progress for the current account on this browser.',
-      __('logout_yes') || 'Yes, reset data',
+      __('logout_confirm_title') || 'Reset team data?',
+      __('logout_confirm_desc') || 'This deletes the saved team progress for the current account.',
+      __('logout_yes') || 'Yes, reset team',
       __('logout_no') || 'Cancel'
     ).then(res => {
       if (res) {
