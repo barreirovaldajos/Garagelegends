@@ -9,10 +9,13 @@
     role: 'player',
     profile: null,
     remoteSave: null,
+    remoteSaveUpdatedAt: 0,
     storageKeySuffix: '',
     readyFired: false,
     readyCallback: null,
     savePromise: null,
+    pendingRemoteSave: null,
+    lifecycleBound: false,
 
     isConfigured() {
       const cfg = window.GL_SUPABASE_CONFIG || {};
@@ -29,16 +32,23 @@
 
       this.enabled = true;
       const cfg = window.GL_SUPABASE_CONFIG;
-      this.client = window.supabase.createClient(cfg.url, cfg.anonKey, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
-        }
-      });
+      const authOptions = {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: this.getAuthStorageKey(cfg)
+      };
 
-      const { data } = await this.client.auth.getSession();
-      const session = data && data.session ? data.session : null;
+      if (typeof window !== 'undefined' && window.localStorage) {
+        authOptions.storage = window.localStorage;
+      }
+
+      this.client = window.supabase.createClient(cfg.url, cfg.anonKey, {
+        auth: authOptions
+      });
+      this.bindLifecyclePersistence();
+
+      const session = await this.getBootSession();
       if (session && session.user) {
         const valid = await this.adoptSessionUser(session.user);
         if (valid) {
@@ -51,30 +61,125 @@
         this.renderGate();
       }
 
-      this.client.auth.onAuthStateChange(async (event, sessionState) => {
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && sessionState && sessionState.user) {
-          if (this.user && this.user.id === sessionState.user.id && this.readyFired) {
-            this.user = sessionState.user;
-            return;
-          }
-          const valid = await this.adoptSessionUser(sessionState.user);
-          if (valid) {
-            this.hideGate();
-            if (this.readyFired && window.GL_APP && typeof GL_APP.resumeAuthenticatedSession === 'function') {
-              GL_APP.resumeAuthenticatedSession();
-            } else {
-              this.fireReady();
-            }
-          }
-        }
-        if (event === 'SIGNED_OUT') {
-          this.user = null;
-          this.profile = null;
-          this.role = 'player';
-          this.remoteSave = null;
-          this.renderGate();
-        }
+      this.client.auth.onAuthStateChange((event, sessionState) => {
+        window.setTimeout(() => {
+          this.handleAuthStateChange(event, sessionState);
+        }, 0);
       });
+    },
+
+    async handleAuthStateChange(event, sessionState) {
+      if (
+        (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') &&
+        sessionState &&
+        sessionState.user
+      ) {
+        this.writeSessionMirror(sessionState);
+        if (this.user && this.user.id === sessionState.user.id && this.readyFired) {
+          this.user = sessionState.user;
+          return;
+        }
+        const valid = await this.adoptSessionUser(sessionState.user);
+        if (valid) {
+          this.hideGate();
+          if (this.readyFired && window.GL_APP && typeof GL_APP.resumeAuthenticatedSession === 'function') {
+            GL_APP.resumeAuthenticatedSession();
+          } else {
+            this.fireReady();
+          }
+        }
+        return;
+      }
+
+      if (event === 'SIGNED_OUT') {
+        this.clearSessionMirror();
+        this.user = null;
+        this.profile = null;
+        this.role = 'player';
+        this.remoteSave = null;
+        this.remoteSaveUpdatedAt = 0;
+        this.storageKeySuffix = '';
+        this.pendingRemoteSave = null;
+        this.renderGate();
+      }
+    },
+
+    getAuthStorageKey(cfg) {
+      const rawUrl = String((cfg && cfg.url) || '').trim();
+      const projectRef = rawUrl.replace(/^https?:\/\//, '').split('.')[0] || 'default';
+      return `garage_legends_auth_${projectRef}`;
+    },
+
+    getSessionMirrorKey(cfg) {
+      const rawUrl = String((cfg && cfg.url) || '').trim();
+      const projectRef = rawUrl.replace(/^https?:\/\//, '').split('.')[0] || 'default';
+      return `garage_legends_auth_session_${projectRef}`;
+    },
+
+    readSessionMirror() {
+      try {
+        const cfg = window.GL_SUPABASE_CONFIG || {};
+        const raw = window.localStorage.getItem(this.getSessionMirrorKey(cfg));
+        return raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        return null;
+      }
+    },
+
+    writeSessionMirror(session) {
+      try {
+        if (!session || !session.access_token || !session.refresh_token) return;
+        const cfg = window.GL_SUPABASE_CONFIG || {};
+        window.localStorage.setItem(this.getSessionMirrorKey(cfg), JSON.stringify({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          expires_at: session.expires_at || null,
+          expires_in: session.expires_in || null,
+          token_type: session.token_type || 'bearer',
+          user: session.user || null
+        }));
+      } catch (_) {}
+    },
+
+    clearSessionMirror() {
+      try {
+        const cfg = window.GL_SUPABASE_CONFIG || {};
+        window.localStorage.removeItem(this.getSessionMirrorKey(cfg));
+      } catch (_) {}
+    },
+
+    async getBootSession() {
+      const { data } = await this.client.auth.getSession();
+      const session = data && data.session ? data.session : null;
+      if (session && session.user) {
+        this.writeSessionMirror(session);
+        return session;
+      }
+
+      const mirrored = this.readSessionMirror();
+      if (!mirrored || !mirrored.access_token || !mirrored.refresh_token) {
+        return null;
+      }
+
+      try {
+        const restoreResult = await this.client.auth.setSession({
+          access_token: mirrored.access_token,
+          refresh_token: mirrored.refresh_token
+        });
+        if (restoreResult.error) {
+          this.clearSessionMirror();
+          return null;
+        }
+        const restoredSession = restoreResult.data && restoreResult.data.session ? restoreResult.data.session : null;
+        if (restoredSession && restoredSession.user) {
+          this.writeSessionMirror(restoredSession);
+          return restoredSession;
+        }
+      } catch (_) {
+        this.clearSessionMirror();
+      }
+
+      return null;
     },
 
     fireReady() {
@@ -109,15 +214,29 @@
       if (insertResult.error && insertResult.error.code !== '23505') {
         console.warn('Profile insert warning:', insertResult.error.message || insertResult.error);
       }
-      const profResult = await this.client.from('profiles').select('id,email,role').eq('id', this.user.id).single();
+      const profResult = await this.client
+        .from('profiles')
+        .select('id,email,role,save_data,save_updated_at')
+        .eq('id', this.user.id)
+        .single();
       if (!profResult.error && profResult.data) {
         this.profile = profResult.data;
         this.role = profResult.data.role || 'player';
+        this.remoteSave = profResult.data.save_data || null;
+        this.remoteSaveUpdatedAt = this.getSaveTimestamp(
+          profResult.data.save_data,
+          profResult.data.save_updated_at
+        );
       }
-      const saveResult = await this.client.from('profiles').select('save_data').eq('id', this.user.id).single();
-      if (!saveResult.error && saveResult.data) {
-        this.remoteSave = saveResult.data.save_data || null;
-      }
+    },
+
+    getSaveTimestamp(snapshot, fallbackValue) {
+      const snapshotTs = snapshot && snapshot.meta && typeof snapshot.meta.saveTime === 'number'
+        ? snapshot.meta.saveTime
+        : 0;
+      if (snapshotTs > 0) return snapshotTs;
+      const fallbackTs = fallbackValue ? new Date(fallbackValue).getTime() : 0;
+      return Number.isFinite(fallbackTs) ? fallbackTs : 0;
     },
 
     getStorageKeySuffix() {
@@ -138,30 +257,58 @@
       return this.remoteSave ? JSON.parse(JSON.stringify(this.remoteSave)) : null;
     },
 
+    getRemoteSaveInfo() {
+      return {
+        snapshot: this.getRemoteSaveSnapshot(),
+        updatedAt: this.remoteSaveUpdatedAt || 0
+      };
+    },
+
     saveRemoteStateSnapshot(state) {
-      if (!this.client || !this.user || !state) return;
+      if (!this.client || !this.user || !state) return Promise.resolve();
       const snapshot = JSON.parse(JSON.stringify(state));
-      const userId = this.user.id;
+      const updatedAt = this.getSaveTimestamp(snapshot, Date.now());
       this.remoteSave = snapshot;
-      this.savePromise = this.client
-        .from('profiles')
-        .update({
-          save_data: snapshot,
-          save_updated_at: new Date().toISOString()
-        })
-        .eq('id', userId)
-        .then(({ error }) => {
+      this.remoteSaveUpdatedAt = Math.max(this.remoteSaveUpdatedAt || 0, updatedAt);
+      this.pendingRemoteSave = {
+        snapshot,
+        updatedAt,
+        userId: this.user.id
+      };
+      if (!this.savePromise) {
+        this.savePromise = this.drainRemoteSaveQueue();
+      }
+      return this.savePromise;
+    },
+
+    async drainRemoteSaveQueue() {
+      while (this.pendingRemoteSave) {
+        const pending = this.pendingRemoteSave;
+        this.pendingRemoteSave = null;
+        try {
+          const { error } = await this.client
+            .from('profiles')
+            .update({
+              save_data: pending.snapshot,
+              save_updated_at: new Date(pending.updatedAt || Date.now()).toISOString()
+            })
+            .eq('id', pending.userId);
           if (error) {
             console.warn('Remote save warning:', error.message || error);
+          } else if (this.user && this.user.id === pending.userId) {
+            this.remoteSave = pending.snapshot;
+            this.remoteSaveUpdatedAt = Math.max(this.remoteSaveUpdatedAt || 0, pending.updatedAt || 0);
           }
-        })
-        .catch((e) => {
+        } catch (e) {
           console.warn('Remote save warning:', e && e.message ? e.message : e);
-        });
+        }
+      }
+      this.savePromise = null;
     },
 
     async clearRemoteStateSnapshot() {
       this.remoteSave = null;
+      this.remoteSaveUpdatedAt = Date.now();
       await this.flushRemoteStateSnapshot();
       if (!this.client || !this.user) return;
       try {
@@ -177,9 +324,29 @@
     async flushRemoteStateSnapshot() {
       if (this.savePromise) {
         const pending = this.savePromise;
-        this.savePromise = null;
         await pending;
       }
+    },
+
+    bindLifecyclePersistence() {
+      if (this.lifecycleBound || typeof window === 'undefined') return;
+      this.lifecycleBound = true;
+
+      const persistCurrentSession = () => {
+        if (window.GL_STATE && typeof GL_STATE.saveState === 'function' && this.isAuthenticated()) {
+          try {
+            GL_STATE.saveState();
+          } catch (_) {}
+        }
+        this.flushRemoteStateSnapshot().catch(() => {});
+      };
+
+      window.addEventListener('pagehide', persistCurrentSession);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          persistCurrentSession();
+        }
+      });
     },
 
     isAuthenticated() {

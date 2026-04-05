@@ -147,6 +147,50 @@ function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+function getStateTimestamp(candidate, fallbackValue) {
+  const candidateTs = candidate && candidate.meta && typeof candidate.meta.saveTime === 'number'
+    ? candidate.meta.saveTime
+    : 0;
+  if (candidateTs > 0) return candidateTs;
+  const fallbackTs = typeof fallbackValue === 'number'
+    ? fallbackValue
+    : new Date(fallbackValue || 0).getTime();
+  return Number.isFinite(fallbackTs) ? fallbackTs : 0;
+}
+
+function parseStateCandidate(raw, source, key, fallbackTimestamp) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      state: parsed,
+      source,
+      key,
+      timestamp: getStateTimestamp(parsed, fallbackTimestamp)
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+function choosePreferredStateCandidate(candidates) {
+  return candidates.reduce((best, candidate) => {
+    if (!candidate || !candidate.state) return best;
+    if (!best) return candidate;
+
+    const bestMeaningful = isMeaningfulSave(best.state);
+    const candidateMeaningful = isMeaningfulSave(candidate.state);
+
+    if (candidateMeaningful && !bestMeaningful) return candidate;
+    if (!candidateMeaningful && bestMeaningful) return best;
+    if (candidate.timestamp !== best.timestamp) {
+      return candidate.timestamp > best.timestamp ? candidate : best;
+    }
+    if (candidate.source === 'remote' && best.source !== 'remote') return candidate;
+    return best;
+  }, null);
+}
+
 function isMeaningfulSave(candidate) {
   return Boolean(
     candidate &&
@@ -162,54 +206,54 @@ function loadState() {
   try {
     const scopedKeys = getStateStorageKeys();
     const primaryKey = scopedKeys[0] || STATE_KEY;
-    const remoteSnapshot = window.GL_AUTH && typeof GL_AUTH.getRemoteSaveSnapshot === 'function'
-      ? GL_AUTH.getRemoteSaveSnapshot()
-      : null;
+    const candidates = [];
+    const remoteInfo = window.GL_AUTH && typeof GL_AUTH.getRemoteSaveInfo === 'function'
+      ? GL_AUTH.getRemoteSaveInfo()
+      : {
+          snapshot: window.GL_AUTH && typeof GL_AUTH.getRemoteSaveSnapshot === 'function'
+            ? GL_AUTH.getRemoteSaveSnapshot()
+            : null,
+          updatedAt: 0
+        };
 
-    if (isMeaningfulSave(remoteSnapshot)) {
-      const remoteRaw = JSON.stringify(remoteSnapshot);
-      scopedKeys.forEach(key => localStorage.setItem(key, remoteRaw));
-      _state = remoteSnapshot;
-      return true;
-    }
-
-    let raw = null;
-    let sourceKey = '';
-
-    for (const candidateKey of scopedKeys) {
-      const candidateRaw = localStorage.getItem(candidateKey);
-      if (candidateRaw) {
-        raw = candidateRaw;
-        sourceKey = candidateKey;
-        break;
-      }
-    }
-
-    if (!raw && primaryKey !== STATE_KEY) {
-      // One-time migration path: keep old save if it exists.
-      const legacy = localStorage.getItem(STATE_KEY);
-      if (legacy) {
-        try {
-          const parsedLegacy = JSON.parse(legacy);
-          if (isMeaningfulSave(parsedLegacy)) {
-            raw = legacy;
-            sourceKey = STATE_KEY;
-            scopedKeys.forEach(key => localStorage.setItem(key, legacy));
-          }
-        } catch (_) {}
-      }
-    }
-
-    if (raw && sourceKey && sourceKey !== primaryKey) {
-      scopedKeys.forEach(key => {
-        if (!localStorage.getItem(key)) {
-          localStorage.setItem(key, raw);
-        }
+    if (remoteInfo && remoteInfo.snapshot) {
+      candidates.push({
+        state: deepClone(remoteInfo.snapshot),
+        source: 'remote',
+        key: 'remote',
+        timestamp: getStateTimestamp(remoteInfo.snapshot, remoteInfo.updatedAt)
       });
     }
 
-    if (raw) {
-      _state = JSON.parse(raw);
+    scopedKeys.forEach(candidateKey => {
+      const parsed = parseStateCandidate(localStorage.getItem(candidateKey), 'local', candidateKey, 0);
+      if (parsed) candidates.push(parsed);
+    });
+
+    if (primaryKey !== STATE_KEY) {
+      const legacyParsed = parseStateCandidate(localStorage.getItem(STATE_KEY), 'local', STATE_KEY, 0);
+      if (legacyParsed) candidates.push(legacyParsed);
+    }
+
+    const preferred = choosePreferredStateCandidate(candidates);
+
+    if (preferred) {
+      const serialized = JSON.stringify(preferred.state);
+      _state = deepClone(preferred.state);
+
+      scopedKeys.forEach(key => {
+        localStorage.setItem(key, serialized);
+      });
+
+      if (
+        preferred.source === 'local' &&
+        isMeaningfulSave(preferred.state) &&
+        window.GL_AUTH &&
+        typeof GL_AUTH.saveRemoteStateSnapshot === 'function'
+      ) {
+        GL_AUTH.saveRemoteStateSnapshot(preferred.state);
+      }
+
       // Migración engineSupplier a id minúsculas
       if (_state && _state.team && _state.team.engineSupplier) {
         _state.team.engineSupplier = (_state.team.engineSupplier + '').toLowerCase();
