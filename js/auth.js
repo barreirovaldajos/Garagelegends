@@ -12,7 +12,7 @@
     storageKeySuffix: '',
     readyFired: false,
     readyCallback: null,
-    saveTimer: null,
+    savePromise: null,
 
     isConfigured() {
       const cfg = window.GL_SUPABASE_CONFIG || {};
@@ -140,29 +140,29 @@
 
     saveRemoteStateSnapshot(state) {
       if (!this.client || !this.user || !state) return;
-      this.remoteSave = JSON.parse(JSON.stringify(state));
-      if (this.saveTimer) clearTimeout(this.saveTimer);
-      this.saveTimer = setTimeout(async () => {
-        try {
-          await this.client
-            .from('profiles')
-            .update({
-              save_data: this.remoteSave,
-              save_updated_at: new Date().toISOString()
-            })
-            .eq('id', this.user.id);
-        } catch (e) {
+      const snapshot = JSON.parse(JSON.stringify(state));
+      const userId = this.user.id;
+      this.remoteSave = snapshot;
+      this.savePromise = this.client
+        .from('profiles')
+        .update({
+          save_data: snapshot,
+          save_updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Remote save warning:', error.message || error);
+          }
+        })
+        .catch((e) => {
           console.warn('Remote save warning:', e && e.message ? e.message : e);
-        }
-      }, 250);
+        });
     },
 
     async clearRemoteStateSnapshot() {
       this.remoteSave = null;
-      if (this.saveTimer) {
-        clearTimeout(this.saveTimer);
-        this.saveTimer = null;
-      }
+      await this.flushRemoteStateSnapshot();
       if (!this.client || !this.user) return;
       try {
         await this.client
@@ -171,6 +171,14 @@
           .eq('id', this.user.id);
       } catch (e) {
         console.warn('Remote save clear warning:', e && e.message ? e.message : e);
+      }
+    },
+
+    async flushRemoteStateSnapshot() {
+      if (this.savePromise) {
+        const pending = this.savePromise;
+        this.savePromise = null;
+        await pending;
       }
     },
 
@@ -192,6 +200,7 @@
 
     async signOut() {
       if (!this.client) return;
+      await this.flushRemoteStateSnapshot();
       await this.client.auth.signOut();
     },
 

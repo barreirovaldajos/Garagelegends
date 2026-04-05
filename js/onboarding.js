@@ -579,6 +579,9 @@ const OB = {
     state.meta.firstDashboardIntroPending = true;
 
     GL_STATE.saveState();
+    if (window.GL_AUTH && typeof GL_AUTH.saveRemoteStateSnapshot === 'function') {
+      GL_AUTH.saveRemoteStateSnapshot(state);
+    }
   },
 
   finish() {
