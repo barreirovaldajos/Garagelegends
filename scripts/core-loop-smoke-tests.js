@@ -255,6 +255,101 @@ function loadEngine() {
   };
 }
 
+function cloneData(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function createSeededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = ((state * 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function withRandomSource(sandbox, randomFn, fn) {
+  const previous = sandbox.Math.random;
+  sandbox.Math.random = randomFn;
+  try {
+    return fn();
+  } finally {
+    sandbox.Math.random = previous;
+  }
+}
+
+function buildSingleDriverStrategy(driverOverrides = {}) {
+  const baseDriver = {
+    tyre: 'medium',
+    aggression: 50,
+    riskLevel: 40,
+    pitLap: 50,
+    engineMode: 'normal',
+    pitPlan: 'single',
+    strategy: 'balanced',
+    pitTyres: ['hard', 'soft'],
+    setup: { aeroBalance: 50, wetBias: 50 },
+    interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }]
+  };
+  const mergedDriver = {
+    ...baseDriver,
+    ...driverOverrides,
+    setup: { ...baseDriver.setup, ...(driverOverrides.setup || {}) },
+    interventions: Array.isArray(driverOverrides.interventions)
+      ? driverOverrides.interventions.map((entry, idx) => ({ ...baseDriver.interventions[idx], ...entry }))
+      : cloneData(baseDriver.interventions),
+    pitTyres: Array.isArray(driverOverrides.pitTyres)
+      ? driverOverrides.pitTyres.slice(0, 2)
+      : cloneData(baseDriver.pitTyres)
+  };
+
+  return {
+    tyre: baseDriver.tyre,
+    aggression: baseDriver.aggression,
+    riskLevel: baseDriver.riskLevel,
+    pitLap: baseDriver.pitLap,
+    engineMode: baseDriver.engineMode,
+    pitPlan: baseDriver.pitPlan,
+    strategy: baseDriver.strategy,
+    setup: cloneData(baseDriver.setup),
+    interventions: cloneData(baseDriver.interventions),
+    selectedPilotIds: ['pilot_1'],
+    pilotId: 'pilot_1',
+    driverConfigs: {
+      pilot_1: mergedDriver
+    }
+  };
+}
+
+function simulateSingleDriverRace(engine, stateApi, state, sandbox, driverOverrides = {}, raceOverrides = {}, randomFn = null) {
+  stateApi._state = state;
+  const run = () => engine.simulateRace({
+    weather: raceOverrides.weather || 'dry',
+    circuits: raceOverrides.circuit || state.season.calendar[0].circuit,
+    strategy: buildSingleDriverStrategy(driverOverrides)
+  });
+  return randomFn ? withRandomSource(sandbox, randomFn, run) : run();
+}
+
+function getPlayerGridEntry(result) {
+  return result.gridStart.find((entry) => entry.id === 'player_1');
+}
+
+function getPlayerFinalEntry(result) {
+  return result.finalGrid.find((entry) => entry.id === 'player_1');
+}
+
+function getPlayerPitLaps(result, pilotName = 'Test Driver') {
+  return result.events
+    .filter((entry) => entry.type === 'pit' && entry.text.includes(pilotName))
+    .map((entry) => entry.lap);
+}
+
+function getPlayerIncidentScore(result, pilotName = 'Test Driver') {
+  const incidents = result.events.filter((entry) => entry.type === 'incident' && entry.text.includes(pilotName)).length;
+  const dnf = result.playerCars.find((car) => car.pilotName === pilotName)?.isDNF ? 1 : 0;
+  return incidents + dnf;
+}
+
 function testSeasonTransitionAndCampaignCompletion(engine, stateApi) {
   const state = createBaseState();
   state.finances.credits = 10000;
@@ -535,8 +630,129 @@ function testSimulateRaceProducesAiPitStops(engine, stateApi) {
   assert.ok(aiCarsOnNewCompound.length > 0, 'at least one AI car should pit and switch compounds');
 }
 
+function testEngineModeAffectsQualyPace(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const eco = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, { engineMode: 'eco' }, {}, () => 0.9);
+  const push = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, { engineMode: 'push' }, {}, () => 0.9);
+
+  assert.ok(getPlayerGridEntry(push).qualyScore > getPlayerGridEntry(eco).qualyScore, 'push engine mode should improve qualifying pace versus eco');
+}
+
+function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  state.pilots = [makePilot('pilot_1', 'Driver One')];
+
+  const single = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 34,
+    pitTyres: ['hard', 'soft']
+  }, {}, () => 0.9);
+  const double = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'double',
+    pitLap: 34,
+    pitTyres: ['hard', 'soft']
+  }, {}, () => 0.9);
+  const early = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 50,
+    strategy: 'balanced',
+    interventions: [{ lapPct: 30, pitBias: 'early' }, { lapPct: 70, pitBias: 'none' }]
+  }, {}, () => 0.9);
+  const late = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 50,
+    strategy: 'balanced',
+    interventions: [{ lapPct: 30, pitBias: 'late' }, { lapPct: 70, pitBias: 'none' }]
+  }, {}, () => 0.9);
+
+  const singlePitLaps = getPlayerPitLaps(single, 'Driver One');
+  const doublePitLaps = getPlayerPitLaps(double, 'Driver One');
+  const earlyPitLaps = getPlayerPitLaps(early, 'Driver One');
+  const latePitLaps = getPlayerPitLaps(late, 'Driver One');
+
+  assert.strictEqual(singlePitLaps.length, 1, 'single pit plan should stop once');
+  assert.strictEqual(doublePitLaps.length, 2, 'double pit plan should stop twice');
+  assert.strictEqual(double.playerCars[0].tyre, 'soft', 'second pit tyre selection should define the final compound on a double-stop race');
+  assert.ok(earlyPitLaps[0] < latePitLaps[0], 'early pit bias should move the first stop ahead of a late pit bias');
+}
+
+function testAggressionAffectsRacePace(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const lowAggression = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    aggression: 20,
+    riskLevel: 5,
+    pitLap: 80
+  }, {}, () => 0.9);
+  const highAggression = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    aggression: 80,
+    riskLevel: 5,
+    pitLap: 80
+  }, {}, () => 0.9);
+
+  assert.ok(getPlayerFinalEntry(highAggression).timeMs < getPlayerFinalEntry(lowAggression).timeMs, 'higher aggression should reduce total race time when risk is held constant');
+}
+
+function testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox) {
+  let lowRiskScore = 0;
+  let highRiskScore = 0;
+
+  for (let seed = 1; seed <= 24; seed++) {
+    const lowState = createBaseState();
+    const highState = createBaseState();
+    lowState.season.calendar[0].circuit.layout = 'high-speed';
+    highState.season.calendar[0].circuit.layout = 'high-speed';
+
+    const lowRisk = simulateSingleDriverRace(engine, stateApi, lowState, sandbox, {
+      tyre: 'intermediate',
+      riskLevel: 10,
+      setup: { aeroBalance: 50, wetBias: 0 }
+    }, {
+      weather: 'wet',
+      circuit: lowState.season.calendar[0].circuit
+    }, createSeededRandom(seed));
+
+    const highRisk = simulateSingleDriverRace(engine, stateApi, highState, sandbox, {
+      tyre: 'intermediate',
+      riskLevel: 90,
+      setup: { aeroBalance: 50, wetBias: 0 }
+    }, {
+      weather: 'wet',
+      circuit: highState.season.calendar[0].circuit
+    }, createSeededRandom(seed));
+
+    lowRiskScore += getPlayerIncidentScore(lowRisk);
+    highRiskScore += getPlayerIncidentScore(highRisk);
+  }
+
+  assert.ok(highRiskScore > lowRiskScore, 'higher risk should produce more incident exposure across deterministic seeded runs');
+}
+
+function testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox) {
+  const baseState = createBaseState();
+  const dryCircuit = { ...baseState.season.calendar[0].circuit, layout: 'high-speed' };
+  const wetCircuit = { ...baseState.season.calendar[0].circuit, layout: 'mixed' };
+
+  const powerBiased = simulateSingleDriverRace(engine, stateApi, cloneData(baseState), sandbox, {
+    setup: { aeroBalance: 20, wetBias: 35 }
+  }, { weather: 'dry', circuit: dryCircuit }, () => 0.9);
+  const aeroBiased = simulateSingleDriverRace(engine, stateApi, cloneData(baseState), sandbox, {
+    setup: { aeroBalance: 80, wetBias: 35 }
+  }, { weather: 'dry', circuit: dryCircuit }, () => 0.9);
+  const wetReady = simulateSingleDriverRace(engine, stateApi, cloneData(baseState), sandbox, {
+    tyre: 'intermediate',
+    setup: { aeroBalance: 50, wetBias: 80 }
+  }, { weather: 'wet', circuit: wetCircuit }, () => 0.9);
+  const dryReadyInWet = simulateSingleDriverRace(engine, stateApi, cloneData(baseState), sandbox, {
+    tyre: 'intermediate',
+    setup: { aeroBalance: 50, wetBias: 20 }
+  }, { weather: 'wet', circuit: wetCircuit }, () => 0.9);
+
+  assert.ok(getPlayerGridEntry(powerBiased).qualyScore > getPlayerGridEntry(aeroBiased).qualyScore, 'power-biased setup should outperform aero-biased setup on high-speed tracks');
+  assert.ok(getPlayerGridEntry(wetReady).qualyScore > getPlayerGridEntry(dryReadyInWet).qualyScore, 'wet-biased setup should outperform dry-biased setup in wet conditions');
+}
+
 function run() {
-  const { engine, stateApi } = loadEngine();
+  const { engine, stateApi, sandbox } = loadEngine();
   if (!engine) throw new Error('Could not load GL_ENGINE from engine.js');
 
   testSeasonTransitionAndCampaignCompletion(engine, stateApi);
@@ -551,8 +767,13 @@ function run() {
   testBuildRaceGridUsesSelectedPilotStrength(engine, stateApi);
   testSimulateRaceRespectsDriverTyresAndPitTyres(engine, stateApi);
   testSimulateRaceProducesAiPitStops(engine, stateApi);
+  testEngineModeAffectsQualyPace(engine, stateApi, sandbox);
+  testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox);
+  testAggressionAffectsRacePace(engine, stateApi, sandbox);
+  testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox);
+  testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox);
 
-  console.log('✓ Core loop smoke tests passed (12 cases).');
+  console.log('✓ Core loop smoke tests passed (17 cases).');
 }
 
 run();

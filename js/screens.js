@@ -32,6 +32,12 @@ const SCREENS = {
     const basePitTyres = Array.isArray(currentConfig.pitTyres)
       ? currentConfig.pitTyres
       : (Array.isArray(sharedStrategy.pitTyres) ? sharedStrategy.pitTyres : []);
+    const baseSetup = (currentConfig.setup && typeof currentConfig.setup === 'object')
+      ? currentConfig.setup
+      : ((sharedStrategy.setup && typeof sharedStrategy.setup === 'object') ? sharedStrategy.setup : {});
+    const sourceInterventions = Array.isArray(currentConfig.interventions) && currentConfig.interventions.length
+      ? currentConfig.interventions
+      : (Array.isArray(sharedStrategy.interventions) ? sharedStrategy.interventions : []);
     return {
       tyre: currentConfig.tyre || sharedStrategy.tyre || 'medium',
       aggression: Number.isFinite(currentConfig.aggression) ? currentConfig.aggression : (sharedStrategy.aggression || 50),
@@ -40,7 +46,16 @@ const SCREENS = {
       engineMode: currentConfig.engineMode || sharedStrategy.engineMode || 'normal',
       pitPlan: currentConfig.pitPlan || sharedStrategy.pitPlan || 'single',
       strategy: currentConfig.strategy || sharedStrategy.strategy || 'balanced',
-      pitTyres: [basePitTyres[0] || 'hard', basePitTyres[1] || 'soft']
+      pitTyres: [basePitTyres[0] || 'hard', basePitTyres[1] || 'soft'],
+      safetyCarReaction: currentConfig.safetyCarReaction || sharedStrategy.safetyCarReaction || 'live',
+      setup: {
+        aeroBalance: Number.isFinite(baseSetup.aeroBalance) ? baseSetup.aeroBalance : 50,
+        wetBias: Number.isFinite(baseSetup.wetBias) ? baseSetup.wetBias : 50
+      },
+      interventions: [0, 1].map((idx) => ({
+        lapPct: Number.isFinite(sourceInterventions[idx]?.lapPct) ? sourceInterventions[idx].lapPct : (idx === 0 ? 30 : 70),
+        pitBias: sourceInterventions[idx]?.pitBias || 'none'
+      }))
     };
   },
 
@@ -864,7 +879,6 @@ const SCREENS = {
     if (!el) return;
     if (!next) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('prerace_no_race')}</p></div>`; return; }
     const c = next.circuit;
-    const advisorMode = (state.advisor && state.advisor.mode) ? state.advisor.mode : 'balanced';
     const fc = next.forecast || { confidence: 60, windows: [{ label: 'start', wetProb: 30 }, { label: 'mid', wetProb: 35 }, { label: 'end', wetProb: 30 }] };
     const defaultStrategy = {
       tyre:'soft', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live',
@@ -897,6 +911,9 @@ const SCREENS = {
     }
     baseStrategy.selectedPilotIds = baseStrategy.selectedPilotIds.slice(0, 2);
     if (!baseStrategy.driverConfigs) baseStrategy.driverConfigs = {};
+    Object.keys(baseStrategy.driverConfigs).forEach((pid) => {
+      if (!baseStrategy.selectedPilotIds.includes(pid)) delete baseStrategy.driverConfigs[pid];
+    });
     baseStrategy.selectedPilotIds.forEach((pid) => {
       baseStrategy.driverConfigs[pid] = this.getDriverStrategyDefaults(baseStrategy, baseStrategy.driverConfigs[pid] || {});
     });
@@ -906,16 +923,6 @@ const SCREENS = {
     if (!baseStrategy.safetyCarReaction) baseStrategy.safetyCarReaction = 'live';
     window._raceStrategy = baseStrategy;
     window._advisorStrategySource = 'manual';
-    const recommendation = GL_ENGINE.recommendStrategyForRace
-      ? GL_ENGINE.recommendStrategyForRace(next, state)
-      : null;
-    const advisorTelemetry = GL_ENGINE.getAdvisorTelemetry
-      ? GL_ENGINE.getAdvisorTelemetry(state)
-      : null;
-    const activeModeTelemetry = (advisorTelemetry && advisorTelemetry.byMode)
-      ? advisorTelemetry.byMode[advisorMode]
-      : null;
-    window._raceRecommendation = recommendation;
     const nextRaceObj = GL_ENGINE.getNextRaceDate ? GL_ENGINE.getNextRaceDate() : null;
     const hoursToRace = nextRaceObj ? Math.max(0, Math.round((nextRaceObj.date.getTime() - Date.now()) / 3600000)) : null;
     el.innerHTML = `
@@ -932,102 +939,8 @@ const SCREENS = {
       </div>
       <div class="prerace-grid">
         <div class="prerace-block">
-          <div class="prerace-block-title">${__('prerace_strategy_preset')}</div>
-          ${recommendation ? `
-            <div class="card" style="margin-bottom:var(--s-3);padding:10px;background:var(--c-surface-2)">
-              <div style="font-size:0.78rem;font-weight:700;margin-bottom:4px">AI Strategy Recommendation</div>
-              ${recommendation.advisorConfidence ? `
-                <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:6px">
-                  Advisor confidence: <strong>${recommendation.advisorConfidence.confidencePct}%</strong>
-                  · level: <strong>${recommendation.advisorConfidence.level}</strong>
-                  · samples: <strong>${recommendation.advisorConfidence.samples}</strong>
-                </div>
-              ` : ''}
-              <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <span>Advisor mode:</span>
-                <select onchange="GL_SCREENS.setAdvisorMode(this.value)" style="font-size:0.72rem;padding:2px 4px">
-                  <option value="conservative" ${advisorMode === 'conservative' ? 'selected' : ''}>Conservative</option>
-                  <option value="balanced" ${advisorMode === 'balanced' ? 'selected' : ''}>Balanced</option>
-                  <option value="aggressive" ${advisorMode === 'aggressive' ? 'selected' : ''}>Aggressive</option>
-                </select>
-              </div>
-              ${activeModeTelemetry ? `
-                <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:6px;display:flex;gap:10px;flex-wrap:wrap">
-                  <span>Mode races: <strong>${activeModeTelemetry.races}</strong></span>
-                  <span>Avg pts: <strong>${activeModeTelemetry.avgPoints}</strong></span>
-                  <span>Podium: <strong>${activeModeTelemetry.podiumRate}%</strong></span>
-                  <span>DNF: <strong>${activeModeTelemetry.dnfRate}%</strong></span>
-                </div>
-              ` : ''}
-              ${recommendation.guardrailsApplied ? `
-                <div style="font-size:0.72rem;color:var(--c-orange);margin-bottom:6px">
-                  Guardrails active: recommendation is risk-capped due to low confidence.
-                </div>
-              ` : ''}
-              <div style="font-size:0.72rem;color:var(--t-secondary);line-height:1.35">${recommendation.reasons.join('<br>')}</div>
-              <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="GL_SCREENS.applyRecommendedStrategy()">Apply Recommendation</button>
-              ${recommendation.safeAlternative ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="GL_SCREENS.applySafeRecommendation()">Apply Safe Variant</button>` : ''}
-            </div>
-          ` : ''}
-          <div id="strategy-presets">
-            ${[
-              {id:'balanced',icon:'⚖️',name:__('prerace_balanced'),desc:__('prerace_balanced_desc')},
-              {id:'aggressive',icon:'🔥',name:__('prerace_aggressive'),desc:__('prerace_aggressive_desc')},
-              {id:'conservative',icon:'🛡️',name:__('prerace_conservative'),desc:__('prerace_conservative_desc')},
-              {id:'tactical',icon:'🧠',name:__('prerace_tactical'),desc:__('prerace_tactical_desc')}
-            ].map(s => `
-              <div class="strategy-preset ${s.id === baseStrategy.strategy ? 'selected' : ''}" data-strat="${s.id}" onclick="GL_SCREENS.selectStrategy('${s.id}', this)">
-                <span class="strategy-preset-icon">${s.icon}</span>
-                <div><div class="strategy-preset-name">${s.name}</div><div class="strategy-preset-desc">${s.desc}</div></div>
-              </div>`).join('')}
-          </div>
-        </div>
-        <div class="prerace-block">
-          <div class="prerace-block-title">Plantilla compartida del equipo</div>
-          <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:8px">Sirve como preset base. La carrera usa siempre la configuración individual de cada piloto.</div>
-          <div class="prerace-block-title" style="margin-top:0">${__('prerace_tyre_strategy')}</div>
-          <div class="tire-choice-row" id="tyre-choice">
-            <div class="tire-btn soft ${baseStrategy.tyre === 'soft' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('soft',this)">🔴 Soft<br><span style="font-size:0.65rem;opacity:0.7">3v · 130% seco</span></div>
-            <div class="tire-btn medium ${baseStrategy.tyre === 'medium' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('medium',this)">🟡 Medium<br><span style="font-size:0.65rem;opacity:0.7">8v · 100% seco</span></div>
-            <div class="tire-btn hard ${baseStrategy.tyre === 'hard' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('hard',this)">⚪ Hard<br><span style="font-size:0.65rem;opacity:0.7">15v · 80% seco</span></div>
-            <div class="tire-btn ${baseStrategy.tyre === 'intermediate' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('intermediate',this)">🟢 Intermediate<br><span style="font-size:0.65rem;opacity:0.7">8v · 100% lluvia</span></div>
-            <div class="tire-btn ${baseStrategy.tyre === 'wet' ? 'selected' : ''}" onclick="GL_SCREENS.selectTyre('wet',this)">🔵 Wet<br><span style="font-size:0.65rem;opacity:0.7">12v · 80% lluvia</span></div>
-          </div>
-          <div class="divider"></div>
-          <div class="divider"></div>
-          <div class="prerace-block-title" style="margin-top:0">Setup del coche</div>
-          ${this.sliderGroup('setup_aeroBalance','Aero Balance','Power bias','Aero bias',baseStrategy.setup?.aeroBalance ?? 50)}
-          ${this.sliderGroup('setup_wetBias','Weather Bias','Dry setup','Wet setup',baseStrategy.setup?.wetBias ?? 50)}
-          <div class="divider"></div>
-          <div class="prerace-block-title" style="margin-top:0">Intervenciones tácticas base</div>
-          <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:6px">Opcional: ajusta solo timing y sesgo de pit para evitar duplicar el modo de motor base.</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <div>
-              <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:4px">Ventana 1 (% carrera)</div>
-              <input type="range" min="10" max="90" value="${window._raceStrategy?.interventions?.[0]?.lapPct || 30}" oninput="document.getElementById('iv-l1').textContent=this.value+'%'; if(window._raceStrategy){ window._raceStrategy.interventions[0].lapPct=+this.value; }" style="width:100%">
-              <div id="iv-l1" style="font-size:0.75rem">${window._raceStrategy?.interventions?.[0]?.lapPct || 30}%</div>
-              <select onchange="if(window._raceStrategy){ window._raceStrategy.interventions[0].pitBias=this.value; }" style="width:100%;margin-top:4px">
-                <option value="none" ${(window._raceStrategy?.interventions?.[0]?.pitBias || 'none') === 'none' ? 'selected' : ''}>Pit: neutral</option>
-                <option value="early" ${(window._raceStrategy?.interventions?.[0]?.pitBias || 'none') === 'early' ? 'selected' : ''}>Pit: early</option>
-                <option value="late" ${(window._raceStrategy?.interventions?.[0]?.pitBias || 'none') === 'late' ? 'selected' : ''}>Pit: late</option>
-              </select>
-            </div>
-            <div>
-              <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:4px">Ventana 2 (% carrera)</div>
-              <input type="range" min="10" max="95" value="${window._raceStrategy?.interventions?.[1]?.lapPct || 70}" oninput="document.getElementById('iv-l2').textContent=this.value+'%'; if(window._raceStrategy){ window._raceStrategy.interventions[1].lapPct=+this.value; }" style="width:100%">
-              <div id="iv-l2" style="font-size:0.75rem">${window._raceStrategy?.interventions?.[1]?.lapPct || 70}%</div>
-              <select onchange="if(window._raceStrategy){ window._raceStrategy.interventions[1].pitBias=this.value; }" style="width:100%;margin-top:4px">
-                <option value="none" ${(window._raceStrategy?.interventions?.[1]?.pitBias || 'none') === 'none' ? 'selected' : ''}>Pit: neutral</option>
-                <option value="early" ${(window._raceStrategy?.interventions?.[1]?.pitBias || 'none') === 'early' ? 'selected' : ''}>Pit: early</option>
-                <option value="late" ${(window._raceStrategy?.interventions?.[1]?.pitBias || 'none') === 'late' ? 'selected' : ''}>Pit: late</option>
-              </select>
-            </div>
-          </div>
-          <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="GL_SCREENS.syncSharedToDrivers()">Copiar plantilla a los 2 pilotos</button>
-        </div>
-        <div class="prerace-block">
           <div class="prerace-block-title">${__('prerace_driver_assign')}</div>
-          <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:6px">Selecciona hasta 2 pilotos para correr. Cada coche usa su propio compuesto, plan de pit y ventana.</div>
+          <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:10px">Selecciona hasta 2 pilotos para correr. Cada coche usa su propio compuesto, motor, plan de pit, setup y llamadas tácticas.</div>
           ${state.pilots.map(p => {
             const selected = (window._raceStrategy?.selectedPilotIds || []).includes(p.id);
             const cfg = this.getDriverStrategyDefaults(window._raceStrategy || baseStrategy, window._raceStrategy?.driverConfigs?.[p.id] || {});
@@ -1064,7 +977,7 @@ const SCREENS = {
                     <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>Pit Plan: Double</option>
                     <option value="adaptive" ${cfg.pitPlan === 'adaptive' ? 'selected' : ''}>Pit Plan: Adaptive</option>
                   </select>
-                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">Pit Window: <strong style="margin-left:6px">${cfg.pitLap ?? (window._raceStrategy?.pitLap ?? 50)}%</strong></div>
+                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">Pit Window: <strong id="driver-pitlap-label-${p.id}" style="margin-left:6px">${cfg.pitLap}%</strong></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
                   <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
@@ -1082,11 +995,44 @@ const SCREENS = {
                     <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>Pit 2: Wet</option>
                   </select>
                 </div>
-                <input type="range" min="0" max="100" value="${cfg.pitLap ?? (window._raceStrategy?.pitLap ?? 50)}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','pitLap',+this.value,true)">
-                <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:8px">Aggression: <strong>${cfg.aggression ?? 50}</strong></div>
-                <input type="range" min="0" max="100" value="${cfg.aggression ?? 50}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
-                <div style="font-size:0.7rem;color:var(--t-tertiary)">Risk: <strong>${cfg.riskLevel ?? 40}</strong></div>
-                <input type="range" min="0" max="100" value="${cfg.riskLevel ?? 40}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','riskLevel',+this.value,true)">
+                <input type="range" min="0" max="100" value="${cfg.pitLap}" oninput="document.getElementById('driver-pitlap-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverStrategy('${p.id}','pitLap',+this.value,true)">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+                  <div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Aggression: <strong id="driver-aggression-label-${p.id}">${cfg.aggression}</strong></div>
+                    <input type="range" min="0" max="100" value="${cfg.aggression}" oninput="document.getElementById('driver-aggression-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
+                  </div>
+                  <div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Risk: <strong id="driver-risk-label-${p.id}">${cfg.riskLevel}</strong></div>
+                    <input type="range" min="0" max="100" value="${cfg.riskLevel}" oninput="document.getElementById('driver-risk-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverStrategy('${p.id}','riskLevel',+this.value,true)">
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">Setup del coche</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  <div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Aero Balance: <strong id="driver-aero-label-${p.id}">${cfg.setup.aeroBalance}</strong></div>
+                    <input type="range" min="0" max="100" value="${cfg.setup.aeroBalance}" oninput="document.getElementById('driver-aero-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverSetup('${p.id}','aeroBalance',+this.value,true)">
+                  </div>
+                  <div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Weather Bias: <strong id="driver-wetbias-label-${p.id}">${cfg.setup.wetBias}</strong></div>
+                    <input type="range" min="0" max="100" value="${cfg.setup.wetBias}" oninput="document.getElementById('driver-wetbias-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverSetup('${p.id}','wetBias',+this.value,true)">
+                  </div>
+                </div>
+                <div class="divider"></div>
+                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">Intervenciones tácticas</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                  ${[0, 1].map((idx) => `
+                    <div>
+                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">Ventana ${idx + 1}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
+                      <input type="range" min="10" max="95" value="${cfg.interventions[idx].lapPct}" oninput="document.getElementById('driver-iv-${idx}-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'lapPct',+this.value,true)" style="width:100%">
+                      <select onchange="GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'pitBias',this.value)" style="width:100%;margin-top:4px">
+                        <option value="none" ${cfg.interventions[idx].pitBias === 'none' ? 'selected' : ''}>Pit: neutral</option>
+                        <option value="early" ${cfg.interventions[idx].pitBias === 'early' ? 'selected' : ''}>Pit: early</option>
+                        <option value="late" ${cfg.interventions[idx].pitBias === 'late' ? 'selected' : ''}>Pit: late</option>
+                      </select>
+                    </div>
+                  `).join('')}
+                </div>
               </div>
             ` : ''}`;
           }).join('')}
@@ -1211,32 +1157,56 @@ const SCREENS = {
         return;
       }
       selected.push(pid);
-      if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
-      if (!window._raceStrategy.driverConfigs[pid]) {
-        window._raceStrategy.driverConfigs[pid] = {};
-      }
+      this.ensureDriverConfig(pid);
     }
     window._raceStrategy.pilotId = window._raceStrategy.selectedPilotIds[0] || null;
     window._advisorStrategySource = 'manual';
     this.renderPreRace();
   },
 
-  updateDriverStrategy(pid, key, value, silent = false) {
-    if (!window._raceStrategy) return;
+  ensureDriverConfig(pid) {
+    if (!window._raceStrategy) return null;
     if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
-    if (!window._raceStrategy.driverConfigs[pid]) window._raceStrategy.driverConfigs[pid] = {};
-    window._raceStrategy.driverConfigs[pid][key] = value;
+    const normalized = this.getDriverStrategyDefaults(window._raceStrategy, window._raceStrategy.driverConfigs[pid] || {});
+    window._raceStrategy.driverConfigs[pid] = GL_STATE.deepClone(normalized);
+    return window._raceStrategy.driverConfigs[pid];
+  },
+
+  updateDriverStrategy(pid, key, value, silent = false) {
+    const cfg = this.ensureDriverConfig(pid);
+    if (!cfg) return;
+    cfg[key] = value;
     window._advisorStrategySource = 'manual';
     if (!silent) this.renderPreRace();
   },
 
   updateDriverPitTyre(pid, stopIndex, value, silent = false) {
-    if (!window._raceStrategy) return;
-    if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
-    if (!window._raceStrategy.driverConfigs[pid]) window._raceStrategy.driverConfigs[pid] = {};
-    const current = this.getDriverStrategyDefaults(window._raceStrategy, window._raceStrategy.driverConfigs[pid]);
-    current.pitTyres[stopIndex] = value;
-    window._raceStrategy.driverConfigs[pid].pitTyres = current.pitTyres;
+    const cfg = this.ensureDriverConfig(pid);
+    if (!cfg) return;
+    cfg.pitTyres[stopIndex] = value;
+    window._advisorStrategySource = 'manual';
+    if (!silent) this.renderPreRace();
+  },
+
+  updateDriverSetup(pid, key, value, silent = false) {
+    const cfg = this.ensureDriverConfig(pid);
+    if (!cfg) return;
+    if (!cfg.setup) cfg.setup = { aeroBalance: 50, wetBias: 50 };
+    cfg.setup[key] = value;
+    window._advisorStrategySource = 'manual';
+    if (!silent) this.renderPreRace();
+  },
+
+  updateDriverIntervention(pid, idx, key, value, silent = false) {
+    const cfg = this.ensureDriverConfig(pid);
+    if (!cfg) return;
+    if (!Array.isArray(cfg.interventions)) {
+      cfg.interventions = [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }];
+    }
+    if (!cfg.interventions[idx]) {
+      cfg.interventions[idx] = { lapPct: idx === 0 ? 30 : 70, pitBias: 'none' };
+    }
+    cfg.interventions[idx][key] = value;
     window._advisorStrategySource = 'manual';
     if (!silent) this.renderPreRace();
   },
@@ -1280,6 +1250,8 @@ const SCREENS = {
     const state = GL_STATE.getState();
     const nextIdx = (state.season.calendar || []).findIndex(r=>r.status==='next');
     if (nextIdx !== -1) {
+      const selectedIds = (window._raceStrategy?.selectedPilotIds || []).slice(0, 2);
+      selectedIds.forEach((pid) => this.ensureDriverConfig(pid));
       state.season.calendar[nextIdx].savedStrategy = GL_STATE.deepClone(window._raceStrategy || {
         tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
         pitTyres: ['hard', 'soft'],
@@ -1297,6 +1269,10 @@ const SCREENS = {
       if (!state.season.calendar[nextIdx].savedStrategy.driverConfigs) {
         state.season.calendar[nextIdx].savedStrategy.driverConfigs = {};
       }
+      const allowedIds = new Set(state.season.calendar[nextIdx].savedStrategy.selectedPilotIds);
+      Object.keys(state.season.calendar[nextIdx].savedStrategy.driverConfigs).forEach((pid) => {
+        if (!allowedIds.has(pid)) delete state.season.calendar[nextIdx].savedStrategy.driverConfigs[pid];
+      });
       GL_STATE.saveState();
       GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
       GL_APP.navigateTo('dashboard');
