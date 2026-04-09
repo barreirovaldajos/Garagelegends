@@ -338,16 +338,41 @@ function pickSeeded(arr, seed) {
   return arr[Math.floor(seededUnit(seed) * arr.length) % arr.length];
 }
 
+function parseCircuitLengthKm(lengthValue) {
+  const parsed = Number.parseFloat(String(lengthValue || '').replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : 5;
+}
+
+function getCircuitRaceDistanceKm(circuit = {}) {
+  const laps = Number(circuit?.laps) || 0;
+  const lengthKm = parseCircuitLengthKm(circuit?.length);
+  return Math.round(lengthKm * laps * 1000) / 1000;
+}
+
+function getDefaultRaceTyre(weather = 'dry') {
+  return weather === 'wet' ? 'intermediate' : 'medium';
+}
+
+function getBasePitWindowPct(tyre, weather = 'dry', pitPlan = 'single') {
+  if (weather === 'wet') {
+    if (tyre === 'wet') return pitPlan === 'double' ? 26 : 32;
+    return 52;
+  }
+  if (tyre === 'soft') return pitPlan === 'double' ? 22 : 25;
+  if (tyre === 'hard') return 60;
+  return 42;
+}
+
 function getDefaultPitTyres(strategy = {}, weather = 'dry') {
   const preset = Array.isArray(strategy.pitTyres) ? strategy.pitTyres.filter(Boolean).slice(0, 2) : [];
   if (preset.length === 2) return preset;
-  const startTyre = strategy.tyre || (weather === 'wet' ? 'intermediate' : 'medium');
+  const startTyre = strategy.tyre || getDefaultRaceTyre(weather);
   if (weather === 'wet') {
-    return [preset[0] || (startTyre === 'wet' ? 'intermediate' : 'wet'), preset[1] || 'wet'];
+    return [preset[0] || (startTyre === 'wet' ? 'intermediate' : 'intermediate'), preset[1] || 'intermediate'];
   }
-  if (startTyre === 'soft') return [preset[0] || 'hard', preset[1] || 'soft'];
+  if (startTyre === 'soft') return [preset[0] || 'hard', preset[1] || 'medium'];
   if (startTyre === 'hard') return [preset[0] || 'medium', preset[1] || 'soft'];
-  return [preset[0] || 'hard', preset[1] || 'soft'];
+  return [preset[0] || 'hard', preset[1] || 'medium'];
 }
 
 function getConfiguredPitTyre(strategy, stopIndex, weather) {
@@ -386,7 +411,7 @@ function choosePitTyreForConditions(entry, strategy, stopIndex, liveWeather, for
   if (liveWeather === 'wet' && requestedTyre !== 'intermediate' && requestedTyre !== 'wet') {
     const adaptChance = clamp(0.08 + (decisionSkill * 0.28) + (rainSkill * 0.2) + (confidence * 0.08) + ((wetExpectation - 0.5) * 0.22), 0.12, 0.78);
     if (adaptRoll >= adaptChance) return requestedTyre;
-    const fullWetChance = clamp(0.1 + (rainSkill * 0.55) + ((wetExpectation - 0.5) * 0.2), 0.18, 0.82);
+    const fullWetChance = clamp(-0.06 + (rainSkill * 0.28) + ((wetExpectation - 0.72) * 0.95), 0.05, 0.42);
     return compoundRoll < fullWetChance ? 'wet' : 'intermediate';
   }
 
@@ -493,24 +518,24 @@ function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenc
     ? (decisionSkill > 0.72 ? 'tactical' : 'balanced')
     : (prefersAggressive ? 'aggressive' : (decisionSkill > 0.76 ? 'tactical' : (consistency > 76 ? 'conservative' : 'balanced')));
   const engineMode = prefersAggressive ? 'push' : (consistency > 80 ? 'eco' : 'normal');
-  const pitPlan = ((profile.tyreDegMult > 1.05 && tyreSkill < 70) || weather === 'wet' || (strategyId === 'aggressive' && seededUnit(`${seedRoot}_double`) > 0.52))
-    ? 'double'
-    : 'single';
   let tyre = 'medium';
   if (weather === 'wet') {
-    tyre = rainSkill > 74 && seededUnit(`${seedRoot}_wet`) > 0.38 ? 'wet' : 'intermediate';
+    tyre = rainSkill > 84 && seededUnit(`${seedRoot}_wet`) > 0.82 ? 'wet' : 'intermediate';
   } else if (strategyId === 'aggressive') {
-    tyre = tyreSkill > 70 ? 'soft' : 'medium';
+    tyre = tyreSkill > 72 && profile.tyreDegMult <= 1.02 && seededUnit(`${seedRoot}_soft`) > 0.46 ? 'soft' : 'medium';
   } else if (strategyId === 'conservative' || profile.tyreDegMult > 1.05) {
-    tyre = tyreSkill > 74 ? 'hard' : 'medium';
+    tyre = tyreSkill > 68 || profile.tyreDegMult > 1.05 ? 'hard' : 'medium';
   } else {
-    tyre = seededUnit(`${seedRoot}_compound`) > 0.68 ? 'hard' : 'medium';
+    tyre = seededUnit(`${seedRoot}_compound`) > 0.72 ? 'hard' : 'medium';
   }
+  const pitPlan = weather === 'wet'
+    ? (tyre === 'wet' || ((profile.tyreDegMult > 1.06 || tyreSkill < 64) && seededUnit(`${seedRoot}_wet_double`) > 0.58) ? 'double' : 'single')
+    : (tyre === 'soft' ? 'double' : 'single');
   const setup = {
     aeroBalance: clamp(Math.round((profile.layout === 'technical' ? 68 : (profile.layout === 'high-speed' || profile.layout === 'power' ? 38 : 50)) + (setupSkill - 60) * 0.14 + seededRange(`${seedRoot}_aero`, -6, 6)), 20, 80),
     wetBias: clamp(Math.round((weather === 'wet' ? 72 : 42) + (rainSkill - 60) * 0.12 + seededRange(`${seedRoot}_wet_bias`, -8, 8)), 15, 85)
   };
-  const basePitLap = tyre === 'soft' ? 32 : (tyre === 'hard' ? 58 : 46);
+  const basePitLap = getBasePitWindowPct(tyre, weather, pitPlan);
   const pitLap = clamp(Math.round(basePitLap + ((decisionSkill - 0.6) * 18) + seededRange(`${seedRoot}_pitlap`, -6, 6)), 18, 80);
   const riskLevel = clamp(Math.round((aggressionAttr * 0.6) + ((100 - consistency) * 0.16) + seededRange(`${seedRoot}_risk`, 2, 18)), 22, 84);
   const aggression = clamp(Math.round((aggressionAttr * 0.72) + (driverRating * 0.12) + seededRange(`${seedRoot}_aggression`, -6, 6)), 28, 90);
@@ -605,37 +630,53 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
 
 // ---- tyre degradation per compound ----
 const TYRE_COMPOUNDS = {
-  soft: { usefulLifeLaps: 8, dryPacePct: 130, wetPacePct: 40 },
-  medium: { usefulLifeLaps: 12, dryPacePct: 100, wetPacePct: 60 },
-  hard: { usefulLifeLaps: 18, dryPacePct: 80, wetPacePct: 30 },
-  intermediate: { usefulLifeLaps: 10, dryPacePct: 60, wetPacePct: 100 },
-  wet: { usefulLifeLaps: 14, dryPacePct: 30, wetPacePct: 80 }
+  soft: {
+    dry: { durabilityPct: [0.15, 0.30], paceDeltaMs: -750 },
+    wet: { durabilityPct: [0.10, 0.20], paceDeltaMs: 4200 }
+  },
+  medium: {
+    dry: { durabilityPct: [0.30, 0.50], paceDeltaMs: 0 },
+    wet: { durabilityPct: [0.15, 0.25], paceDeltaMs: 5200 }
+  },
+  hard: {
+    dry: { durabilityPct: [0.50, 0.70], paceDeltaMs: 650 },
+    wet: { durabilityPct: [0.20, 0.30], paceDeltaMs: 6200 }
+  },
+  intermediate: {
+    dry: { durabilityPct: [0.10, 0.25], paceDeltaMs: 4200 },
+    wet: { durabilityPct: [0.40, 0.70], paceDeltaMs: 0 }
+  },
+  wet: {
+    dry: { durabilityPct: [0.05, 0.15], paceDeltaMs: 6500 },
+    wet: { durabilityPct: [0.20, 0.40], paceDeltaMs: 1000 }
+  }
 };
 
 function getTyreCompound(tyre) {
   return TYRE_COMPOUNDS[tyre] || TYRE_COMPOUNDS.medium;
 }
 
-function getTyreUsefulLife(tyre) {
-  return getTyreCompound(tyre).usefulLifeLaps;
+function getTyreTrackProfile(tyre, weather = 'dry') {
+  const compound = getTyreCompound(tyre);
+  return weather === 'wet' ? compound.wet : compound.dry;
 }
 
-function getTyrePacePercent(tyre, weather) {
-  const compound = getTyreCompound(tyre);
-  return weather === 'wet' ? compound.wetPacePct : compound.dryPacePct;
+function getTyreUsefulLife(tyre, weather = 'dry', totalLaps = 60) {
+  const profile = getTyreTrackProfile(tyre, weather);
+  const durabilityPct = (profile.durabilityPct[0] + profile.durabilityPct[1]) / 2;
+  return clamp(totalLaps * durabilityPct, 4, Math.max(6, totalLaps * 0.85));
 }
 
 function getTyreWearStep(tyre, weather) {
-  if (weather === 'wet') {
-    if (tyre === 'intermediate' || tyre === 'wet') return 1;
-    return 1.35;
-  }
-  if (tyre === 'intermediate' || tyre === 'wet') return 1.45;
   return 1;
 }
 
+function getTyrePaceDeltaMs(tyre, weather = 'dry') {
+  return getTyreTrackProfile(tyre, weather).paceDeltaMs;
+}
+
 function getTyreWeatherPaceDelta(tyre, weather) {
-  return (getTyrePacePercent(tyre, weather) - 100) / 10;
+  return clamp((-getTyrePaceDeltaMs(tyre, weather)) / 450, -12, 12);
 }
 
 function getEngineModeFx(mode) {
@@ -653,7 +694,7 @@ function simulateRace(options = {}) {
   const staffFx = getRaceStaffEffects(state);
   const { weather = 'dry', circuits, round } = options;
   const baseStrategy = options.strategy || {
-    tyre: 'medium', aggression: 50, pitLap: 35, riskLevel: 50, engineMode: 'normal', strategy: 'balanced', pitPlan: 'single', safetyCarReaction: 'live'
+    tyre: 'medium', aggression: 50, pitLap: 42, riskLevel: 50, engineMode: 'normal', strategy: 'balanced', pitPlan: 'single', safetyCarReaction: 'live'
   };
 
   const fallbackPilot = { attrs:{ pace:55, racePace:55, consistency:60, rain:55, tyre:55, aggression:60, overtake:55, techFB:55, mental:55, charisma:60 }, name:'Driver' };
@@ -686,8 +727,9 @@ function simulateRace(options = {}) {
         : (Array.isArray(baseStrategy.interventions) ? baseStrategy.interventions : undefined)
     };
     const normalizedInterventions = normalizeStrategyInterventions(strategySource, getPrimaryStopLapPct(strategySource, 50));
+    const defaultTyre = driverStrategy.tyre || baseStrategy.tyre || getDefaultRaceTyre(weather);
     return {
-      tyre: driverStrategy.tyre || baseStrategy.tyre || 'medium',
+      tyre: defaultTyre,
       aggression: Number.isFinite(driverStrategy.aggression) ? driverStrategy.aggression : (baseStrategy.aggression || 50),
       pitLap: normalizedInterventions[0].lapPct,
       riskLevel: Number.isFinite(driverStrategy.riskLevel) ? driverStrategy.riskLevel : (baseStrategy.riskLevel || 40),
@@ -695,7 +737,7 @@ function simulateRace(options = {}) {
       strategy: driverStrategy.strategy || baseStrategy.strategy || 'balanced',
       pitPlan: normalizedPitPlan,
       safetyCarReaction: 'live',
-      pitTyres: getDefaultPitTyres({ ...(driverStrategy.pitTyres ? driverStrategy : baseStrategy), pitPlan: normalizedPitPlan }, weather),
+      pitTyres: getDefaultPitTyres({ ...(driverStrategy.pitTyres ? driverStrategy : baseStrategy), tyre: defaultTyre, pitPlan: normalizedPitPlan }, weather),
       setup: {
         aeroBalance: Number.isFinite(driverStrategy?.setup?.aeroBalance) ? driverStrategy.setup.aeroBalance : (baseStrategy?.setup?.aeroBalance ?? 50),
         wetBias: Number.isFinite(driverStrategy?.setup?.wetBias) ? driverStrategy.setup.wetBias : (baseStrategy?.setup?.wetBias ?? 50)
@@ -835,14 +877,14 @@ function simulateRace(options = {}) {
 
   positions.forEach((entry) => {
     const strategySeed = entry.strategy || normalizeDriverStrategy({
-      tyre: entry.tyre || (weather === 'wet' ? 'intermediate' : 'medium'),
+      tyre: entry.tyre || getDefaultRaceTyre(weather),
       aggression: entry.isPlayer ? 50 : (42 + Math.floor(Math.random() * 16)),
-      pitLap: entry.tyre === 'soft' ? 36 : entry.tyre === 'hard' ? 62 : 48,
+      pitLap: getBasePitWindowPct(entry.tyre || getDefaultRaceTyre(weather), weather, entry.tyre === 'soft' && weather !== 'wet' ? 'double' : 'single'),
       riskLevel: entry.isPlayer ? 40 : (34 + Math.floor(Math.random() * 18)),
       engineMode: 'normal',
       strategy: 'balanced',
       pitPlan: entry.tyre === 'soft' && weather !== 'wet' ? 'double' : 'single',
-      pitTyres: getDefaultPitTyres({ tyre: entry.tyre || (weather === 'wet' ? 'intermediate' : 'medium') }, weather),
+      pitTyres: getDefaultPitTyres({ tyre: entry.tyre || getDefaultRaceTyre(weather) }, weather),
       setup: { aeroBalance: 50, wetBias: weather === 'wet' ? 70 : 35 }
     });
     if (!entry.strategy) entry.strategy = cloneData(strategySeed);
@@ -959,18 +1001,15 @@ function simulateRace(options = {}) {
 
       const rawPace = clamp(Number(entry.base || entry.score || entry.gridScore || 60), 35, 99);
       const paceMs = rawPace * (entry.isPlayer ? 175 : 160);
-      const tyreMs = (getTyrePacePercent(currentTyre, liveWeather) - 100) * 180;
+      const tyreDeltaMs = getTyrePaceDeltaMs(currentTyre, liveWeather);
       const aggressionMs = ((s.aggression || 50) - 50) * 22;
       const engineMs = (engineFx.pace || 0) * 2600;
-      const usefulLife = getTyreUsefulLife(currentTyre);
+      const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
       const wearOveruse = rt ? Math.max(0, rt.wear - usefulLife) : 0;
-      const wearMs = wearOveruse * 2800;
-      const weatherMismatchMs = liveWeather === 'wet'
-        ? ((currentTyre === 'intermediate' || currentTyre === 'wet') ? 0 : 4200)
-        : ((currentTyre === 'intermediate' || currentTyre === 'wet') ? 5200 : 0);
+      const wearMs = wearOveruse * 1900;
       const lapBaseMs = safetyCarActive ? 110000 : 94500;
       const noiseMs = (Math.random() - 0.5) * (entry.isPlayer ? 1400 : 2200);
-      const lapTimeMs = lapBaseMs - paceMs - tyreMs - aggressionMs - engineMs + wearMs + weatherMismatchMs + noiseMs;
+      const lapTimeMs = lapBaseMs - paceMs - aggressionMs - engineMs + tyreDeltaMs + wearMs + noiseMs;
       entry.timeMs += Math.max(70000, lapTimeMs);
       entry.laps = lap;
     });
@@ -1055,7 +1094,8 @@ function simulateRace(options = {}) {
 
       const currentTyre = entry.tyre || s.tyre || 'medium';
       const paceDelta = getTyreWeatherPaceDelta(currentTyre, liveWeather);
-      const wearPenalty = Math.max(0, (rt.wear - 16) * 0.06);
+      const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
+      const wearPenalty = Math.max(0, ((rt.wear / Math.max(1, usefulLife)) - 0.8) * 5.5);
       const perfScore = paceDelta - wearPenalty + ((s.aggression || 50) - 50) * 0.01;
 
       if (!entry.pit && perfScore > 2.2 && Math.random() < 0.12) {
@@ -1067,7 +1107,7 @@ function simulateRace(options = {}) {
         events.push({ lap, type: 'incident', text: `📉 <strong>${entry.pilotName}</strong> struggles with ${currentTyre.toUpperCase()} in ${liveWeather}.` });
       }
 
-      if (rt.wear > getTyreUsefulLife(currentTyre) && rt.wear < getTyreUsefulLife(currentTyre) + 1.3 && !entry.retired) {
+      if (rt.wear > usefulLife * 0.88 && rt.wear < (usefulLife * 0.88) + 1.4 && !entry.retired) {
         events.push({ lap, type: 'incident', text: `⚠️ Tyre performance dropping for <strong>${entry.pilotName}</strong>.` });
       }
     });
@@ -2448,6 +2488,7 @@ function trainPilot(pid) {
 window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
   choosePitTyreForConditions,
+  getTyreUsefulLife, getTyrePaceDeltaMs, getCircuitRaceDistanceKm,
   weeklyTick, applyRaceWeekendEconomy, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,

@@ -11,13 +11,13 @@ function makeCalendar(division) {
       round: 1,
       status: 'next',
       weather: 'dry',
-      circuit: { name: `D${division} Ring`, country: 'Testland', laps: 30, length: '4.9km', layout: 'mixed', weather: 70 }
+      circuit: { name: `D${division} Ring`, country: 'Testland', laps: 64, length: '4.80km', layout: 'mixed', weather: 70 }
     },
     {
       round: 2,
       status: 'upcoming',
       weather: 'wet',
-      circuit: { name: `D${division} GP`, country: 'Testland', laps: 31, length: '5.1km', layout: 'power', weather: 60 }
+      circuit: { name: `D${division} GP`, country: 'Testland', laps: 62, length: '4.92km', layout: 'power', weather: 60 }
     }
   ];
 }
@@ -253,6 +253,21 @@ function loadEngine() {
     modals,
     sandbox
   };
+}
+
+function loadDataModule() {
+  const srcPath = path.join(__dirname, '..', 'js', 'data.js');
+  const src = fs.readFileSync(srcPath, 'utf8');
+  const sandbox = {
+    console,
+    Date,
+    Math,
+    window: {}
+  };
+
+  vm.createContext(sandbox);
+  vm.runInContext(src, sandbox, { filename: 'data.js' });
+  return sandbox.window.GL_DATA;
 }
 
 function cloneData(value) {
@@ -927,6 +942,37 @@ function testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi) {
   assert.strictEqual(stateApi.getState().finances.credits, 63000, 'credits should reflect the full prize and weekly net after race finalization');
 }
 
+function testCircuitCatalogTargetsModernGrandPrixDistances() {
+  const data = loadDataModule();
+  const circuits = Array.isArray(data?.CIRCUITS) ? data.CIRCUITS : [];
+
+  assert.ok(circuits.length >= 8, 'data catalog should expose the circuit list');
+  circuits.forEach((circuit) => {
+    const lengthKm = Number.parseFloat(String(circuit.length || '').replace(/[^\d.]/g, ''));
+    const totalDistance = Math.round(lengthKm * Number(circuit.laps || 0) * 1000) / 1000;
+    assert.ok(circuit.laps >= 60 && circuit.laps <= 70, `${circuit.name} should stay between 60 and 70 laps`);
+    assert.ok(totalDistance >= 300 && totalDistance <= 310, `${circuit.name} should target a 300-310 km race distance, got ${totalDistance}`);
+  });
+}
+
+function testTyreModelMatchesStrategicHierarchy(engine) {
+  const totalLaps = 66;
+
+  const softLife = engine.getTyreUsefulLife('soft', 'dry', totalLaps);
+  const mediumLife = engine.getTyreUsefulLife('medium', 'dry', totalLaps);
+  const hardLife = engine.getTyreUsefulLife('hard', 'dry', totalLaps);
+  const interWetLife = engine.getTyreUsefulLife('intermediate', 'wet', totalLaps);
+  const wetWetLife = engine.getTyreUsefulLife('wet', 'wet', totalLaps);
+
+  assert.ok(softLife < mediumLife && mediumLife < hardLife, 'dry slick durability should scale soft < medium < hard');
+  assert.ok(interWetLife > wetWetLife, 'intermediate tyres should outlast full wets in a typical wet race');
+  assert.ok(engine.getTyrePaceDeltaMs('soft', 'dry') < engine.getTyrePaceDeltaMs('medium', 'dry'), 'soft tyres should be faster than mediums in dry conditions');
+  assert.ok(engine.getTyrePaceDeltaMs('hard', 'dry') > engine.getTyrePaceDeltaMs('medium', 'dry'), 'hard tyres should be slower than mediums in dry conditions');
+  assert.ok(engine.getTyrePaceDeltaMs('intermediate', 'wet') < engine.getTyrePaceDeltaMs('wet', 'wet'), 'intermediates should usually be the quicker wet-race tyre');
+  assert.ok(engine.getTyrePaceDeltaMs('hard', 'wet') > engine.getTyrePaceDeltaMs('soft', 'wet'), 'hard slicks should be the worst dry tyre on a wet track');
+  assert.ok(engine.getTyreUsefulLife('wet', 'dry', totalLaps) < engine.getTyreUsefulLife('intermediate', 'dry', totalLaps), 'full wets should overheat and fade faster than intermediates on a dry track');
+}
+
 function run() {
   const { engine, stateApi, sandbox } = loadEngine();
   if (!engine) throw new Error('Could not load GL_ENGINE from engine.js');
@@ -956,8 +1002,10 @@ function run() {
   testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox);
   testRaceUsesCircuitLapCount(engine, stateApi, sandbox);
   testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi);
+  testCircuitCatalogTargetsModernGrandPrixDistances();
+  testTyreModelMatchesStrategicHierarchy(engine);
 
-  console.log('✓ Core loop smoke tests passed (25 cases).');
+  console.log('✓ Core loop smoke tests passed (27 cases).');
 }
 
 run();

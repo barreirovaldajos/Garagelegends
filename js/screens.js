@@ -19,11 +19,11 @@ const SCREENS = {
 
   getTyreMeta(tyre) {
     const compounds = {
-      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: '130% seco · 40% lluvia', durabilityText: 'Vida útil 8 vueltas' },
-      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: '100% seco · 60% lluvia', durabilityText: 'Vida útil 12 vueltas' },
-      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: '80% seco · 30% lluvia', durabilityText: 'Vida útil 18 vueltas' },
-      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: '60% seco · 100% lluvia', durabilityText: 'Vida útil 10 vueltas' },
-      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: '30% seco · 80% lluvia', durabilityText: 'Vida útil 14 vueltas' }
+      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: '+0.5s a +1.0s vs Medium en seco', durabilityText: 'Dura 15-30% de carrera · en mojado cae a 10-20%' },
+      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: 'Compuesto base y más versátil', durabilityText: 'Dura 30-50% de carrera · muy fuerte para Medium -> Hard' },
+      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: '0.5s a 0.8s más lento que Medium', durabilityText: 'Dura 50-70% de carrera · mejor para una parada' },
+      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: 'Referencia en pista húmeda', durabilityText: 'Dura 40-70% en mojado · en seco solo 10-25%' },
+      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: 'Solo lluvia extrema · suele ser más lento que el Inter', durabilityText: 'Dura 20-40% en mojado · en seco se destruye en 5-15%' }
     };
     return compounds[tyre] || compounds.medium;
   },
@@ -381,7 +381,7 @@ const SCREENS = {
       engineMode: currentConfig.engineMode || sharedStrategy.engineMode || 'normal',
       pitPlan: this.normalizePitPlan(currentConfig.pitPlan || sharedStrategy.pitPlan || 'single'),
       strategy: currentConfig.strategy || sharedStrategy.strategy || 'balanced',
-      pitTyres: [basePitTyres[0] || 'hard', basePitTyres[1] || 'soft'],
+      pitTyres: [basePitTyres[0] || 'hard', basePitTyres[1] || 'medium'],
       safetyCarReaction: currentConfig.safetyCarReaction || sharedStrategy.safetyCarReaction || 'live',
       setup: {
         aeroBalance: Number.isFinite(baseSetup.aeroBalance) ? baseSetup.aeroBalance : 50,
@@ -1247,11 +1247,11 @@ const SCREENS = {
     const c = next.circuit;
     const fc = next.forecast || { confidence: 60, windows: [{ label: 'start', wetProb: 30 }, { label: 'mid', wetProb: 35 }, { label: 'end', wetProb: 30 }] };
     const defaultStrategy = {
-      tyre:'soft', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live',
-      pitTyres: ['hard', 'soft'],
+      tyre:'medium', strategy:'balanced', aggression:58, riskLevel:40, pitLap:42, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live',
+      pitTyres: ['hard', 'medium'],
       setup: { aeroBalance: 50, wetBias: 50 },
       interventions: [
-        { lapPct: 30, pitBias: 'none' },
+        { lapPct: 42, pitBias: 'none' },
         { lapPct: 70, pitBias: 'none' }
       ],
       pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
@@ -1610,9 +1610,9 @@ const SCREENS = {
       const selectedIds = (window._raceStrategy?.selectedPilotIds || []).slice(0, 2);
       selectedIds.forEach((pid) => this.ensureDriverConfig(pid));
       state.season.calendar[nextIdx].savedStrategy = GL_STATE.deepClone(window._raceStrategy || {
-        tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
-        pitTyres: ['hard', 'soft'],
-        interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+        tyre:'medium', strategy:'balanced', aggression:58, riskLevel:40, pitLap:42, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+        pitTyres: ['hard', 'medium'],
+        interventions: [{ lapPct: 42, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
         pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
         selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
         driverConfigs: {}
@@ -1650,9 +1650,9 @@ const SCREENS = {
     const circuit = next?.circuit || GL_DATA.CIRCUITS[0];
     const weather = next?.weather || 'dry';
     const strategy = GL_STATE.deepClone(window._raceStrategy || next?.savedStrategy || {
-      tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
-      pitTyres: ['hard', 'soft'],
-      interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+      tyre:'medium', aggression:50, riskLevel:40, pitLap:42, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      pitTyres: ['hard', 'medium'],
+      interventions: [{ lapPct: 42, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
       pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
       selectedPilotIds: (state.pilots || []).slice(0,2).map((p) => p.id),
       driverConfigs: {}
@@ -1749,9 +1749,9 @@ const SCREENS = {
       return;
     }
     const strategy = window._raceStrategy || {
-      tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
-      pitTyres: ['hard', 'soft'],
-      interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+      tyre:'medium', aggression:50, riskLevel:40, pitLap:42, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      pitTyres: ['hard', 'medium'],
+      interventions: [{ lapPct: 42, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
       pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
     };
     const strategySource = ['recommended', 'safe', 'manual'].includes(window._advisorStrategySource)

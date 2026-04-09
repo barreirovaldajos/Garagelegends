@@ -136,18 +136,18 @@ const SPONSOR_POOL = [
 
 // ---- CIRCUITS ----
 const CIRCUITS = [
-  { id:'c1',  name:'Silverstone Circuit',     country:'🇬🇧', laps:52, layout:'high-speed', weather:60, length:'5.891 km' },
-  { id:'c2',  name:'Circuit de la Sarthe',    country:'🇫🇷', laps:24, layout:'endurance',  weather:65, length:'13.626 km' },
-  { id:'c3',  name:'Autodromo Nazionale',     country:'🇮🇹', laps:53, layout:'power',      weather:80, length:'5.793 km' },
-  { id:'c4',  name:'Spa-Francorchamps',       country:'🇧🇪', laps:44, layout:'mixed',      weather:45, length:'7.004 km' },
-  { id:'c5',  name:'Circuit de Barcelona',    country:'🇪🇸', laps:66, layout:'technical',  weather:85, length:'4.655 km' },
-  { id:'c6',  name:'Suzuka International',    country:'🇯🇵', laps:53, layout:'technical',  weather:70, length:'5.807 km' },
-  { id:'c7',  name:'Interlagos',              country:'🇧🇷', laps:71, layout:'mixed',      weather:55, length:'4.309 km' },
+  { id:'c1',  name:'Silverstone Circuit',     country:'🇬🇧', laps:64, layout:'high-speed', weather:60, length:'4.788 km' },
+  { id:'c2',  name:'Circuit de la Sarthe',    country:'🇫🇷', laps:62, layout:'endurance',  weather:65, length:'4.905 km' },
+  { id:'c3',  name:'Autodromo Nazionale',     country:'🇮🇹', laps:67, layout:'power',      weather:80, length:'4.579 km' },
+  { id:'c4',  name:'Spa-Francorchamps',       country:'🇧🇪', laps:66, layout:'mixed',      weather:45, length:'4.641 km' },
+  { id:'c5',  name:'Circuit de Barcelona',    country:'🇪🇸', laps:65, layout:'technical',  weather:85, length:'4.675 km' },
+  { id:'c6',  name:'Suzuka International',    country:'🇯🇵', laps:66, layout:'technical',  weather:70, length:'4.617 km' },
+  { id:'c7',  name:'Interlagos',              country:'🇧🇷', laps:67, layout:'mixed',      weather:55, length:'4.553 km' },
   { id:'c8',  name:'Hockenheimring',          country:'🇩🇪', laps:67, layout:'power',      weather:65, length:'4.574 km' },
-  { id:'c9',  name:'Brands Hatch',            country:'🇬🇧', laps:75, layout:'technical',  weather:55, length:'3.916 km' },
+  { id:'c9',  name:'Brands Hatch',            country:'🇬🇧', laps:67, layout:'technical',  weather:55, length:'4.562 km' },
   { id:'c10', name:'Portimão Circuit',        country:'🇵🇹', laps:66, layout:'mixed',      weather:80, length:'4.653 km' },
-  { id:'c11', name:'Mugello Circuit',         country:'🇮🇹', laps:31, layout:'power',      weather:78, length:'5.245 km' },
-  { id:'c12', name:'Red Bull Ring',           country:'🇦🇹', laps:71, layout:'high-speed', weather:75, length:'4.318 km' },
+  { id:'c11', name:'Mugello Circuit',         country:'🇮🇹', laps:64, layout:'power',      weather:78, length:'4.781 km' },
+  { id:'c12', name:'Red Bull Ring',           country:'🇦🇹', laps:70, layout:'high-speed', weather:75, length:'4.318 km' },
 ];
 
 // ---- CALENDAR per season (8 rounds for Div 8) ----
