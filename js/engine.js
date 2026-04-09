@@ -364,15 +364,40 @@ function normalizeTyreForWeather(tyre, weather) {
   return tyre;
 }
 
-function getConfiguredStopWindows(strategy = {}, totalLaps) {
+function normalizePitPlan(plan) {
+  return plan === 'double' ? 'double' : 'single';
+}
+
+function getPrimaryStopLapPct(strategy = {}, fallback = 50) {
   const interventions = Array.isArray(strategy.interventions) ? strategy.interventions : [];
-  const firstPctBase = Number.isFinite(interventions[0]?.lapPct)
-    ? interventions[0].lapPct
-    : (Number.isFinite(strategy.pitLap) ? strategy.pitLap : 50);
-  const defaultSecondPct = Math.min(95, Math.max(firstPctBase + 20, 70));
-  const secondPctBase = Number.isFinite(interventions[1]?.lapPct)
-    ? Math.max(interventions[1].lapPct, firstPctBase + 8)
-    : defaultSecondPct;
+  if (Number.isFinite(interventions[0]?.lapPct)) return clamp(Math.round(interventions[0].lapPct), 10, 95);
+  if (Number.isFinite(strategy.pitLap)) return clamp(Math.round(strategy.pitLap), 10, 95);
+  return fallback;
+}
+
+function normalizeStrategyInterventions(strategy = {}, fallbackPitLap = 50) {
+  const interventions = Array.isArray(strategy.interventions) ? strategy.interventions : [];
+  const firstLapPct = getPrimaryStopLapPct(strategy, fallbackPitLap);
+  const secondFallback = Math.min(95, Math.max(firstLapPct + 20, 70));
+  const secondLapPct = Number.isFinite(interventions[1]?.lapPct)
+    ? clamp(Math.round(interventions[1].lapPct), firstLapPct + 8, 95)
+    : secondFallback;
+  return [
+    {
+      lapPct: firstLapPct,
+      pitBias: interventions[0]?.pitBias || 'none'
+    },
+    {
+      lapPct: secondLapPct,
+      pitBias: interventions[1]?.pitBias || 'none'
+    }
+  ];
+}
+
+function getConfiguredStopWindows(strategy = {}, totalLaps) {
+  const interventions = normalizeStrategyInterventions(strategy, getPrimaryStopLapPct(strategy, 50));
+  const firstPctBase = interventions[0].lapPct;
+  const secondPctBase = interventions[1].lapPct;
   const applyBiasToLap = (baseLap, bias) => {
     if (bias === 'early') return Math.max(2, baseLap - 2);
     if (bias === 'late') return Math.min(totalLaps - 2, baseLap + 2);
@@ -437,9 +462,9 @@ function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenc
     ? (decisionSkill > 0.72 ? 'tactical' : 'balanced')
     : (prefersAggressive ? 'aggressive' : (decisionSkill > 0.76 ? 'tactical' : (consistency > 76 ? 'conservative' : 'balanced')));
   const engineMode = prefersAggressive ? 'push' : (consistency > 80 ? 'eco' : 'normal');
-  const pitPlan = weather === 'wet'
-    ? (decisionSkill > 0.7 ? 'adaptive' : 'single')
-    : ((profile.tyreDegMult > 1.05 && tyreSkill < 70) || (strategyId === 'aggressive' && seededUnit(`${seedRoot}_double`) > 0.52) ? 'double' : (decisionSkill > 0.74 ? 'adaptive' : 'single'));
+  const pitPlan = ((profile.tyreDegMult > 1.05 && tyreSkill < 70) || weather === 'wet' || (strategyId === 'aggressive' && seededUnit(`${seedRoot}_double`) > 0.52))
+    ? 'double'
+    : 'single';
   let tyre = 'medium';
   if (weather === 'wet') {
     tyre = rainSkill > 74 && seededUnit(`${seedRoot}_wet`) > 0.38 ? 'wet' : 'intermediate';
@@ -618,23 +643,31 @@ function simulateRace(options = {}) {
   });
 
   const normalizeDriverStrategy = (driverStrategy = {}) => {
+    const normalizedPitPlan = normalizePitPlan(driverStrategy.pitPlan || baseStrategy.pitPlan || 'single');
+    const strategySource = {
+      ...baseStrategy,
+      ...driverStrategy,
+      pitPlan: normalizedPitPlan,
+      interventions: Array.isArray(driverStrategy.interventions)
+        ? driverStrategy.interventions
+        : (Array.isArray(baseStrategy.interventions) ? baseStrategy.interventions : undefined)
+    };
+    const normalizedInterventions = normalizeStrategyInterventions(strategySource, getPrimaryStopLapPct(strategySource, 50));
     return {
       tyre: driverStrategy.tyre || baseStrategy.tyre || 'medium',
       aggression: Number.isFinite(driverStrategy.aggression) ? driverStrategy.aggression : (baseStrategy.aggression || 50),
-      pitLap: Number.isFinite(driverStrategy.pitLap) ? driverStrategy.pitLap : (baseStrategy.pitLap || 50),
+      pitLap: normalizedInterventions[0].lapPct,
       riskLevel: Number.isFinite(driverStrategy.riskLevel) ? driverStrategy.riskLevel : (baseStrategy.riskLevel || 40),
       engineMode: driverStrategy.engineMode || baseStrategy.engineMode || 'normal',
       strategy: driverStrategy.strategy || baseStrategy.strategy || 'balanced',
-      pitPlan: driverStrategy.pitPlan || baseStrategy.pitPlan || 'single',
+      pitPlan: normalizedPitPlan,
       safetyCarReaction: 'live',
-      pitTyres: getDefaultPitTyres(driverStrategy.pitTyres ? driverStrategy : baseStrategy, weather),
+      pitTyres: getDefaultPitTyres({ ...(driverStrategy.pitTyres ? driverStrategy : baseStrategy), pitPlan: normalizedPitPlan }, weather),
       setup: {
         aeroBalance: Number.isFinite(driverStrategy?.setup?.aeroBalance) ? driverStrategy.setup.aeroBalance : (baseStrategy?.setup?.aeroBalance ?? 50),
         wetBias: Number.isFinite(driverStrategy?.setup?.wetBias) ? driverStrategy.setup.wetBias : (baseStrategy?.setup?.wetBias ?? 50)
       },
-      interventions: Array.isArray(driverStrategy.interventions)
-        ? driverStrategy.interventions
-        : (Array.isArray(baseStrategy.interventions) ? baseStrategy.interventions : [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }])
+      interventions: normalizedInterventions
     };
   };
 
@@ -780,9 +813,6 @@ function simulateRace(options = {}) {
     if (!entry.strategy) entry.strategy = cloneData(strategySeed);
     const s = entry.strategy;
     let maxPitStops = (s.pitPlan || 'single') === 'double' ? 2 : 1;
-    if ((s.pitPlan || 'single') === 'adaptive' && (profile.tyreDegMult > 1.05 || weather === 'wet')) {
-      maxPitStops = 2;
-    }
     const stopWindows = getConfiguredStopWindows(s, totalLaps);
     runtimes[entry.id] = {
       wear: 0,
@@ -912,18 +942,6 @@ function simulateRace(options = {}) {
       const s = entry.strategy || leadDriver.strategy;
       const entryLabel = entry.pilotName || entry.name || 'Driver';
       if (!rt) return;
-
-      if ((s.pitPlan || 'single') === 'adaptive' && (s.strategy === 'tactical' || s.strategy === 'balanced') && rt.pitStopsDone < rt.maxPitStops) {
-        const nextPlannedPit = rt.pitStopsDone === 0 ? rt.adaptivePitLap : rt.adaptivePitLap2;
-        if (liveWeather === 'wet' && rt.wear > 18 && lap >= nextPlannedPit - 3) {
-          if (rt.pitStopsDone === 0) rt.adaptivePitLap = Math.max(2, lap);
-          else rt.adaptivePitLap2 = Math.max(lap, Math.min(totalLaps - 1, rt.adaptivePitLap2));
-          if (entry.isPlayer) events.push({ lap, type: 'info', text: `🧠 ${entryLabel}: early pit due to rain transition.` });
-        } else if (liveWeather === 'dry' && rt.wear < 12 && lap < nextPlannedPit - 3) {
-          if (rt.pitStopsDone === 0) rt.adaptivePitLap = Math.min(totalLaps - 2, rt.adaptivePitLap + 1);
-          else rt.adaptivePitLap2 = Math.min(totalLaps - 1, rt.adaptivePitLap2 + 1);
-        }
-      }
 
       const nextPitLap = rt.pitStopsDone === 0 ? rt.adaptivePitLap : rt.adaptivePitLap2;
       if (rt.pitStopsDone < rt.maxPitStops && lap === nextPitLap) {
@@ -1851,7 +1869,7 @@ function recommendStrategyForRace(race, stateArg) {
     wetBias: isLikelyWet ? 72 : (isLikelyDry ? 35 : 52)
   };
 
-  const pitPlan = isUncertain || isLikelyWet ? 'adaptive' : (tyre === 'soft' ? 'double' : 'single');
+  const pitPlan = (isLikelyWet || tyre === 'soft' || (circuit.layout === 'endurance' && !isLikelyDry)) ? 'double' : 'single';
   const safetyCarReaction = staffFx.undercutStrength >= staffFx.overcutStrength ? 'undercut' : 'overcut';
   const engineMode = isLikelyWet ? 'normal' : (tyre === 'soft' ? 'push' : 'normal');
   const strategyPreset = isLikelyWet || isUncertain ? 'tactical' : 'balanced';
@@ -1877,7 +1895,7 @@ function recommendStrategyForRace(race, stateArg) {
     strategy.aggression = clamp(strategy.aggression - 10, 25, 70);
     strategy.riskLevel = clamp(strategy.riskLevel - 10, 18, 60);
     strategy.engineMode = strategy.engineMode === 'push' ? 'normal' : strategy.engineMode;
-    if (strategy.pitPlan === 'double') strategy.pitPlan = 'adaptive';
+    strategy.pitPlan = 'single';
     strategy.safetyCarReaction = 'neutral';
   } else if (advisorMode === 'aggressive') {
     strategy.aggression = clamp(strategy.aggression + 8, 35, 90);
@@ -1927,9 +1945,9 @@ function recommendStrategyForRace(race, stateArg) {
     reasons.push(`Advisor memory: adapted aggression/risk from ${stat.samples} past races.`);
   }
 
-  if ((advisor.practice && advisor.practice.sessions) > 0 && isUncertain) {
-    strategy.pitPlan = 'adaptive';
-    reasons.push('Practice trend: keep adaptive pit plan under uncertain forecast.');
+  if ((advisor.practice && advisor.practice.sessions) > 0 && isUncertain && strategy.pitPlan === 'single' && !isLikelyDry) {
+    strategy.pitPlan = 'double';
+    reasons.push('Practice trend: use two stops under uncertain conditions.');
   }
 
   // Cold start guardrails when advisor confidence is low
@@ -1959,7 +1977,7 @@ function recommendStrategyForRace(race, stateArg) {
     strategy.engineMode = advisorMode === 'aggressive' ? strategy.engineMode : 'normal';
     strategy.aggression = clamp(Math.min(strategy.aggression, advisorMode === 'aggressive' ? 72 : 62), 30, advisorMode === 'aggressive' ? 75 : 65);
     strategy.riskLevel = clamp(Math.min(strategy.riskLevel, advisorMode === 'aggressive' ? 52 : 42), 20, advisorMode === 'aggressive' ? 58 : 45);
-    if (strategy.pitPlan === 'double') strategy.pitPlan = 'adaptive';
+    strategy.pitPlan = 'single';
     strategy.interventions = [
       { lapPct: 30, engineMode: 'normal', pitBias: 'none' },
       { lapPct: 70, engineMode: 'push', pitBias: 'none' }

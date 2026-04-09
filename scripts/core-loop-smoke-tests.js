@@ -708,6 +708,18 @@ function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
     pitTyres: ['hard', 'soft'],
     interventions: [{ lapPct: 34, pitBias: 'none' }, { lapPct: 78, pitBias: 'none' }]
   }, {}, () => 0.9);
+  const stalePitLap = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 22,
+    strategy: 'balanced',
+    interventions: [{ lapPct: 62, pitBias: 'none' }, { lapPct: 78, pitBias: 'none' }]
+  }, {}, () => 0.9);
+  const scheduledPitLap = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 62,
+    strategy: 'balanced',
+    interventions: [{ lapPct: 62, pitBias: 'none' }, { lapPct: 78, pitBias: 'none' }]
+  }, {}, () => 0.9);
 
   const singlePitLaps = getPlayerPitLaps(single, 'Driver One');
   const doublePitLaps = getPlayerPitLaps(double, 'Driver One');
@@ -715,12 +727,29 @@ function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
   const latePitLaps = getPlayerPitLaps(late, 'Driver One');
   const secondSoonerPitLaps = getPlayerPitLaps(secondStopSooner, 'Driver One');
   const secondLaterPitLaps = getPlayerPitLaps(secondStopLater, 'Driver One');
+  const stalePitLapStops = getPlayerPitLaps(stalePitLap, 'Driver One');
+  const scheduledPitLapStops = getPlayerPitLaps(scheduledPitLap, 'Driver One');
 
   assert.strictEqual(singlePitLaps.length, 1, 'single pit plan should stop once');
   assert.strictEqual(doublePitLaps.length, 2, 'double pit plan should stop twice');
   assert.strictEqual(double.playerCars[0].tyre, 'soft', 'second pit tyre selection should define the final compound on a double-stop race');
   assert.ok(earlyPitLaps[0] < latePitLaps[0], 'early pit bias should move the first stop ahead of a late pit bias');
   assert.ok(secondSoonerPitLaps[1] < secondLaterPitLaps[1], 'the second configured stop window should move the second stop timing on a double-stop plan');
+  assert.strictEqual(stalePitLapStops[0], scheduledPitLapStops[0], 'configured stop window should override stale pitLap values');
+}
+
+function testLegacyAdaptivePitPlanFallsBackToSingle(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const legacyAdaptive = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'adaptive',
+    pitLap: 46,
+    pitTyres: ['hard', 'soft'],
+    interventions: [{ lapPct: 46, pitBias: 'none' }, { lapPct: 72, pitBias: 'none' }]
+  }, {}, () => 0.9);
+
+  const entry = getPlayerFinalEntry(legacyAdaptive);
+  assert.strictEqual(entry.strategy.pitPlan, 'single', 'legacy adaptive pit plans should normalize to single-stop');
+  assert.strictEqual(entry.pitStopsDone, 1, 'legacy adaptive pit plans should produce a single stop after normalization');
 }
 
 function testAggressionAffectsRacePace(engine, stateApi, sandbox) {
@@ -824,12 +853,13 @@ function run() {
   testSimulateRaceProducesAiPitStops(engine, stateApi);
   testEngineModeAffectsQualyPace(engine, stateApi, sandbox);
   testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox);
+  testLegacyAdaptivePitPlanFallsBackToSingle(engine, stateApi, sandbox);
   testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox);
   testAggressionAffectsRacePace(engine, stateApi, sandbox);
   testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox);
   testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox);
 
-  console.log('✓ Core loop smoke tests passed (18 cases).');
+  console.log('✓ Core loop smoke tests passed (19 cases).');
 }
 
 run();

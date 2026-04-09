@@ -51,10 +51,23 @@ const SCREENS = {
   getPitPlanLabel(plan) {
     const map = {
       single: __('pit_plan_single', 'One stop'),
-      double: __('pit_plan_double', 'Two stops'),
-      adaptive: __('pit_plan_adaptive', 'Adaptive')
+      double: __('pit_plan_double', 'Two stops')
     };
-    return map[plan] || plan || '—';
+    return map[plan] || map.single;
+  },
+
+  normalizePitPlan(plan) {
+    return plan === 'double' ? 'double' : 'single';
+  },
+
+  getPrimaryStopLapPct(strategy, fallback = 50) {
+    if (Array.isArray(strategy?.interventions) && Number.isFinite(strategy.interventions[0]?.lapPct)) {
+      return Math.max(10, Math.min(95, Math.round(strategy.interventions[0].lapPct)));
+    }
+    if (Number.isFinite(strategy?.pitLap)) {
+      return Math.max(10, Math.min(95, Math.round(strategy.pitLap)));
+    }
+    return fallback;
   },
 
   getPitBiasLabel(bias) {
@@ -82,14 +95,17 @@ const SCREENS = {
     const sourceInterventions = Array.isArray(currentConfig.interventions) && currentConfig.interventions.length
       ? currentConfig.interventions
       : (Array.isArray(sharedStrategy.interventions) ? sharedStrategy.interventions : []);
-    const defaultPitLap = Number.isFinite(currentConfig.pitLap) ? currentConfig.pitLap : (sharedStrategy.pitLap || 50);
+    const defaultPitLap = this.getPrimaryStopLapPct(
+      currentConfig,
+      this.getPrimaryStopLapPct(sharedStrategy, 50)
+    );
     return this.syncDriverStopWindows({
       tyre: currentConfig.tyre || sharedStrategy.tyre || 'medium',
       aggression: Number.isFinite(currentConfig.aggression) ? currentConfig.aggression : (sharedStrategy.aggression || 50),
       riskLevel: Number.isFinite(currentConfig.riskLevel) ? currentConfig.riskLevel : (sharedStrategy.riskLevel || 40),
       pitLap: defaultPitLap,
       engineMode: currentConfig.engineMode || sharedStrategy.engineMode || 'normal',
-      pitPlan: currentConfig.pitPlan || sharedStrategy.pitPlan || 'single',
+      pitPlan: this.normalizePitPlan(currentConfig.pitPlan || sharedStrategy.pitPlan || 'single'),
       strategy: currentConfig.strategy || sharedStrategy.strategy || 'balanced',
       pitTyres: [basePitTyres[0] || 'hard', basePitTyres[1] || 'soft'],
       safetyCarReaction: currentConfig.safetyCarReaction || sharedStrategy.safetyCarReaction || 'live',
@@ -114,7 +130,7 @@ const SCREENS = {
     if (!Array.isArray(cfg.interventions)) {
       cfg.interventions = [{ lapPct: cfg.pitLap || 50, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }];
     }
-    const firstLapPct = clampPct(Number.isFinite(cfg.pitLap) ? cfg.pitLap : cfg.interventions[0]?.lapPct, 50);
+    const firstLapPct = clampPct(this.getPrimaryStopLapPct(cfg, 50), 50);
     const secondFallback = Math.min(95, Math.max(firstLapPct + 20, 70));
     const secondLapPct = Math.max(firstLapPct + 8, clampPct(cfg.interventions[1]?.lapPct, secondFallback));
     cfg.pitLap = firstLapPct;
@@ -1031,7 +1047,7 @@ const SCREENS = {
                   <span style="color:var(--t-secondary)">${tyreMeta.paceText}</span>
                   <span style="color:var(--t-secondary)">${tyreMeta.durabilityText}</span>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
                   <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','tyre',this.value)">
                     <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_soft', 'Soft')}</option>
                     <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_medium', 'Medium')}</option>
@@ -1047,9 +1063,7 @@ const SCREENS = {
                   <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','pitPlan',this.value)">
                     <option value="single" ${cfg.pitPlan === 'single' || !cfg.pitPlan ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('single')}</option>
                     <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('double')}</option>
-                    <option value="adaptive" ${cfg.pitPlan === 'adaptive' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('adaptive')}</option>
                   </select>
-                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">${__('prerace_pit_1', 'Pit 1')}: <strong id="driver-pitlap-label-${p.id}" style="margin-left:6px">${cfg.pitLap}%</strong></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
                   <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
@@ -1067,7 +1081,6 @@ const SCREENS = {
                     <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_wet', 'Wet')}</option>
                   </select>
                 </div>
-                <input type="range" min="0" max="100" value="${cfg.pitLap}" oninput="document.getElementById('driver-pitlap-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverStrategy('${p.id}','pitLap',+this.value,true)">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
                   <div>
                     <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_aggression_label', 'Aggression')}: <strong id="driver-aggression-label-${p.id}">${cfg.aggression}</strong></div>
@@ -1092,7 +1105,7 @@ const SCREENS = {
                 </div>
                 <div class="divider"></div>
                 <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_stop_schedule', 'Stop schedule')}</div>
-                <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:8px">${cfg.pitPlan === 'single' ? __('prerace_stop_2_hint', 'Used only for two-stop or adaptive plans') : __('prerace_tactical_calls', 'Tactical Calls')}</div>
+                <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:8px">${cfg.pitPlan === 'single' ? __('prerace_stop_2_hint', 'Used only for two-stop plans') : __('prerace_tactical_calls', 'Tactical Calls')}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                   ${[0, 1].map((idx) => `
                     ${(() => {
@@ -1254,7 +1267,7 @@ const SCREENS = {
   updateDriverStrategy(pid, key, value, silent = false) {
     const cfg = this.ensureDriverConfig(pid);
     if (!cfg) return;
-    cfg[key] = value;
+    cfg[key] = key === 'pitPlan' ? this.normalizePitPlan(value) : value;
     if (key === 'pitLap' || key === 'pitPlan') this.syncDriverStopWindows(cfg);
     window._advisorStrategySource = 'manual';
     if (!silent) this.renderPreRace();
@@ -1298,19 +1311,7 @@ const SCREENS = {
     const ids = window._raceStrategy.selectedPilotIds || [];
     if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
     ids.forEach((pid) => {
-      window._raceStrategy.driverConfigs[pid] = {
-        tyre: window._raceStrategy.tyre || 'medium',
-        aggression: window._raceStrategy.aggression || 50,
-        riskLevel: window._raceStrategy.riskLevel || 40,
-        pitLap: window._raceStrategy.pitLap || 50,
-        engineMode: window._raceStrategy.engineMode || 'normal',
-        pitPlan: window._raceStrategy.pitPlan || 'single',
-        strategy: window._raceStrategy.strategy || 'balanced',
-        pitTyres: Array.isArray(window._raceStrategy.pitTyres)
-          ? [window._raceStrategy.pitTyres[0] || 'hard', window._raceStrategy.pitTyres[1] || 'soft']
-          : ['hard', 'soft'],
-        safetyCarReaction: window._raceStrategy.safetyCarReaction || 'live'
-      };
+      window._raceStrategy.driverConfigs[pid] = GL_STATE.deepClone(this.getDriverStrategyDefaults(window._raceStrategy, {}));
     });
     window._advisorStrategySource = 'manual';
     if (!silent) {
@@ -1443,7 +1444,7 @@ const SCREENS = {
               ${GL_UI.statRow(__('race_setup_weather', 'Weather setup'), `${strategy.setup?.wetBias ?? 50}%`, '🌧️')}
               ${racePilots.map((rp, idx) => {
                 const tyreMeta = this.getTyreMeta(rp.cfg.tyre);
-                return GL_UI.statRow(`${__('race_driver', 'Driver')} ${idx+1}`, `${rp.pilot.name} · ${tyreMeta.label} · ${this.getEngineModeLabel(rp.cfg.engineMode || 'normal')} · ${this.getPitPlanLabel(rp.cfg.pitPlan || 'single')} @ ${rp.cfg.pitLap ?? 50}%`, '🧑‍✈️');
+                return GL_UI.statRow(`${__('race_driver', 'Driver')} ${idx+1}`, `${rp.pilot.name} · ${tyreMeta.label} · ${this.getEngineModeLabel(rp.cfg.engineMode || 'normal')} · ${this.getPitPlanLabel(rp.cfg.pitPlan || 'single')} · ${__('prerace_pit_1', 'Pit 1')} ${this.getPrimaryStopLapPct(rp.cfg, 50)}%`, '🧑‍✈️');
               }).join('')}
               ${racePilots.length === 0 && selectedPilot ? GL_UI.statRow(__('race_primary_driver', 'Lead driver'), `${selectedPilot.name} (${GL_ENGINE.pilotScore(selectedPilot)})`, '🧑‍✈️') : ''}
               ${staffFx ? GL_UI.statRow(__('race_staff_pit_quality', 'Pit crew efficiency'), `${Math.round(staffFx.pitTimeGainChance * 100)}%`, '👥') : ''}
