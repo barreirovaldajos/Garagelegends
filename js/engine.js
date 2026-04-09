@@ -1319,10 +1319,11 @@ function weeklyTick() {
 }
 
 function applyRaceWeekendEconomy(raceResult) {
+  const state = S.getState();
   const prizeMoney = Number.isFinite(raceResult?.prizeMoney)
     ? Number(raceResult.prizeMoney)
     : Number(raceResult?.prizeMoney || 0);
-  const creditsBefore = Number(S.getState()?.finances?.credits || 0);
+  const creditsBefore = Number(state?.finances?.credits || 0);
 
   if (prizeMoney !== 0) {
     S.addCredits(prizeMoney);
@@ -1341,10 +1342,28 @@ function applyRaceWeekendEconomy(raceResult) {
     weeklyEconomy
   };
 
+  const refreshedState = S.getState();
+  if (refreshedState?.finances) {
+    refreshedState.finances.lastRaceSettlement = {
+      ts: Date.now(),
+      round: raceResult?.round || refreshedState?.season?.raceIndex || 0,
+      prizeMoney,
+      creditsBefore,
+      creditsAfterPrize,
+      creditsAfterWeekly,
+      weeklyNetDelta: summary.weeklyNetDelta,
+      totalDelta: summary.totalDelta,
+      playerCars: Array.isArray(raceResult?.playerCars)
+        ? raceResult.playerCars.map((car) => ({ pilotName: car.pilotName, position: car.position, points: car.points }))
+        : []
+    };
+  }
+
   if (raceResult && typeof raceResult === 'object') {
     raceResult.economySummary = summary;
   }
 
+  S.saveState();
   return summary;
 }
 

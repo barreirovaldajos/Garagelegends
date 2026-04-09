@@ -940,6 +940,25 @@ function testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi) {
   assert.strictEqual(summary.weeklyNetDelta, 3000, 'weekly economy delta should be reported separately');
   assert.strictEqual(summary.totalDelta, 53000, 'total credit delta should include prize plus weekly net');
   assert.strictEqual(stateApi.getState().finances.credits, 63000, 'credits should reflect the full prize and weekly net after race finalization');
+  assert.strictEqual(stateApi.getState().finances.lastRaceSettlement.prizeMoney, 50000, 'latest race settlement should preserve the credited prize amount');
+}
+
+function testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi) {
+  const state = createBaseState();
+  state.finances.credits = 25000;
+  stateApi._state = state;
+
+  const summary = engine.applyRaceWeekendEconomy({
+    prizeMoney: 90000,
+    playerCars: [
+      { pilotName: 'Driver One', position: 1, points: 25 },
+      { pilotName: 'Driver Two', position: 2, points: 18 }
+    ]
+  });
+
+  assert.strictEqual(summary.prizeDelta, 90000, 'combined team payout should preserve the full race prize for both player cars');
+  assert.strictEqual(stateApi.getState().finances.credits, 118000, 'credits should reflect the two-car payout plus weekly net');
+  assert.strictEqual(stateApi.getState().finances.lastRaceSettlement.playerCars.length, 2, 'race settlement should preserve both finishing player cars for auditability');
 }
 
 function testCircuitCatalogTargetsModernGrandPrixDistances() {
@@ -1002,10 +1021,11 @@ function run() {
   testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox);
   testRaceUsesCircuitLapCount(engine, stateApi, sandbox);
   testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi);
+  testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi);
   testCircuitCatalogTargetsModernGrandPrixDistances();
   testTyreModelMatchesStrategicHierarchy(engine);
 
-  console.log('✓ Core loop smoke tests passed (27 cases).');
+  console.log('✓ Core loop smoke tests passed (28 cases).');
 }
 
 run();

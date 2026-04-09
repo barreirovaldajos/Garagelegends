@@ -303,18 +303,69 @@ const SCREENS = {
       </div>`;
   },
 
-  buildLiveRaceOrder({ lapSnapshots, currentLap, finalGrid, startPosMap, finalPosMap, progress, tick }) {
-    const snapshot = lapSnapshots[currentLap - 1];
-    if (snapshot && Array.isArray(snapshot.order) && snapshot.order.length) {
-      return snapshot.order.slice().sort((a, b) => a.pos - b.pos);
+  buildLiveRaceOrder({ lapSnapshots, currentLap, lapBlend = 0, finalGrid, startPosMap, finalPosMap, progress, tick }) {
+    const safeBlend = Math.max(0, Math.min(1, Number(lapBlend) || 0));
+    const previousSnapshot = currentLap > 1 ? lapSnapshots[currentLap - 2] : null;
+    const targetSnapshot = lapSnapshots[currentLap - 1] || null;
+
+    if (targetSnapshot && Array.isArray(targetSnapshot.order) && targetSnapshot.order.length) {
+      const previousOrder = previousSnapshot && Array.isArray(previousSnapshot.order) && previousSnapshot.order.length
+        ? previousSnapshot.order
+        : finalGrid.map((car, idx) => ({
+            ...car,
+            pos: startPosMap[car.id] || (idx + 1),
+            gapMs: Number.isFinite(car.gapMs) ? car.gapMs : ((startPosMap[car.id] || (idx + 1)) - 1) * 900,
+            pit: false,
+            pitLossMs: 0,
+            retired: !!car.retired
+          }));
+
+      const previousMap = Object.fromEntries(previousOrder.map((car, idx) => [car.id, { ...car, pos: car.pos || (idx + 1) }]));
+      const targetMap = Object.fromEntries(targetSnapshot.order.map((car, idx) => [car.id, { ...car, pos: car.pos || (idx + 1) }]));
+      const allIds = Array.from(new Set([...Object.keys(previousMap), ...Object.keys(targetMap), ...finalGrid.map((car) => car.id)]));
+
+      const interpolated = allIds.map((carId, idx) => {
+        const fallback = finalGrid.find((car) => car.id === carId) || {};
+        const sourceCar = previousMap[carId] || {
+          ...fallback,
+          id: carId,
+          pos: startPosMap[carId] || (idx + 1),
+          gapMs: ((startPosMap[carId] || (idx + 1)) - 1) * 900,
+          pit: false,
+          pitLossMs: 0,
+          retired: !!fallback.retired
+        };
+        const nextCar = targetMap[carId] || sourceCar;
+        const startPos = Number.isFinite(sourceCar.pos) ? sourceCar.pos : (startPosMap[carId] || (idx + 1));
+        const endPos = Number.isFinite(nextCar.pos) ? nextCar.pos : startPos;
+        const startGap = Number.isFinite(sourceCar.gapMs) ? sourceCar.gapMs : Math.max(0, (startPos - 1) * 900);
+        const endGap = Number.isFinite(nextCar.gapMs) ? nextCar.gapMs : startGap;
+        const wobble = Math.sin((tick * 0.45) + String(carId || '').length) * 0.14 * (1 - progress);
+        const liveScore = (startPos * (1 - safeBlend)) + (endPos * safeBlend) + wobble;
+        return {
+          ...fallback,
+          ...sourceCar,
+          ...nextCar,
+          pos: liveScore,
+          displayPos: Math.round((startPos * (1 - safeBlend)) + (endPos * safeBlend)),
+          gapMs: (startGap * (1 - safeBlend)) + (endGap * safeBlend),
+          pit: !!sourceCar.pit || !!nextCar.pit,
+          pitLossMs: safeBlend < 0.5 ? (sourceCar.pitLossMs || 0) : (nextCar.pitLossMs || 0),
+          tyre: safeBlend < 0.58 ? (sourceCar.tyre || nextCar.tyre) : (nextCar.tyre || sourceCar.tyre),
+          retired: !!sourceCar.retired || !!nextCar.retired
+        };
+      }).sort((a, b) => a.pos - b.pos);
+
+      return interpolated.map((car, idx) => ({ ...car, pos: idx + 1, displayPos: idx + 1 }));
     }
+
     return finalGrid.map((car) => {
       const startPos = startPosMap[car.id] || 20;
       const endPos = finalPosMap[car.id] || startPos;
       const wobble = Math.sin((tick * 0.45) + (car.id || '').length) * 0.35 * (1 - progress);
       const score = (startPos * (1 - progress)) + (endPos * progress) + wobble;
-      return { ...car, pos: score };
-    }).sort((a, b) => a.pos - b.pos);
+      return { ...car, pos: score, displayPos: Math.round(score) };
+    }).sort((a, b) => a.pos - b.pos).map((car, idx) => ({ ...car, pos: idx + 1, displayPos: idx + 1 }));
   },
 
   renderRaceTrackVisualization({ liveOrder, progress, totalLaps, currentLap, circuit, weather }) {
@@ -347,9 +398,9 @@ const SCREENS = {
       const aheadPoint = car.pit
         ? this.getRacePitLanePoint(Math.min(1, Math.max(0, 0.16 + (((car.pitLossMs || 0) / 26000) * 0.72))), layout)
         : this.getRaceTrackPoint(((intraLapProgress + 0.004) - ((Number.isFinite(car.gapMs) ? car.gapMs : (idx * 1500)) / estimatedLeaderLapMs)), layout, ((idx % 3) - 1) * 4);
-      const angle = Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI);
+      const angle = (Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI)) - 90;
       const tyreMeta = this.getTyreMeta(car.tyre);
-      const label = car.isPlayer || idx < 3 ? `<span class="race-car-label">P${Math.max(1, Math.round(car.pos || (idx + 1)))}</span>` : '';
+      const label = car.isPlayer || idx < 3 ? `<span class="race-car-label">P${Math.max(1, Math.round(car.displayPos || car.pos || (idx + 1)))}</span>` : '';
       return `
         <div class="race-car-marker ${car.isPlayer ? 'player' : ''} ${car.pit ? 'pit' : ''} ${car.retired ? 'retired' : ''}" title="${car.name || car.pilotName || 'Car'}"
              style="left:${(point.x / 10).toFixed(2)}%;top:${(point.y / 6.2).toFixed(2)}%;--car-angle:${angle.toFixed(1)}deg;--car-color:${car.color || '#888'};--tyre-color:${tyreMeta.color}">
@@ -1873,7 +1924,7 @@ const SCREENS = {
         const weeklyLabel = economySummary.weeklyNetDelta === 0
           ? ''
           : ` · Balance semanal ${economySummary.weeklyNetDelta > 0 ? '+' : '-'}${GL_UI.fmtCR(Math.abs(economySummary.weeklyNetDelta))} CR`;
-        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(economySummary.prizeDelta)} CR${weeklyLabel}`, economySummary.totalDelta >= 0 ? 'good' : 'info');
+        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(economySummary.prizeDelta)} CR${weeklyLabel} · Saldo ${GL_UI.fmtCR(economySummary.creditsBefore)} -> ${GL_UI.fmtCR(economySummary.creditsAfterWeekly)} CR`, economySummary.totalDelta >= 0 ? 'good' : 'info');
       }
 
       if (GL_ENGINE.recordStrategyOutcome) {
@@ -1898,11 +1949,14 @@ const SCREENS = {
       tick += 1;
       const elapsed = Date.now() - startTs;
       const progress = Math.max(0, Math.min(1, elapsed / raceDurationMs));
-      const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(progress * totalLaps) + 1));
+      const lapProgress = progress * totalLaps;
+      const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(lapProgress) + 1));
+      const lapBlend = lapProgress % 1;
       const remaining = raceDurationMs - elapsed;
       const liveOrder = this.buildLiveRaceOrder({
         lapSnapshots,
         currentLap,
+        lapBlend,
         finalGrid,
         startPosMap,
         finalPosMap,
@@ -2006,6 +2060,8 @@ const SCREENS = {
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.weeklyNetDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.weeklyNetDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.weeklyNetDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_weekly_balance', 'Weekly balance')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.totalDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.totalDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.totalDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_credit_delta', 'Total credit delta')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val">${GL_UI.fmtCR(result.economySummary?.creditsBefore || 0)}</div><div class="post-race-metric-label">${__('postrace_credits_before', 'Credits before')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val">${GL_UI.fmtCR(result.economySummary?.creditsAfterWeekly || 0)}</div><div class="post-race-metric-label">${__('postrace_credits_after', 'Credits after')}</div></div>
             <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
           </div>
         </div>

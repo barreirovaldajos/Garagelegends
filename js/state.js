@@ -61,7 +61,8 @@ const DEFAULT_STATE = {
     tokens: 20,
     weeklyIncome: 0,
     weeklyExpenses: 0,
-    history: []   // [{week, income, expenses, net}]
+    history: [],   // [{week, income, expenses, net}]
+    lastRaceSettlement: null
   },
   season: {
     year: 1,
@@ -329,10 +330,11 @@ function loadState() {
       
       // Migrations / Fallbacks
       if (typeof _state.team.engineSupplier === 'undefined') _state.team.engineSupplier = '';
-      if (!_state.finances) _state.finances = { credits: 0, tokens: 20, weeklyIncome: 0, weeklyExpenses: 0, history: [] };
+      if (!_state.finances) _state.finances = { credits: 0, tokens: 20, weeklyIncome: 0, weeklyExpenses: 0, history: [], lastRaceSettlement: null };
       if (typeof _state.finances.deficitStreak !== 'number') _state.finances.deficitStreak = 0;
       if (typeof _state.finances.criticalDeficit !== 'boolean') _state.finances.criticalDeficit = false;
       if (typeof _state.finances.lastNet !== 'number') _state.finances.lastNet = 0;
+      if (typeof _state.finances.lastRaceSettlement === 'undefined') _state.finances.lastRaceSettlement = null;
       if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'onboarding', lastSummary: null, lastSummaryPending: false };
       if (typeof _state.season.lastSummaryPending !== 'boolean') _state.season.lastSummaryPending = false;
       if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
