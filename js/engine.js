@@ -605,11 +605,11 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
 
 // ---- tyre degradation per compound ----
 const TYRE_COMPOUNDS = {
-  soft: { usefulLifeLaps: 3, dryPacePct: 130, wetPacePct: 40 },
-  medium: { usefulLifeLaps: 8, dryPacePct: 100, wetPacePct: 60 },
-  hard: { usefulLifeLaps: 15, dryPacePct: 80, wetPacePct: 30 },
-  intermediate: { usefulLifeLaps: 8, dryPacePct: 60, wetPacePct: 100 },
-  wet: { usefulLifeLaps: 12, dryPacePct: 30, wetPacePct: 80 }
+  soft: { usefulLifeLaps: 8, dryPacePct: 130, wetPacePct: 40 },
+  medium: { usefulLifeLaps: 12, dryPacePct: 100, wetPacePct: 60 },
+  hard: { usefulLifeLaps: 18, dryPacePct: 80, wetPacePct: 30 },
+  intermediate: { usefulLifeLaps: 10, dryPacePct: 60, wetPacePct: 100 },
+  wet: { usefulLifeLaps: 14, dryPacePct: 30, wetPacePct: 80 }
 };
 
 function getTyreCompound(tyre) {

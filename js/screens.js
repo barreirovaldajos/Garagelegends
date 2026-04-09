@@ -19,11 +19,11 @@ const SCREENS = {
 
   getTyreMeta(tyre) {
     const compounds = {
-      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: '130% seco · 40% lluvia', durabilityText: 'Vida útil 3 vueltas' },
-      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: '100% seco · 60% lluvia', durabilityText: 'Vida útil 8 vueltas' },
-      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: '80% seco · 30% lluvia', durabilityText: 'Vida útil 15 vueltas' },
-      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: '60% seco · 100% lluvia', durabilityText: 'Vida útil 8 vueltas' },
-      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: '30% seco · 80% lluvia', durabilityText: 'Vida útil 12 vueltas' }
+      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: '130% seco · 40% lluvia', durabilityText: 'Vida útil 8 vueltas' },
+      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: '100% seco · 60% lluvia', durabilityText: 'Vida útil 12 vueltas' },
+      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: '80% seco · 30% lluvia', durabilityText: 'Vida útil 18 vueltas' },
+      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: '60% seco · 100% lluvia', durabilityText: 'Vida útil 10 vueltas' },
+      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: '30% seco · 80% lluvia', durabilityText: 'Vida útil 14 vueltas' }
     };
     return compounds[tyre] || compounds.medium;
   },
