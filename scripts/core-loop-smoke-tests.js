@@ -899,6 +899,21 @@ function testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox) {
   assert.strictEqual(weatherChangeEvents.length, 0, 'dry races should not flip weather almost automatically under a low random seed');
 }
 
+function testRaceUsesCircuitLapCount(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const longCircuit = { ...state.season.calendar[0].circuit, laps: 72, layout: 'high-speed' };
+  const result = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 50
+  }, {
+    weather: 'dry',
+    circuit: longCircuit
+  }, () => 0.9);
+
+  assert.strictEqual(result.totalLaps, 72, 'race simulation should respect the configured circuit lap count');
+  assert.strictEqual(result.lapSnapshots.length, 72, 'lap snapshots should cover every configured lap');
+}
+
 function run() {
   const { engine, stateApi, sandbox } = loadEngine();
   if (!engine) throw new Error('Could not load GL_ENGINE from engine.js');
@@ -926,8 +941,9 @@ function run() {
   testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox);
   testEnsureNextRaceRebalancesWetSeason(engine, stateApi);
   testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox);
+  testRaceUsesCircuitLapCount(engine, stateApi, sandbox);
 
-  console.log('✓ Core loop smoke tests passed (23 cases).');
+  console.log('✓ Core loop smoke tests passed (24 cases).');
 }
 
 run();

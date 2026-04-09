@@ -726,8 +726,8 @@ function simulateRace(options = {}) {
 
   const profile = getCircuitProfile(circuits, weather);
   const forecast = options.forecast || null;
-  const layoutLaps = { 'high-speed': 32, power: 31, technical: 30, mixed: 30, endurance: 34 };
-  const totalLaps = layoutLaps[profile.layout] || 30;
+  const configuredLaps = Number(circuits?.laps);
+  const totalLaps = Number.isFinite(configuredLaps) && configuredLaps > 0 ? Math.round(configuredLaps) : 30;
   let liveWeather = weather;
 
   let grid = buildRaceGrid(leadDriver.pilot, liveWeather, circuits, leadDriver.strategy).map((entry) => {
