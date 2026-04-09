@@ -914,6 +914,19 @@ function testRaceUsesCircuitLapCount(engine, stateApi, sandbox) {
   assert.strictEqual(result.lapSnapshots.length, 72, 'lap snapshots should cover every configured lap');
 }
 
+function testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi) {
+  const state = createBaseState();
+  state.finances.credits = 10000;
+  stateApi._state = state;
+
+  const summary = engine.applyRaceWeekendEconomy({ prizeMoney: 50000 });
+
+  assert.strictEqual(summary.prizeDelta, 50000, 'race economy should add the full prize before weekly adjustments');
+  assert.strictEqual(summary.weeklyNetDelta, 3000, 'weekly economy delta should be reported separately');
+  assert.strictEqual(summary.totalDelta, 53000, 'total credit delta should include prize plus weekly net');
+  assert.strictEqual(stateApi.getState().finances.credits, 63000, 'credits should reflect the full prize and weekly net after race finalization');
+}
+
 function run() {
   const { engine, stateApi, sandbox } = loadEngine();
   if (!engine) throw new Error('Could not load GL_ENGINE from engine.js');
@@ -942,8 +955,9 @@ function run() {
   testEnsureNextRaceRebalancesWetSeason(engine, stateApi);
   testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox);
   testRaceUsesCircuitLapCount(engine, stateApi, sandbox);
+  testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi);
 
-  console.log('✓ Core loop smoke tests passed (24 cases).');
+  console.log('✓ Core loop smoke tests passed (25 cases).');
 }
 
 run();

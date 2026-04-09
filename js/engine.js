@@ -1278,6 +1278,36 @@ function weeklyTick() {
   return playerEconomy;
 }
 
+function applyRaceWeekendEconomy(raceResult) {
+  const prizeMoney = Number.isFinite(raceResult?.prizeMoney)
+    ? Number(raceResult.prizeMoney)
+    : Number(raceResult?.prizeMoney || 0);
+  const creditsBefore = Number(S.getState()?.finances?.credits || 0);
+
+  if (prizeMoney !== 0) {
+    S.addCredits(prizeMoney);
+  }
+
+  const creditsAfterPrize = Number(S.getState()?.finances?.credits || 0);
+  const weeklyEconomy = weeklyTick() || { net: 0, income: 0, expenses: 0, effects: {} };
+  const creditsAfterWeekly = Number(S.getState()?.finances?.credits || 0);
+  const summary = {
+    creditsBefore,
+    creditsAfterPrize,
+    creditsAfterWeekly,
+    prizeDelta: creditsAfterPrize - creditsBefore,
+    weeklyNetDelta: creditsAfterWeekly - creditsAfterPrize,
+    totalDelta: creditsAfterWeekly - creditsBefore,
+    weeklyEconomy
+  };
+
+  if (raceResult && typeof raceResult === 'object') {
+    raceResult.economySummary = summary;
+  }
+
+  return summary;
+}
+
 function getDivisionTransition(state, finalPosition) {
   const currentDivision = Number(state?.season?.division) || 8;
   const config = (DivisionsApi && DivisionsApi.getDivisionConfig)
@@ -2418,7 +2448,7 @@ function trainPilot(pid) {
 window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
   choosePitTyreForConditions,
-  weeklyTick, updateConstructionQueue, startHqUpgrade,
+  weeklyTick, applyRaceWeekendEconomy, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,
   getRaceStaffEffects,

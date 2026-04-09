@@ -134,6 +134,24 @@ const SCREENS = {
     return weather || '—';
   },
 
+  getCalendarWeatherIndicator(race = {}) {
+    const windows = Array.isArray(race.forecast?.windows)
+      ? race.forecast.windows.filter((entry) => Number.isFinite(entry?.wetProb))
+      : [];
+    const wetAverage = windows.length
+      ? (windows.reduce((sum, entry) => sum + Number(entry.wetProb || 0), 0) / windows.length)
+      : (race.weather === 'wet' ? 70 : 25);
+    const confidence = Number.isFinite(race.forecast?.confidence) ? Number(race.forecast.confidence) : 60;
+    const likelyWet = wetAverage >= 66 && confidence >= 72;
+    const likelyDry = wetAverage <= 34 && confidence >= 64;
+    const icon = likelyWet ? '🌧️' : (likelyDry ? '☀️' : '⛅');
+    const label = likelyWet
+      ? __('prerace_rain_expected', 'Rain Expected')
+      : (likelyDry ? __('prerace_dry2', 'Dry') : __('prerace_weather', 'Race weather'));
+    const tooltip = `${label.replace(/^.?\s*/, '')} · ${Math.round(wetAverage)}% ${__('prerace_forecast_wet', 'chance of rain')} · ${confidence}%`;
+    return { icon, tooltip, wetAverage, confidence };
+  },
+
   getRaceTrackLayoutProfile(layout) {
     const profiles = {
       'high-speed': { radiusX: 300, radiusY: 205, waveX: 36, waveY: 24, kinkX: 20, kinkY: 12, phase: 0.2 },
@@ -184,11 +202,74 @@ const SCREENS = {
     return usePitLane ? points.join(' ') : `${points.join(' ')} Z`;
   },
 
+  getRaceTrackSceneryMarkup(layout) {
+    const scenery = {
+      'high-speed': {
+        stands: [{ x: 210, y: 26, w: 540, h: 66 }],
+        garages: [{ x: 144, y: 500, w: 560, h: 54 }, { x: 22, y: 516, w: 126, h: 42 }],
+        buildings: [{ x: 38, y: 118, w: 72, h: 56 }, { x: 728, y: 510, w: 126, h: 34 }]
+      },
+      power: {
+        stands: [{ x: 182, y: 34, w: 590, h: 58 }],
+        garages: [{ x: 154, y: 492, w: 580, h: 58 }],
+        buildings: [{ x: 72, y: 440, w: 96, h: 46 }, { x: 772, y: 120, w: 104, h: 40 }]
+      },
+      technical: {
+        stands: [{ x: 192, y: 28, w: 520, h: 62 }],
+        garages: [{ x: 188, y: 486, w: 520, h: 52 }],
+        buildings: [{ x: 84, y: 194, w: 88, h: 42 }, { x: 756, y: 448, w: 116, h: 38 }]
+      },
+      mixed: {
+        stands: [{ x: 220, y: 22, w: 520, h: 70 }],
+        garages: [{ x: 154, y: 500, w: 560, h: 52 }],
+        buildings: [{ x: 44, y: 118, w: 96, h: 54 }, { x: 746, y: 500, w: 124, h: 36 }]
+      },
+      endurance: {
+        stands: [{ x: 170, y: 18, w: 620, h: 66 }],
+        garages: [{ x: 112, y: 504, w: 640, h: 48 }],
+        buildings: [{ x: 58, y: 130, w: 88, h: 44 }, { x: 786, y: 450, w: 110, h: 44 }]
+      }
+    };
+    const selected = scenery[layout] || scenery.mixed;
+    const treeNodes = [
+      [86, 68], [120, 82], [870, 56], [924, 86], [84, 438], [146, 486],
+      [816, 468], [878, 452], [724, 534], [304, 166], [392, 158], [610, 164]
+    ].map(([x, y], idx) => `
+      <g class="race-track-tree" transform="translate(${x} ${y}) scale(${0.8 + ((idx % 4) * 0.12)})">
+        <circle class="race-track-tree-crown" cx="0" cy="0" r="16"></circle>
+        <circle class="race-track-tree-crown" cx="-10" cy="8" r="10"></circle>
+        <circle class="race-track-tree-crown" cx="12" cy="6" r="11"></circle>
+        <rect class="race-track-tree-trunk" x="-2" y="12" width="4" height="12" rx="2"></rect>
+      </g>`).join('');
+    const stands = selected.stands.map((item) => `<g class="race-track-stand"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="8"></rect><path class="race-track-stand-grid" d="M ${item.x} ${item.y + 18} H ${item.x + item.w} M ${item.x} ${item.y + 40} H ${item.x + item.w}"></path></g>`).join('');
+    const garages = selected.garages.map((item) => `<g class="race-track-garage"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="8"></rect><path class="race-track-garage-detail" d="M ${item.x + 20} ${item.y + item.h - 12} H ${item.x + item.w - 20}"></path></g>`).join('');
+    const buildings = selected.buildings.map((item) => `<g class="race-track-building"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="6"></rect><g class="race-track-building-windows"><rect x="${item.x + 12}" y="${item.y + 12}" width="10" height="8" rx="2"></rect><rect x="${item.x + 30}" y="${item.y + 12}" width="10" height="8" rx="2"></rect><rect x="${item.x + 48}" y="${item.y + 12}" width="10" height="8" rx="2"></rect></g></g>`).join('');
+    return `${stands}${garages}${buildings}${treeNodes}`;
+  },
+
+  getRaceCarSvgMarkup() {
+    return `
+      <svg class="race-car-svg" viewBox="0 0 64 120" aria-hidden="true">
+        <rect class="race-car-wing rear" x="8" y="4" width="48" height="10" rx="3"></rect>
+        <rect class="race-car-body" x="22" y="14" width="20" height="20" rx="7"></rect>
+        <path class="race-car-body" d="M22 28 C22 22 42 22 42 28 L46 66 C47 74 48 82 52 92 L52 102 C52 106 49 109 44 109 L20 109 C15 109 12 106 12 102 L12 92 C16 82 17 74 18 66 Z"></path>
+        <path class="race-car-stripe" d="M29 16 H35 L37 97 H27 Z"></path>
+        <rect class="race-car-cockpit" x="25" y="38" width="14" height="26" rx="6"></rect>
+        <rect class="race-car-wing front" x="12" y="100" width="40" height="9" rx="3"></rect>
+        <path class="race-car-nose" d="M28 108 H36 L42 120 H22 Z"></path>
+        <rect class="race-car-wheel fl" x="6" y="34" width="10" height="20" rx="3"></rect>
+        <rect class="race-car-wheel fr" x="48" y="34" width="10" height="20" rx="3"></rect>
+        <rect class="race-car-wheel rl" x="4" y="72" width="12" height="22" rx="3"></rect>
+        <rect class="race-car-wheel rr" x="48" y="72" width="12" height="22" rx="3"></rect>
+      </svg>`;
+  },
+
   getRaceTrackStageMarkup(circuit, weather) {
     const layout = circuit?.layout || 'mixed';
     const roadPath = this.getRacePathData(layout, 0, 220, false);
     const centerPath = this.getRacePathData(layout, -1, 220, false);
     const pitPath = this.getRacePathData(layout, 0, 90, true);
+    const innerIslandPath = this.getRacePathData(layout, -108, 220, false);
     const weatherLabel = this.getWeatherLabel(weather);
     return `
       <div class="race-track-stage" id="race-track-stage">
@@ -198,11 +279,18 @@ const SCREENS = {
               <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="rgba(0,0,0,0.24)"/>
             </filter>
           </defs>
+          <rect class="race-track-grass" x="0" y="0" width="1000" height="620" rx="18" />
+          ${this.getRaceTrackSceneryMarkup(layout)}
+          <path class="race-track-runoff" d="${roadPath}" />
+          <path class="race-track-island" d="${innerIslandPath}" />
+          <path class="race-track-curb-outer" d="${roadPath}" />
           <path class="race-track-road-shadow" d="${roadPath}" />
           <path class="race-track-road" d="${roadPath}" />
           <path class="race-track-road-inner" d="${roadPath}" />
+          <path class="race-track-curb-inner" d="${roadPath}" />
           <path class="race-track-centerline" d="${centerPath}" />
           <path class="race-track-pitlane" d="${pitPath}" />
+          <path class="race-track-pitlane-outline" d="${pitPath}" />
           <line class="race-track-finish" x1="820" y1="89" x2="820" y2="173" />
           <text class="race-track-pitlabel" x="784" y="72">PIT</text>
         </svg>
@@ -265,8 +353,7 @@ const SCREENS = {
       return `
         <div class="race-car-marker ${car.isPlayer ? 'player' : ''} ${car.pit ? 'pit' : ''} ${car.retired ? 'retired' : ''}" title="${car.name || car.pilotName || 'Car'}"
              style="left:${(point.x / 10).toFixed(2)}%;top:${(point.y / 6.2).toFixed(2)}%;--car-angle:${angle.toFixed(1)}deg;--car-color:${car.color || '#888'};--tyre-color:${tyreMeta.color}">
-          <span class="race-car-core"></span>
-          <span class="race-car-tyre"></span>
+          ${this.getRaceCarSvgMarkup()}
           ${label}
         </div>`;
     }).join('');
@@ -795,6 +882,9 @@ const SCREENS = {
   // ===== CALENDAR SCREEN =====
   renderCalendar() {
     const state = GL_STATE.getState();
+    if (GL_ENGINE.ensureNextRaceAvailable) {
+      GL_ENGINE.ensureNextRaceAvailable();
+    }
     const cal = state.season.calendar || [];
     const el = document.getElementById('screen-calendar');
     if (!el) return;
@@ -815,6 +905,7 @@ const SCREENS = {
           const isDone = r.status === (window.RACE_STATUS ? RACE_STATUS.COMPLETED : 'completed');
           const isNext = r.status === (window.RACE_STATUS ? RACE_STATUS.NEXT : 'next');
           const res = r.result;
+          const weatherIndicator = this.getCalendarWeatherIndicator(r);
           return `<div class="calendar-race-item ${isDone?'done':''} ${isNext?'next':''}">
             <div class="calendar-round">
               <div class="calendar-round-label">${__('calendar_round')}</div>
@@ -825,7 +916,7 @@ const SCREENS = {
               <div class="calendar-race-name">${r.circuit?.name||'Circuit'}</div>
               <div class="calendar-race-meta">${r.circuit?.country||''} · ${r.circuit?.laps||0} ${__('laps')} · ${r.circuit?.length||''}</div>
             </div>
-            <div class="calendar-weather">${r.weather==='wet'?'🌧️':'☀️'}</div>
+            <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
               ${isDone && res ? `<div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div>
                 <div class="calendar-result-pts">+${res.points} ${__('points')}</div>` :
@@ -1762,23 +1853,27 @@ const SCREENS = {
       if (GL_ENGINE.ensureNextRaceAvailable) GL_ENGINE.ensureNextRaceAvailable();
       state.season.raceIndex = nextIdx + 1;
       const prize = Number.isFinite(result.prizeMoney) ? result.prizeMoney : Number(result.prizeMoney || 0);
-      const creditsBeforeRacePayout = GL_STATE.getCredits();
-      GL_STATE.addCredits(prize);
-      const creditsAfterRacePayout = GL_STATE.getCredits();
-      const immediatePrizeDelta = creditsAfterRacePayout - creditsBeforeRacePayout;
-      GL_ENGINE.weeklyTick();
-      const creditsAfterWeeklyTick = GL_STATE.getCredits();
-      const weeklyNetDelta = creditsAfterWeeklyTick - creditsAfterRacePayout;
+      const economySummary = GL_ENGINE.applyRaceWeekendEconomy
+        ? GL_ENGINE.applyRaceWeekendEconomy(result)
+        : {
+            creditsBefore: GL_STATE.getCredits(),
+            creditsAfterPrize: GL_STATE.getCredits(),
+            creditsAfterWeekly: GL_STATE.getCredits(),
+            prizeDelta: prize,
+            weeklyNetDelta: 0,
+            totalDelta: prize,
+            weeklyEconomy: { net: 0, income: 0, expenses: 0 }
+          };
       const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
       GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(prize)} CR`, 'good');
       if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') {
         GL_DASHBOARD.updateTopbar(GL_STATE.getState());
       }
-      if (immediatePrizeDelta > 0 || weeklyNetDelta !== 0) {
-        const weeklyLabel = weeklyNetDelta === 0
+      if (economySummary.prizeDelta > 0 || economySummary.weeklyNetDelta !== 0) {
+        const weeklyLabel = economySummary.weeklyNetDelta === 0
           ? ''
-          : ` · Balance semanal ${weeklyNetDelta > 0 ? '+' : '-'}${GL_UI.fmtCR(Math.abs(weeklyNetDelta))} CR`;
-        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(immediatePrizeDelta)} CR${weeklyLabel}`, immediatePrizeDelta + weeklyNetDelta >= 0 ? 'good' : 'info');
+          : ` · Balance semanal ${economySummary.weeklyNetDelta > 0 ? '+' : '-'}${GL_UI.fmtCR(Math.abs(economySummary.weeklyNetDelta))} CR`;
+        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(economySummary.prizeDelta)} CR${weeklyLabel}`, economySummary.totalDelta >= 0 ? 'good' : 'info');
       }
 
       if (GL_ENGINE.recordStrategyOutcome) {
@@ -1908,7 +2003,9 @@ const SCREENS = {
             <div style="color:var(--t-secondary)">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)}</div>
           <div class="post-race-metrics">
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
-            <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.weeklyNetDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.weeklyNetDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.weeklyNetDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_weekly_balance', 'Weekly balance')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.totalDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.totalDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.totalDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_credit_delta', 'Total credit delta')}</div></div>
             <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
           </div>
         </div>
