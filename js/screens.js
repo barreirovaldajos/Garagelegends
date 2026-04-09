@@ -134,6 +134,144 @@ const SCREENS = {
     return weather || '—';
   },
 
+  getRaceTrackLayoutProfile(layout) {
+    const profiles = {
+      'high-speed': { radiusX: 300, radiusY: 205, waveX: 36, waveY: 24, kinkX: 20, kinkY: 12, phase: 0.2 },
+      power: { radiusX: 286, radiusY: 194, waveX: 48, waveY: 18, kinkX: 18, kinkY: 10, phase: 0.45 },
+      technical: { radiusX: 250, radiusY: 218, waveX: 66, waveY: 40, kinkX: 30, kinkY: 26, phase: 0.92 },
+      mixed: { radiusX: 272, radiusY: 206, waveX: 52, waveY: 30, kinkX: 24, kinkY: 16, phase: 0.6 },
+      endurance: { radiusX: 318, radiusY: 188, waveX: 30, waveY: 18, kinkX: 34, kinkY: 10, phase: 0.08 }
+    };
+    return profiles[layout] || profiles.mixed;
+  },
+
+  getRaceTrackPoint(progress, layout, laneOffset = 0) {
+    const profile = this.getRaceTrackLayoutProfile(layout);
+    const loop = ((Number(progress) % 1) + 1) % 1;
+    const theta = (loop * Math.PI * 2) - (Math.PI / 2);
+    const radiusX = profile.radiusX
+      + (Math.sin(theta * 2 + profile.phase) * profile.waveX)
+      + (Math.cos(theta * 3 - profile.phase) * profile.kinkX);
+    const radiusY = profile.radiusY
+      + (Math.cos(theta * 2 - profile.phase) * profile.waveY)
+      + (Math.sin(theta * 3 + profile.phase) * profile.kinkY);
+    return {
+      x: 500 + (Math.cos(theta) * (radiusX + laneOffset)),
+      y: 312 + (Math.sin(theta) * (radiusY + (laneOffset * 0.62)))
+    };
+  },
+
+  getRacePitLanePoint(progress, layout) {
+    const local = Math.max(0, Math.min(1, Number(progress) || 0));
+    const entry = this.getRaceTrackPoint(0.88, layout, 10);
+    const exit = this.getRaceTrackPoint(0.04, layout, 6);
+    const blend = 1 - local;
+    return {
+      x: (entry.x * blend) + (exit.x * local) + 36,
+      y: (entry.y * blend) + (exit.y * local) - 48
+    };
+  },
+
+  getRacePathData(layout, laneOffset = 0, samples = 180, usePitLane = false) {
+    const points = [];
+    for (let idx = 0; idx <= samples; idx += 1) {
+      const progress = idx / samples;
+      const point = usePitLane
+        ? this.getRacePitLanePoint(progress, layout)
+        : this.getRaceTrackPoint(progress, layout, laneOffset);
+      points.push(`${idx === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`);
+    }
+    return usePitLane ? points.join(' ') : `${points.join(' ')} Z`;
+  },
+
+  getRaceTrackStageMarkup(circuit, weather) {
+    const layout = circuit?.layout || 'mixed';
+    const roadPath = this.getRacePathData(layout, 0, 220, false);
+    const centerPath = this.getRacePathData(layout, -1, 220, false);
+    const pitPath = this.getRacePathData(layout, 0, 90, true);
+    const weatherLabel = this.getWeatherLabel(weather);
+    return `
+      <div class="race-track-stage" id="race-track-stage">
+        <svg class="race-track-svg" viewBox="0 0 1000 620" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <filter id="race-track-shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="rgba(0,0,0,0.24)"/>
+            </filter>
+          </defs>
+          <path class="race-track-road-shadow" d="${roadPath}" />
+          <path class="race-track-road" d="${roadPath}" />
+          <path class="race-track-road-inner" d="${roadPath}" />
+          <path class="race-track-centerline" d="${centerPath}" />
+          <path class="race-track-pitlane" d="${pitPath}" />
+          <line class="race-track-finish" x1="820" y1="89" x2="820" y2="173" />
+          <text class="race-track-pitlabel" x="784" y="72">PIT</text>
+        </svg>
+        <div class="race-track-cars" id="race-track-cars"></div>
+        <div class="race-track-hud">
+          <span class="race-track-chip" id="race-track-chip-layout">${this.getTrackLayoutLabel(layout)}</span>
+          <span class="race-track-chip" id="race-track-chip-weather">${weather === 'wet' ? '🌧️' : '☀️'} ${weatherLabel}</span>
+          <span class="race-track-chip" id="race-track-chip-lap">L1</span>
+        </div>
+      </div>`;
+  },
+
+  buildLiveRaceOrder({ lapSnapshots, currentLap, finalGrid, startPosMap, finalPosMap, progress, tick }) {
+    const snapshot = lapSnapshots[currentLap - 1];
+    if (snapshot && Array.isArray(snapshot.order) && snapshot.order.length) {
+      return snapshot.order.slice().sort((a, b) => a.pos - b.pos);
+    }
+    return finalGrid.map((car) => {
+      const startPos = startPosMap[car.id] || 20;
+      const endPos = finalPosMap[car.id] || startPos;
+      const wobble = Math.sin((tick * 0.45) + (car.id || '').length) * 0.35 * (1 - progress);
+      const score = (startPos * (1 - progress)) + (endPos * progress) + wobble;
+      return { ...car, pos: score };
+    }).sort((a, b) => a.pos - b.pos);
+  },
+
+  renderRaceTrackVisualization({ liveOrder, progress, totalLaps, currentLap, circuit, weather }) {
+    const carsLayer = document.getElementById('race-track-cars');
+    if (!carsLayer) return;
+
+    const lapChip = document.getElementById('race-track-chip-lap');
+    const weatherChip = document.getElementById('race-track-chip-weather');
+    if (lapChip) lapChip.textContent = `L${currentLap}/${totalLaps}`;
+    if (weatherChip) weatherChip.textContent = `${weather === 'wet' ? '🌧️' : '☀️'} ${this.getWeatherLabel(weather)}`;
+
+    const intraLapProgress = (progress * totalLaps) % 1;
+    const layout = circuit?.layout || 'mixed';
+    const estimatedLeaderLapMs = 92000;
+
+    carsLayer.innerHTML = (Array.isArray(liveOrder) ? liveOrder : []).slice(0, 20).map((car, idx) => {
+      let point;
+      if (car.retired) {
+        point = { x: 110 + ((idx % 5) * 42), y: 530 + (Math.floor(idx / 5) * 26) };
+      } else if (car.pit) {
+        const pitProgress = Math.max(0.08, Math.min(0.94, 0.12 + (((car.pitLossMs || 0) / 24000) * 0.7) + ((idx % 4) * 0.06)));
+        point = this.getRacePitLanePoint(pitProgress, layout);
+      } else {
+        const gapFraction = Number.isFinite(car.gapMs) ? (car.gapMs / estimatedLeaderLapMs) : (idx * 0.016);
+        const trackProgress = intraLapProgress - gapFraction;
+        const laneOffset = ((idx % 3) - 1) * 8;
+        point = this.getRaceTrackPoint(trackProgress, layout, laneOffset);
+      }
+
+      const aheadPoint = car.pit
+        ? this.getRacePitLanePoint(Math.min(1, Math.max(0, 0.16 + (((car.pitLossMs || 0) / 26000) * 0.72))), layout)
+        : this.getRaceTrackPoint(((intraLapProgress + 0.004) - ((Number.isFinite(car.gapMs) ? car.gapMs : (idx * 1500)) / estimatedLeaderLapMs)), layout, ((idx % 3) - 1) * 8);
+      const angle = Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI);
+      const tyreMeta = this.getTyreMeta(car.tyre);
+      const label = car.isPlayer || idx < 3 ? `<span class="race-car-label">P${Math.max(1, Math.round(car.pos || (idx + 1)))}</span>` : '';
+      return `
+        <div class="race-car-marker ${car.isPlayer ? 'player' : ''} ${car.pit ? 'pit' : ''} ${car.retired ? 'retired' : ''}" title="${car.name || car.pilotName || 'Car'}"
+             style="left:${(point.x / 10).toFixed(2)}%;top:${(point.y / 6.2).toFixed(2)}%;--car-angle:${angle.toFixed(1)}deg;--car-color:${car.color || '#888'};--tyre-color:${tyreMeta.color}">
+          <span class="race-car-core"></span>
+          <span class="race-car-tyre"></span>
+          ${label}
+        </div>`;
+    }).join('');
+  },
+
   getDriverStrategyDefaults(sharedStrategy, currentConfig = {}) {
     const basePitTyres = Array.isArray(currentConfig.pitTyres)
       ? currentConfig.pitTyres
@@ -1466,6 +1604,7 @@ const SCREENS = {
             <span class="race-condition">${weather==='wet'?'🌧️':'☀️'} ${weather.charAt(0).toUpperCase()+weather.slice(1)} · ${circuit.laps} ${__('laps')}</span>
             <span style="margin-left:auto;font-size:0.8rem;color:var(--t-secondary)">${liveStrategySummary} · ⏱️ ${runtimeLabel}</span>
           </div>
+          ${this.getRaceTrackStageMarkup(circuit, weather)}
           <div class="race-event-log" id="race-event-log">
             <div class="race-event" style="border-color:var(--c-border)">
               <span class="race-event-text">🏁 ${__('race_press_start')}</span>
@@ -1498,6 +1637,15 @@ const SCREENS = {
           </div>
         </div>
       </div>`;
+
+    this.renderRaceTrackVisualization({
+      liveOrder: [],
+      progress: 0,
+      totalLaps: circuit.laps || 1,
+      currentLap: 1,
+      circuit,
+      weather
+    });
   },
 
   runSimulation() {
@@ -1573,20 +1721,9 @@ const SCREENS = {
       return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
     };
 
-    const renderLiveGrid = (progress) => {
+    const renderLiveGrid = (live) => {
       const gl = document.getElementById('race-grid-list');
       if (!gl) return;
-      const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(progress * totalLaps) + 1));
-      const snapshot = lapSnapshots[currentLap - 1];
-      const live = snapshot && Array.isArray(snapshot.order) && snapshot.order.length
-        ? snapshot.order.slice().sort((a, b) => a.pos - b.pos)
-        : finalGrid.map((car) => {
-            const startPos = startPosMap[car.id] || 20;
-            const endPos = finalPosMap[car.id] || startPos;
-            const wobble = Math.sin((tick * 0.45) + (car.id || '').length) * 0.35 * (1 - progress);
-            const score = (startPos * (1 - progress)) + (endPos * progress) + wobble;
-            return { ...car, pos: score };
-          }).sort((a, b) => a.pos - b.pos);
 
       gl.innerHTML = live.slice(0, 20).map((car, idx) => {
         const gap = idx === 0
@@ -1661,12 +1798,24 @@ const SCREENS = {
       setTimeout(() => GL_APP.navigateTo('postrace'), 1000);
     };
 
-    const liveInterval = setInterval(() => {
+    let liveAnimationFrame = null;
+    const runLivePlayback = () => {
       tick += 1;
       const elapsed = Date.now() - startTs;
       const progress = Math.max(0, Math.min(1, elapsed / raceDurationMs));
       const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(progress * totalLaps) + 1));
       const remaining = raceDurationMs - elapsed;
+      const liveOrder = this.buildLiveRaceOrder({
+        lapSnapshots,
+        currentLap,
+        finalGrid,
+        startPosMap,
+        finalPosMap,
+        progress,
+        tick
+      });
+      const currentSnapshot = lapSnapshots[currentLap - 1];
+      const liveWeather = currentSnapshot?.weather || result.weather || next?.weather || 'dry';
 
       if (lapEl) {
         lapEl.textContent = `🏁 ${__('race_lap')} ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;
@@ -1686,13 +1835,29 @@ const SCREENS = {
         eventCursor += 1;
       }
 
-      renderLiveGrid(progress);
+      renderLiveGrid(liveOrder);
+      this.renderRaceTrackVisualization({
+        liveOrder,
+        progress,
+        totalLaps,
+        currentLap,
+        circuit: result.circuit || next?.circuit || GL_DATA.CIRCUITS[0],
+        weather: liveWeather
+      });
 
       if (progress >= 1) {
-        clearInterval(liveInterval);
+        if (liveAnimationFrame !== null) {
+          cancelAnimationFrame(liveAnimationFrame);
+          liveAnimationFrame = null;
+        }
         finishRace();
+        return;
       }
-    }, 1000);
+
+      liveAnimationFrame = requestAnimationFrame(runLivePlayback);
+    };
+
+    liveAnimationFrame = requestAnimationFrame(runLivePlayback);
   },
 
   // ===== POST-RACE SCREEN =====
