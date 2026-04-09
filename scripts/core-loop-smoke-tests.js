@@ -694,16 +694,33 @@ function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
     strategy: 'balanced',
     interventions: [{ lapPct: 30, pitBias: 'late' }, { lapPct: 70, pitBias: 'none' }]
   }, {}, () => 0.9);
+  const secondStopSooner = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'double',
+    pitLap: 34,
+    strategy: 'balanced',
+    pitTyres: ['hard', 'soft'],
+    interventions: [{ lapPct: 34, pitBias: 'none' }, { lapPct: 58, pitBias: 'none' }]
+  }, {}, () => 0.9);
+  const secondStopLater = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'double',
+    pitLap: 34,
+    strategy: 'balanced',
+    pitTyres: ['hard', 'soft'],
+    interventions: [{ lapPct: 34, pitBias: 'none' }, { lapPct: 78, pitBias: 'none' }]
+  }, {}, () => 0.9);
 
   const singlePitLaps = getPlayerPitLaps(single, 'Driver One');
   const doublePitLaps = getPlayerPitLaps(double, 'Driver One');
   const earlyPitLaps = getPlayerPitLaps(early, 'Driver One');
   const latePitLaps = getPlayerPitLaps(late, 'Driver One');
+  const secondSoonerPitLaps = getPlayerPitLaps(secondStopSooner, 'Driver One');
+  const secondLaterPitLaps = getPlayerPitLaps(secondStopLater, 'Driver One');
 
   assert.strictEqual(singlePitLaps.length, 1, 'single pit plan should stop once');
   assert.strictEqual(doublePitLaps.length, 2, 'double pit plan should stop twice');
   assert.strictEqual(double.playerCars[0].tyre, 'soft', 'second pit tyre selection should define the final compound on a double-stop race');
   assert.ok(earlyPitLaps[0] < latePitLaps[0], 'early pit bias should move the first stop ahead of a late pit bias');
+  assert.ok(secondSoonerPitLaps[1] < secondLaterPitLaps[1], 'the second configured stop window should move the second stop timing on a double-stop plan');
 }
 
 function testAggressionAffectsRacePace(engine, stateApi, sandbox) {
@@ -726,7 +743,7 @@ function testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox) {
   let lowRiskScore = 0;
   let highRiskScore = 0;
 
-  for (let seed = 1; seed <= 24; seed++) {
+  for (let seed = 1; seed <= 64; seed++) {
     const lowState = createBaseState();
     const highState = createBaseState();
     lowState.season.calendar[0].circuit.layout = 'high-speed';
@@ -734,7 +751,11 @@ function testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox) {
 
     const lowRisk = simulateSingleDriverRace(engine, stateApi, lowState, sandbox, {
       tyre: 'intermediate',
-      riskLevel: 10,
+      strategy: 'conservative',
+      pitPlan: 'single',
+      pitLap: 85,
+      riskLevel: 0,
+      interventions: [{ lapPct: 85, pitBias: 'none' }, { lapPct: 95, pitBias: 'none' }],
       setup: { aeroBalance: 50, wetBias: 0 }
     }, {
       weather: 'wet',
@@ -743,7 +764,11 @@ function testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox) {
 
     const highRisk = simulateSingleDriverRace(engine, stateApi, highState, sandbox, {
       tyre: 'intermediate',
-      riskLevel: 90,
+      strategy: 'conservative',
+      pitPlan: 'single',
+      pitLap: 85,
+      riskLevel: 100,
+      interventions: [{ lapPct: 85, pitBias: 'none' }, { lapPct: 95, pitBias: 'none' }],
       setup: { aeroBalance: 50, wetBias: 0 }
     }, {
       weather: 'wet',

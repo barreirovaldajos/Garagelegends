@@ -364,6 +364,27 @@ function normalizeTyreForWeather(tyre, weather) {
   return tyre;
 }
 
+function getConfiguredStopWindows(strategy = {}, totalLaps) {
+  const interventions = Array.isArray(strategy.interventions) ? strategy.interventions : [];
+  const firstPctBase = Number.isFinite(interventions[0]?.lapPct)
+    ? interventions[0].lapPct
+    : (Number.isFinite(strategy.pitLap) ? strategy.pitLap : 50);
+  const defaultSecondPct = Math.min(95, Math.max(firstPctBase + 20, 70));
+  const secondPctBase = Number.isFinite(interventions[1]?.lapPct)
+    ? Math.max(interventions[1].lapPct, firstPctBase + 8)
+    : defaultSecondPct;
+  const applyBiasToLap = (baseLap, bias) => {
+    if (bias === 'early') return Math.max(2, baseLap - 2);
+    if (bias === 'late') return Math.min(totalLaps - 2, baseLap + 2);
+    return baseLap;
+  };
+  const firstBaseLap = Math.floor(clamp(firstPctBase, 10, 95) / 100 * totalLaps) + 1;
+  const secondBaseLap = Math.floor(clamp(secondPctBase, 10, 95) / 100 * totalLaps) + 1;
+  const firstLap = applyBiasToLap(firstBaseLap, interventions[0]?.pitBias || 'none');
+  const secondLap = Math.min(totalLaps - 2, Math.max(firstLap + 6, applyBiasToLap(secondBaseLap, interventions[1]?.pitBias || 'none')));
+  return { firstLap, secondLap };
+}
+
 function getPitStopTimeMs(entry, weather = 'dry', safetyCarActive = false, staffFx = {}) {
   const aiPitSkill = entry && entry.strategy && entry.strategy.aiMeta
     ? entry.strategy.aiMeta.pitSkill
@@ -762,14 +783,13 @@ function simulateRace(options = {}) {
     if ((s.pitPlan || 'single') === 'adaptive' && (profile.tyreDegMult > 1.05 || weather === 'wet')) {
       maxPitStops = 2;
     }
-    const firstPit = Math.floor((s.pitLap || 50) / 100 * totalLaps) + 1;
-    const secondPit = Math.min(totalLaps - 2, firstPit + Math.max(7, Math.round(totalLaps * 0.35)));
+    const stopWindows = getConfiguredStopWindows(s, totalLaps);
     runtimes[entry.id] = {
       wear: 0,
       pitStopsDone: 0,
       maxPitStops,
-      adaptivePitLap: firstPit,
-      adaptivePitLap2: secondPit
+      adaptivePitLap: stopWindows.firstLap,
+      adaptivePitLap2: stopWindows.secondLap
     };
   });
 
@@ -777,23 +797,6 @@ function simulateRace(options = {}) {
     positions.forEach((entry) => {
       entry.pit = false;
       entry.lastPitLossMs = 0;
-    });
-
-    positions.filter((e) => e.isPlayer && !e.retired).forEach((entry) => {
-      const rt = runtimes[entry.id];
-      if (!rt) return;
-      const s = entry.strategy || leadDriver.strategy;
-      const interventions = Array.isArray(s.interventions) ? s.interventions : [];
-      const intervention = interventions.find((it) => Math.floor((it.lapPct || 0) / 100 * totalLaps) + 1 === lap);
-      if (!intervention) return;
-      if (intervention.pitBias === 'early' && rt.pitStopsDone === 0) {
-        rt.adaptivePitLap = Math.max(2, rt.adaptivePitLap - 2);
-        events.push({ lap, type: 'info', text: `🎛️ ${entry.pilotName}: pit window pulled earlier.` });
-      }
-      if (intervention.pitBias === 'late' && rt.pitStopsDone === 0) {
-        rt.adaptivePitLap = Math.min(totalLaps - 2, rt.adaptivePitLap + 2);
-        events.push({ lap, type: 'info', text: `🎛️ ${entry.pilotName}: pit window delayed.` });
-      }
     });
 
     const uncertainty = forecast ? (1 - ((forecast.confidence || 60) / 100)) : 0.35;
@@ -910,7 +913,7 @@ function simulateRace(options = {}) {
       const entryLabel = entry.pilotName || entry.name || 'Driver';
       if (!rt) return;
 
-      if ((s.strategy === 'tactical' || s.strategy === 'balanced') && rt.pitStopsDone < rt.maxPitStops) {
+      if ((s.pitPlan || 'single') === 'adaptive' && (s.strategy === 'tactical' || s.strategy === 'balanced') && rt.pitStopsDone < rt.maxPitStops) {
         const nextPlannedPit = rt.pitStopsDone === 0 ? rt.adaptivePitLap : rt.adaptivePitLap2;
         if (liveWeather === 'wet' && rt.wear > 18 && lap >= nextPlannedPit - 3) {
           if (rt.pitStopsDone === 0) rt.adaptivePitLap = Math.max(2, lap);

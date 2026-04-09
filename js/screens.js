@@ -82,11 +82,12 @@ const SCREENS = {
     const sourceInterventions = Array.isArray(currentConfig.interventions) && currentConfig.interventions.length
       ? currentConfig.interventions
       : (Array.isArray(sharedStrategy.interventions) ? sharedStrategy.interventions : []);
-    return {
+    const defaultPitLap = Number.isFinite(currentConfig.pitLap) ? currentConfig.pitLap : (sharedStrategy.pitLap || 50);
+    return this.syncDriverStopWindows({
       tyre: currentConfig.tyre || sharedStrategy.tyre || 'medium',
       aggression: Number.isFinite(currentConfig.aggression) ? currentConfig.aggression : (sharedStrategy.aggression || 50),
       riskLevel: Number.isFinite(currentConfig.riskLevel) ? currentConfig.riskLevel : (sharedStrategy.riskLevel || 40),
-      pitLap: Number.isFinite(currentConfig.pitLap) ? currentConfig.pitLap : (sharedStrategy.pitLap || 50),
+      pitLap: defaultPitLap,
       engineMode: currentConfig.engineMode || sharedStrategy.engineMode || 'normal',
       pitPlan: currentConfig.pitPlan || sharedStrategy.pitPlan || 'single',
       strategy: currentConfig.strategy || sharedStrategy.strategy || 'balanced',
@@ -97,10 +98,37 @@ const SCREENS = {
         wetBias: Number.isFinite(baseSetup.wetBias) ? baseSetup.wetBias : 50
       },
       interventions: [0, 1].map((idx) => ({
-        lapPct: Number.isFinite(sourceInterventions[idx]?.lapPct) ? sourceInterventions[idx].lapPct : (idx === 0 ? 30 : 70),
+        lapPct: Number.isFinite(sourceInterventions[idx]?.lapPct) ? sourceInterventions[idx].lapPct : (idx === 0 ? defaultPitLap : 70),
         pitBias: sourceInterventions[idx]?.pitBias || 'none'
       }))
+    });
+  },
+
+  syncDriverStopWindows(cfg) {
+    if (!cfg) return cfg;
+    const clampPct = (value, fallback) => {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.max(10, Math.min(95, Math.round(n)));
     };
+    if (!Array.isArray(cfg.interventions)) {
+      cfg.interventions = [{ lapPct: cfg.pitLap || 50, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }];
+    }
+    const firstLapPct = clampPct(Number.isFinite(cfg.pitLap) ? cfg.pitLap : cfg.interventions[0]?.lapPct, 50);
+    const secondFallback = Math.min(95, Math.max(firstLapPct + 20, 70));
+    const secondLapPct = Math.max(firstLapPct + 8, clampPct(cfg.interventions[1]?.lapPct, secondFallback));
+    cfg.pitLap = firstLapPct;
+    cfg.interventions = [
+      {
+        lapPct: firstLapPct,
+        pitBias: cfg.interventions[0]?.pitBias || 'none'
+      },
+      {
+        lapPct: Math.min(95, secondLapPct),
+        pitBias: cfg.interventions[1]?.pitBias || 'none'
+      }
+    ];
+    return cfg;
   },
 
 
@@ -1021,7 +1049,7 @@ const SCREENS = {
                     <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('double')}</option>
                     <option value="adaptive" ${cfg.pitPlan === 'adaptive' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('adaptive')}</option>
                   </select>
-                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">${__('prerace_pit_window_label', 'Pit Window')}: <strong id="driver-pitlap-label-${p.id}" style="margin-left:6px">${cfg.pitLap}%</strong></div>
+                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">${__('prerace_pit_1', 'Pit 1')}: <strong id="driver-pitlap-label-${p.id}" style="margin-left:6px">${cfg.pitLap}%</strong></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
                   <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
@@ -1063,18 +1091,25 @@ const SCREENS = {
                   </div>
                 </div>
                 <div class="divider"></div>
-                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_tactical_calls', 'Tactical Calls')}</div>
+                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_stop_schedule', 'Stop schedule')}</div>
+                <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:8px">${cfg.pitPlan === 'single' ? __('prerace_stop_2_hint', 'Used only for two-stop or adaptive plans') : __('prerace_tactical_calls', 'Tactical Calls')}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                   ${[0, 1].map((idx) => `
+                    ${(() => {
+                      const stopLabel = idx === 0 ? __('prerace_pit_1', 'Pit 1') : __('prerace_pit_2', 'Pit 2');
+                      const disabled = idx === 1 && cfg.pitPlan === 'single';
+                      return `
                     <div>
-                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">${__('prerace_window_label', 'Window')} ${idx + 1}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
-                      <input type="range" min="10" max="95" value="${cfg.interventions[idx].lapPct}" oninput="document.getElementById('driver-iv-${idx}-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'lapPct',+this.value,true)" style="width:100%">
-                      <select onchange="GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'pitBias',this.value)" style="width:100%;margin-top:4px">
-                        <option value="none" ${cfg.interventions[idx].pitBias === 'none' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel('none')}</option>
-                        <option value="early" ${cfg.interventions[idx].pitBias === 'early' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel('early')}</option>
-                        <option value="late" ${cfg.interventions[idx].pitBias === 'late' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel('late')}</option>
+                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">${stopLabel}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
+                      <input type="range" min="10" max="95" value="${cfg.interventions[idx].lapPct}" oninput="document.getElementById('driver-iv-${idx}-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'lapPct',+this.value,true)" style="width:100%" ${disabled ? 'disabled' : ''}>
+                      <select onchange="GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'pitBias',this.value)" style="width:100%;margin-top:4px" ${disabled ? 'disabled' : ''}>
+                        <option value="none" ${cfg.interventions[idx].pitBias === 'none' ? 'selected' : ''}>${__('prerace_stop_adjust_label', 'Stop adjustment')}: ${this.getPitBiasLabel('none')}</option>
+                        <option value="early" ${cfg.interventions[idx].pitBias === 'early' ? 'selected' : ''}>${__('prerace_stop_adjust_label', 'Stop adjustment')}: ${this.getPitBiasLabel('early')}</option>
+                        <option value="late" ${cfg.interventions[idx].pitBias === 'late' ? 'selected' : ''}>${__('prerace_stop_adjust_label', 'Stop adjustment')}: ${this.getPitBiasLabel('late')}</option>
                       </select>
                     </div>
+                      `;
+                    })()}
                   `).join('')}
                 </div>
               </div>
@@ -1220,6 +1255,7 @@ const SCREENS = {
     const cfg = this.ensureDriverConfig(pid);
     if (!cfg) return;
     cfg[key] = value;
+    if (key === 'pitLap' || key === 'pitPlan') this.syncDriverStopWindows(cfg);
     window._advisorStrategySource = 'manual';
     if (!silent) this.renderPreRace();
   },
@@ -1251,6 +1287,8 @@ const SCREENS = {
       cfg.interventions[idx] = { lapPct: idx === 0 ? 30 : 70, pitBias: 'none' };
     }
     cfg.interventions[idx][key] = value;
+    if (idx === 0 && key === 'lapPct') cfg.pitLap = value;
+    this.syncDriverStopWindows(cfg);
     window._advisorStrategySource = 'manual';
     if (!silent) this.renderPreRace();
   },
