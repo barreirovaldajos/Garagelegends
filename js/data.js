@@ -217,16 +217,16 @@ function generateCalendar(division) {
 
 // ---- AI TEAM NAMES ----
 const AI_TEAMS = [
-  { id:'ai_t1', name:'Red Arrow Racing',   color:'#cc2222', flag:'🇩🇪' },
-  { id:'ai_t2', name:'Pacific Motorsport', color:'#2277cc', flag:'🇯🇵' },
-  { id:'ai_t3', name:'Volta Corse',        color:'#22aa55', flag:'🇮🇹' },
-  { id:'ai_t4', name:'Vortex Racing',      color:'#9944cc', flag:'🇫🇷' },
-  { id:'ai_t5', name:'Iron Horse GP',      color:'#cc7722', flag:'🇺🇸' },
-  { id:'ai_t6', name:'Southern Cross SC',  color:'#22ccaa', flag:'🇦🇺' },
-  { id:'ai_t7', name:'Nordic RST',         color:'#4488ff', flag:'🇸🇪' },
-  { id:'ai_t8', name:'Pampas Motorsport',  color:'#ddcc22', flag:'🇦🇷' },
-  { id:'ai_t9', name:'Sahara Velocity',    color:'#ff8833', flag:'🇲🇦' },
-  { id:'ai_t10',name:'Baltic Speed Co.',   color:'#88ccff', flag:'🇱🇻' },
+  { id:'ai_t1', name:'Red Arrow Racing',   color:'#00A6FB', flag:'🇩🇪' },
+  { id:'ai_t2', name:'Pacific Motorsport', color:'#2EC4B6', flag:'🇯🇵' },
+  { id:'ai_t3', name:'Volta Corse',        color:'#8AC926', flag:'🇮🇹' },
+  { id:'ai_t4', name:'Vortex Racing',      color:'#6A4C93', flag:'🇫🇷' },
+  { id:'ai_t5', name:'Iron Horse GP',      color:'#FF9F1C', flag:'🇺🇸' },
+  { id:'ai_t6', name:'Southern Cross SC',  color:'#06D6A0', flag:'🇦🇺' },
+  { id:'ai_t7', name:'Nordic RST',         color:'#FFD166', flag:'🇸🇪' },
+  { id:'ai_t8', name:'Pampas Motorsport',  color:'#D65DB1', flag:'🇦🇷' },
+  { id:'ai_t9', name:'Sahara Velocity',    color:'#3A86FF', flag:'🇲🇦' },
+  { id:'ai_t10',name:'Baltic Speed Co.',   color:'#43AA8B', flag:'🇱🇻' },
 ];
 
 // ---- PHILOSOPHIES ----

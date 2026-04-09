@@ -380,6 +380,11 @@ const I18N_DATA = {
     finances_facility_costs: 'Facility Costs',
     finances_health_title: 'Financial Health',
     finances_health_label: 'Status',
+    finances_race_settlement: 'Race Weekend Settlement',
+    finances_race_settlement_hint: 'Race prizes are shown separately from recurring weekly income.',
+    finances_last_race: 'Latest race',
+    finances_total_settlement: 'Total settlement',
+    finances_no_race_settlement: 'No race settlement recorded yet. Finish a race weekend to see prize money here.',
 
     // Market
     market_eyebrow: 'Transfer Window',
@@ -1072,6 +1077,11 @@ const I18N_DATA = {
     finances_facility_costs: 'Costes de Instalaciones',
     finances_health_title: 'Salud Financiera',
     finances_health_label: 'Estado',
+    finances_race_settlement: 'Liquidacion de carrera',
+    finances_race_settlement_hint: 'Los premios se muestran aparte del ingreso semanal recurrente.',
+    finances_last_race: 'Ultima carrera',
+    finances_total_settlement: 'Liquidacion total',
+    finances_no_race_settlement: 'Aun no hay una liquidacion de carrera registrada. Termina un fin de semana de carrera para ver el premio aqui.',
 
     // Market
     market_eyebrow: 'Ventana de Fichajes',

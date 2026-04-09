@@ -274,6 +274,26 @@ function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function hexToRgb(color) {
+  const hex = String(color || '').trim().replace('#', '');
+  const normalized = hex.length === 3
+    ? hex.split('').map((part) => `${part}${part}`).join('')
+    : hex;
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null;
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16)
+  };
+}
+
+function getColorDistance(colorA, colorB) {
+  const a = hexToRgb(colorA);
+  const b = hexToRgb(colorB);
+  if (!a || !b) return Number.POSITIVE_INFINITY;
+  return Math.sqrt(((a.r - b.r) ** 2) + ((a.g - b.g) ** 2) + ((a.b - b.b) ** 2));
+}
+
 function createSeededRandom(seed) {
   let state = seed >>> 0;
   return () => {
@@ -992,6 +1012,28 @@ function testTyreModelMatchesStrategicHierarchy(engine) {
   assert.ok(engine.getTyreUsefulLife('wet', 'dry', totalLaps) < engine.getTyreUsefulLife('intermediate', 'dry', totalLaps), 'full wets should overheat and fade faster than intermediates on a dry track');
 }
 
+function testAiTeamColorsStayDistinctFromPlayer(engine, stateApi) {
+  const state = createBaseState();
+  state.team.colors.primary = '#e8292a';
+  stateApi._state = state;
+
+  const grid = engine.buildRaceGrid(state.pilots[0], 'dry', state.season.calendar[0].circuit, {
+    tyre: 'medium',
+    aggression: 50,
+    riskLevel: 40,
+    engineMode: 'normal',
+    pitPlan: 'single',
+    strategy: 'balanced',
+    setup: { aeroBalance: 50, wetBias: 50 }
+  });
+
+  const aiTeamColors = Array.from(new Set(grid.filter((entry) => !entry.isPlayer).map((entry) => entry.color)));
+  assert.ok(aiTeamColors.length >= 9, 'AI teams should expose a broad unique color palette');
+  aiTeamColors.forEach((color) => {
+    assert.ok(getColorDistance(color, state.team.colors.primary) >= 110, `AI team color ${color} should not be too close to the player color`);
+  });
+}
+
 function run() {
   const { engine, stateApi, sandbox } = loadEngine();
   if (!engine) throw new Error('Could not load GL_ENGINE from engine.js');
@@ -1024,8 +1066,9 @@ function run() {
   testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi);
   testCircuitCatalogTargetsModernGrandPrixDistances();
   testTyreModelMatchesStrategicHierarchy(engine);
+  testAiTeamColorsStayDistinctFromPlayer(engine, stateApi);
 
-  console.log('✓ Core loop smoke tests passed (28 cases).');
+  console.log('✓ Core loop smoke tests passed (29 cases).');
 }
 
 run();

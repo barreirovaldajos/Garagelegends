@@ -60,6 +60,47 @@ function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+const AI_TEAM_COLOR_POOL = ['#00A6FB', '#2EC4B6', '#8AC926', '#6A4C93', '#FF9F1C', '#06D6A0', '#FFD166', '#D65DB1', '#3A86FF', '#43AA8B'];
+const AI_TEAM_ALT_COLOR_POOL = ['#118AB2', '#7B2CBF', '#90BE6D', '#F9C74F', '#4CC9F0', '#F8961E', '#577590', '#B8DE6F', '#4D96FF', '#C77DFF'];
+
+function hexToRgb(color) {
+  const hex = String(color || '').trim().replace('#', '');
+  const normalized = hex.length === 3
+    ? hex.split('').map((part) => `${part}${part}`).join('')
+    : hex;
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return null;
+  return {
+    r: Number.parseInt(normalized.slice(0, 2), 16),
+    g: Number.parseInt(normalized.slice(2, 4), 16),
+    b: Number.parseInt(normalized.slice(4, 6), 16)
+  };
+}
+
+function getColorDistance(colorA, colorB) {
+  const a = hexToRgb(colorA);
+  const b = hexToRgb(colorB);
+  if (!a || !b) return Number.POSITIVE_INFINITY;
+  return Math.sqrt(((a.r - b.r) ** 2) + ((a.g - b.g) ** 2) + ((a.b - b.b) ** 2));
+}
+
+function getVisualAiTeams() {
+  const playerColor = S.getState()?.team?.colors?.primary || '#e8292a';
+  const usedColors = new Set();
+  return (D.AI_TEAMS || []).map((team, index) => {
+    let color = AI_TEAM_COLOR_POOL[index % AI_TEAM_COLOR_POOL.length] || team.color;
+    if (getColorDistance(color, playerColor) < 110) {
+      color = AI_TEAM_ALT_COLOR_POOL.find((candidate) => !usedColors.has(candidate) && getColorDistance(candidate, playerColor) >= 120)
+        || AI_TEAM_ALT_COLOR_POOL[index % AI_TEAM_ALT_COLOR_POOL.length]
+        || color;
+    }
+    usedColors.add(color);
+    return {
+      ...team,
+      color
+    };
+  });
+}
+
 function getRaceStaffEffects(state) {
   const staff = state.staff || [];
   if (!staff.length) {
@@ -596,7 +637,7 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
     tyre: 'medium', wear: 0, gaps: 0
   }];
 
-  const aiTeams = (D.AI_TEAMS || []).slice(0, 9);
+  const aiTeams = getVisualAiTeams().slice(0, 9);
   aiTeams.forEach((t) => {
     for (let carSlot = 1; carSlot <= 2; carSlot++) {
       const aiProfile = buildAiDriverProfile(t, carSlot, weather, circuit, profile, car);
@@ -1712,7 +1753,7 @@ function applyEventChoice(event, choiceIndex) {
 
 // ---- build initial AI standings ----
 function buildInitialStandings(division) {
-  const teams = D.AI_TEAMS.slice(0, 9);
+  const teams = getVisualAiTeams().slice(0, 9);
   const standings = teams.map((t, i) => ({
     id: t.id, name: t.name, color: t.color, flag: t.flag,
     points: 0, wins: 0, position: i + 2, bestResult: 0
@@ -1732,6 +1773,19 @@ function updateStandings(raceResult) {
     state.standings = buildInitialStandings((state.season && state.season.division) || 8);
   }
   let standings = state.standings;
+  const visualTeams = Object.fromEntries(getVisualAiTeams().map((team) => [team.id, team]));
+  standings.forEach((entry) => {
+    if (entry.id === 'player') {
+      entry.color = state.team.colors.primary;
+      return;
+    }
+    const visualTeam = visualTeams[entry.id];
+    if (visualTeam) {
+      entry.color = visualTeam.color;
+      entry.flag = visualTeam.flag;
+      entry.name = visualTeam.name;
+    }
+  });
   const { position, points, finalGrid, playerCars } = raceResult;
   const earnedPoints = Number.isFinite(points) ? points : 0;
   const bestPlayerPos = Array.isArray(playerCars) && playerCars.length

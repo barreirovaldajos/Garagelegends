@@ -1107,6 +1107,9 @@ const SCREENS = {
     const el = document.getElementById('screen-finances');
     if (!el) return;
     const history = fi.history || [];
+    const lastRaceSettlement = fi.lastRaceSettlement && typeof fi.lastRaceSettlement === 'object'
+      ? fi.lastRaceSettlement
+      : null;
     const breakdown = window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, expenses: 0, net: 0, sponsorIncome: 0, fanRevenue: 0, divisionGrant: 0, salaries: 0, hqCost: 0, contractCost: 0 };
     const income = breakdown.income;
     const expenses = breakdown.expenses;
@@ -1116,6 +1119,21 @@ const SCREENS = {
       ? __('dash_finance_critical_state')
       : (deficitStreak > 0 ? __('dash_finance_warning_state') : __('dash_finance_healthy_state'));
     const healthColor = critical ? 'var(--c-red)' : (deficitStreak > 0 ? 'var(--c-gold)' : 'var(--c-green)');
+    const settlementPrize = Number(lastRaceSettlement?.prizeMoney || 0);
+    const settlementWeekly = Number(lastRaceSettlement?.weeklyNetDelta || 0);
+    const settlementTotal = Number(lastRaceSettlement?.totalDelta || 0);
+    const settlementBefore = Number(lastRaceSettlement?.creditsBefore || 0);
+    const settlementAfter = Number(lastRaceSettlement?.creditsAfterWeekly || 0);
+    const settlementRound = Number.isFinite(lastRaceSettlement?.round) ? `R${lastRaceSettlement.round}` : '—';
+    const settlementDate = Number.isFinite(lastRaceSettlement?.ts)
+      ? new Date(lastRaceSettlement.ts).toLocaleString()
+      : '';
+    const settlementPlayerSummary = Array.isArray(lastRaceSettlement?.playerCars)
+      ? lastRaceSettlement.playerCars
+          .filter((car) => Number.isFinite(car?.position))
+          .map((car) => `${car.pilotName || __('nav_team')} P${car.position}`)
+          .join(' · ')
+      : '';
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -1132,6 +1150,25 @@ const SCREENS = {
           <div style="font-size:0.82rem;color:var(--t-secondary)">${__('dash_finance_deficit_streak_label')}: <strong>${deficitStreak}</strong> ${__('dash_finance_deficit_streak_weeks')}</div>
           <div style="font-size:0.82rem;color:${breakdown.net>=0?'var(--c-green)':'var(--c-red)'}">${__('finances_weekly_net')}: <strong>${GL_UI.fmtSign(breakdown.net)}</strong></div>
         </div>
+      </div>
+      <div class="card mb-4">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div>
+            <div class="section-eyebrow">${__('finances_race_settlement')}</div>
+            <div style="font-size:0.9rem;font-weight:700;color:var(--t-primary)">${__('finances_last_race')}: ${settlementRound}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">${__('finances_race_settlement_hint')}</div>
+          </div>
+          <div style="font-size:0.76rem;color:var(--t-secondary);text-align:right">${settlementDate || ''}${settlementPlayerSummary ? `<br>${settlementPlayerSummary}` : ''}</div>
+        </div>
+        ${lastRaceSettlement ? `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:var(--s-4)">
+            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--c-green)">${GL_UI.fmtSign(settlementPrize)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('postrace_prize')}</div></div>
+            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${settlementWeekly >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(settlementWeekly)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_weekly_net')}</div></div>
+            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${settlementTotal >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(settlementTotal)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_total_settlement')}</div></div>
+            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(settlementBefore)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('postrace_credits_before')}</div></div>
+            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(settlementAfter)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('postrace_credits_after')}</div></div>
+          </div>` : `
+          <p style="color:var(--t-tertiary);font-size:0.82rem;margin-top:var(--s-4)">${__('finances_no_race_settlement')}</p>`}
       </div>
       <div class="grid-2 mb-6">
         <div class="card">
