@@ -19,13 +19,57 @@ const SCREENS = {
 
   getTyreMeta(tyre) {
     const compounds = {
-      soft: { label: 'Soft', shortLabel: 'S', color: '#ff4d4f', paceText: '130% seco · 40% lluvia', durabilityText: 'Vida útil 3 vueltas' },
-      medium: { label: 'Medium', shortLabel: 'M', color: '#f1c40f', paceText: '100% seco · 60% lluvia', durabilityText: 'Vida útil 8 vueltas' },
-      hard: { label: 'Hard', shortLabel: 'H', color: '#f5f7fa', paceText: '80% seco · 30% lluvia', durabilityText: 'Vida útil 15 vueltas' },
-      intermediate: { label: 'Intermediate', shortLabel: 'I', color: '#2ecc71', paceText: '60% seco · 100% lluvia', durabilityText: 'Vida útil 8 vueltas' },
-      wet: { label: 'Wet', shortLabel: 'W', color: '#3498db', paceText: '30% seco · 80% lluvia', durabilityText: 'Vida útil 12 vueltas' }
+      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: '130% seco · 40% lluvia', durabilityText: 'Vida útil 3 vueltas' },
+      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: '100% seco · 60% lluvia', durabilityText: 'Vida útil 8 vueltas' },
+      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: '80% seco · 30% lluvia', durabilityText: 'Vida útil 15 vueltas' },
+      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: '60% seco · 100% lluvia', durabilityText: 'Vida útil 8 vueltas' },
+      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: '30% seco · 80% lluvia', durabilityText: 'Vida útil 12 vueltas' }
     };
     return compounds[tyre] || compounds.medium;
+  },
+
+  getTrackLayoutLabel(layout) {
+    const map = {
+      'high-speed': __('track_layout_high_speed', 'High-speed'),
+      power: __('track_layout_power', 'Power'),
+      technical: __('track_layout_technical', 'Technical'),
+      mixed: __('track_layout_mixed', 'Mixed'),
+      endurance: __('track_layout_endurance', 'Endurance')
+    };
+    return map[layout] || layout || '—';
+  },
+
+  getEngineModeLabel(mode) {
+    const map = {
+      eco: __('engine_mode_eco', 'Eco'),
+      normal: __('engine_mode_normal', 'Normal'),
+      push: __('engine_mode_push', 'Push')
+    };
+    return map[mode] || String(mode || '').toUpperCase();
+  },
+
+  getPitPlanLabel(plan) {
+    const map = {
+      single: __('pit_plan_single', 'One stop'),
+      double: __('pit_plan_double', 'Two stops'),
+      adaptive: __('pit_plan_adaptive', 'Adaptive')
+    };
+    return map[plan] || plan || '—';
+  },
+
+  getPitBiasLabel(bias) {
+    const map = {
+      none: __('pit_bias_none', 'Neutral'),
+      early: __('pit_bias_early', 'Early'),
+      late: __('pit_bias_late', 'Late')
+    };
+    return map[bias] || bias || '—';
+  },
+
+  getWeatherLabel(weather) {
+    if (weather === 'wet') return __('prerace_rain_expected', 'Rain Expected').replace('🌧️ ', '');
+    if (weather === 'dry') return __('prerace_dry2', 'Dry').replace('☀️ ', '');
+    return weather || '—';
   },
 
   getDriverStrategyDefaults(sharedStrategy, currentConfig = {}) {
@@ -961,74 +1005,74 @@ const SCREENS = {
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
                   <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','tyre',this.value)">
-                    <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>Tyre: Soft</option>
-                    <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>Tyre: Medium</option>
-                    <option value="hard" ${cfg.tyre === 'hard' ? 'selected' : ''}>Tyre: Hard</option>
-                    <option value="intermediate" ${cfg.tyre === 'intermediate' ? 'selected' : ''}>Tyre: Intermediate</option>
-                    <option value="wet" ${cfg.tyre === 'wet' ? 'selected' : ''}>Tyre: Wet</option>
+                    <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_soft', 'Soft')}</option>
+                    <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_medium', 'Medium')}</option>
+                    <option value="hard" ${cfg.tyre === 'hard' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_hard', 'Hard')}</option>
+                    <option value="intermediate" ${cfg.tyre === 'intermediate' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_intermediate', 'Intermediate')}</option>
+                    <option value="wet" ${cfg.tyre === 'wet' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_wet', 'Wet')}</option>
                   </select>
                   <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','engineMode',this.value)">
-                    <option value="eco" ${cfg.engineMode === 'eco' ? 'selected' : ''}>Engine: ECO</option>
-                    <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>Engine: NORMAL</option>
-                    <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>Engine: PUSH</option>
+                    <option value="eco" ${cfg.engineMode === 'eco' ? 'selected' : ''}>${__('prerace_engine_label', 'Engine')}: ${this.getEngineModeLabel('eco')}</option>
+                    <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>${__('prerace_engine_label', 'Engine')}: ${this.getEngineModeLabel('normal')}</option>
+                    <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>${__('prerace_engine_label', 'Engine')}: ${this.getEngineModeLabel('push')}</option>
                   </select>
                   <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','pitPlan',this.value)">
-                    <option value="single" ${cfg.pitPlan === 'single' || !cfg.pitPlan ? 'selected' : ''}>Pit Plan: Single</option>
-                    <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>Pit Plan: Double</option>
-                    <option value="adaptive" ${cfg.pitPlan === 'adaptive' ? 'selected' : ''}>Pit Plan: Adaptive</option>
+                    <option value="single" ${cfg.pitPlan === 'single' || !cfg.pitPlan ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('single')}</option>
+                    <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('double')}</option>
+                    <option value="adaptive" ${cfg.pitPlan === 'adaptive' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('adaptive')}</option>
                   </select>
-                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">Pit Window: <strong id="driver-pitlap-label-${p.id}" style="margin-left:6px">${cfg.pitLap}%</strong></div>
+                  <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">${__('prerace_pit_window_label', 'Pit Window')}: <strong id="driver-pitlap-label-${p.id}" style="margin-left:6px">${cfg.pitLap}%</strong></div>
                 </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
                   <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
-                    <option value="soft" ${cfg.pitTyres?.[0] === 'soft' ? 'selected' : ''}>Pit 1: Soft</option>
-                    <option value="medium" ${cfg.pitTyres?.[0] === 'medium' ? 'selected' : ''}>Pit 1: Medium</option>
-                    <option value="hard" ${cfg.pitTyres?.[0] === 'hard' ? 'selected' : ''}>Pit 1: Hard</option>
-                    <option value="intermediate" ${cfg.pitTyres?.[0] === 'intermediate' ? 'selected' : ''}>Pit 1: Intermediate</option>
-                    <option value="wet" ${cfg.pitTyres?.[0] === 'wet' ? 'selected' : ''}>Pit 1: Wet</option>
+                    <option value="soft" ${cfg.pitTyres?.[0] === 'soft' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_soft', 'Soft')}</option>
+                    <option value="medium" ${cfg.pitTyres?.[0] === 'medium' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_medium', 'Medium')}</option>
+                    <option value="hard" ${cfg.pitTyres?.[0] === 'hard' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_hard', 'Hard')}</option>
+                    <option value="intermediate" ${cfg.pitTyres?.[0] === 'intermediate' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_intermediate', 'Intermediate')}</option>
+                    <option value="wet" ${cfg.pitTyres?.[0] === 'wet' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_wet', 'Wet')}</option>
                   </select>
                   <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',1,this.value)">
-                    <option value="soft" ${cfg.pitTyres?.[1] === 'soft' ? 'selected' : ''}>Pit 2: Soft</option>
-                    <option value="medium" ${cfg.pitTyres?.[1] === 'medium' ? 'selected' : ''}>Pit 2: Medium</option>
-                    <option value="hard" ${cfg.pitTyres?.[1] === 'hard' ? 'selected' : ''}>Pit 2: Hard</option>
-                    <option value="intermediate" ${cfg.pitTyres?.[1] === 'intermediate' ? 'selected' : ''}>Pit 2: Intermediate</option>
-                    <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>Pit 2: Wet</option>
+                    <option value="soft" ${cfg.pitTyres?.[1] === 'soft' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_soft', 'Soft')}</option>
+                    <option value="medium" ${cfg.pitTyres?.[1] === 'medium' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_medium', 'Medium')}</option>
+                    <option value="hard" ${cfg.pitTyres?.[1] === 'hard' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_hard', 'Hard')}</option>
+                    <option value="intermediate" ${cfg.pitTyres?.[1] === 'intermediate' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_intermediate', 'Intermediate')}</option>
+                    <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_wet', 'Wet')}</option>
                   </select>
                 </div>
                 <input type="range" min="0" max="100" value="${cfg.pitLap}" oninput="document.getElementById('driver-pitlap-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverStrategy('${p.id}','pitLap',+this.value,true)">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
                   <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Aggression: <strong id="driver-aggression-label-${p.id}">${cfg.aggression}</strong></div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_aggression_label', 'Aggression')}: <strong id="driver-aggression-label-${p.id}">${cfg.aggression}</strong></div>
                     <input type="range" min="0" max="100" value="${cfg.aggression}" oninput="document.getElementById('driver-aggression-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
                   </div>
                   <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Risk: <strong id="driver-risk-label-${p.id}">${cfg.riskLevel}</strong></div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_risk_label', 'Risk')}: <strong id="driver-risk-label-${p.id}">${cfg.riskLevel}</strong></div>
                     <input type="range" min="0" max="100" value="${cfg.riskLevel}" oninput="document.getElementById('driver-risk-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverStrategy('${p.id}','riskLevel',+this.value,true)">
                   </div>
                 </div>
                 <div class="divider"></div>
-                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">Setup del coche</div>
+                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_car_setup', 'Car Setup')}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                   <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Aero Balance: <strong id="driver-aero-label-${p.id}">${cfg.setup.aeroBalance}</strong></div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_aero_balance', 'Aero Balance')}: <strong id="driver-aero-label-${p.id}">${cfg.setup.aeroBalance}</strong></div>
                     <input type="range" min="0" max="100" value="${cfg.setup.aeroBalance}" oninput="document.getElementById('driver-aero-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverSetup('${p.id}','aeroBalance',+this.value,true)">
                   </div>
                   <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">Weather Bias: <strong id="driver-wetbias-label-${p.id}">${cfg.setup.wetBias}</strong></div>
+                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_weather_bias', 'Weather Bias')}: <strong id="driver-wetbias-label-${p.id}">${cfg.setup.wetBias}</strong></div>
                     <input type="range" min="0" max="100" value="${cfg.setup.wetBias}" oninput="document.getElementById('driver-wetbias-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverSetup('${p.id}','wetBias',+this.value,true)">
                   </div>
                 </div>
                 <div class="divider"></div>
-                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">Intervenciones tácticas</div>
+                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_tactical_calls', 'Tactical Calls')}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
                   ${[0, 1].map((idx) => `
                     <div>
-                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">Ventana ${idx + 1}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
+                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">${__('prerace_window_label', 'Window')} ${idx + 1}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
                       <input type="range" min="10" max="95" value="${cfg.interventions[idx].lapPct}" oninput="document.getElementById('driver-iv-${idx}-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'lapPct',+this.value,true)" style="width:100%">
                       <select onchange="GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'pitBias',this.value)" style="width:100%;margin-top:4px">
-                        <option value="none" ${cfg.interventions[idx].pitBias === 'none' ? 'selected' : ''}>Pit: neutral</option>
-                        <option value="early" ${cfg.interventions[idx].pitBias === 'early' ? 'selected' : ''}>Pit: early</option>
-                        <option value="late" ${cfg.interventions[idx].pitBias === 'late' ? 'selected' : ''}>Pit: late</option>
+                        <option value="none" ${cfg.interventions[idx].pitBias === 'none' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel('none')}</option>
+                        <option value="early" ${cfg.interventions[idx].pitBias === 'early' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel('early')}</option>
+                        <option value="late" ${cfg.interventions[idx].pitBias === 'late' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel('late')}</option>
                       </select>
                     </div>
                   `).join('')}
@@ -1039,16 +1083,16 @@ const SCREENS = {
         </div>
         <div class="prerace-block">
           <div class="prerace-block-title">${__('prerace_circuit_intel')}</div>
-          ${GL_UI.statRow(__('prerace_layout_type'), c.layout, '🗺️')}
+          ${GL_UI.statRow(__('prerace_layout_type'), this.getTrackLayoutLabel(c.layout), '🗺️')}
           ${GL_UI.statRow(__('prerace_total_laps'), c.laps, '🔄')}
           ${GL_UI.statRow(__('prerace_circuit_len'), c.length, '📏')}
           ${GL_UI.statRow(__('prerace_rain_prob'), `${100 - c.weather}%`, '🌧️')}
           ${GL_UI.statRow(__('prerace_weather'), next.weather === 'wet' ? '🌧️ '+__('prerace_wet_adv') : '☀️ '+__('prerace_dry_norm'), '⛅')}
-          ${hoursToRace !== null ? GL_UI.statRow('Time to race', `${hoursToRace}h`, '⏳') : ''}
-          ${GL_UI.statRow('Forecast confidence', `${fc.confidence}%`, '📡')}
-          ${GL_UI.statRow('Forecast start', `${fc.windows?.[0]?.wetProb || 0}% wet`, '🌦️')}
-          ${GL_UI.statRow('Forecast mid', `${fc.windows?.[1]?.wetProb || 0}% wet`, '🌦️')}
-          ${GL_UI.statRow('Forecast end', `${fc.windows?.[2]?.wetProb || 0}% wet`, '🌦️')}
+          ${hoursToRace !== null ? GL_UI.statRow(__('prerace_time_to_race'), `${hoursToRace}h`, '⏳') : ''}
+          ${GL_UI.statRow(__('prerace_forecast_confidence'), `${fc.confidence}%`, '📡')}
+          ${GL_UI.statRow(__('prerace_forecast_start'), `${fc.windows?.[0]?.wetProb || 0}% ${__('prerace_forecast_wet')}`, '🌦️')}
+          ${GL_UI.statRow(__('prerace_forecast_mid'), `${fc.windows?.[1]?.wetProb || 0}% ${__('prerace_forecast_wet')}`, '🌦️')}
+          ${GL_UI.statRow(__('prerace_forecast_end'), `${fc.windows?.[2]?.wetProb || 0}% ${__('prerace_forecast_wet')}`, '🌦️')}
           <div class="divider"></div>
           <div class="circuit-mini">${GL_UI.circuitSVG(c.layout)}</div>
         </div>
@@ -1354,18 +1398,18 @@ const SCREENS = {
           <div class="card">
             <div class="section-eyebrow">${__('race_strat_active')}</div>
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:var(--s-3)">
-              ${GL_UI.statRow('SC Reaction', 'LIVE (staff-managed)', '🟡')}
-              ${GL_UI.statRow('Intervention 1', `${strategy.interventions?.[0]?.lapPct || 30}% · Pit ${(strategy.interventions?.[0]?.pitBias || 'none').toUpperCase()}`, '🎛️')}
-              ${GL_UI.statRow('Intervention 2', `${strategy.interventions?.[1]?.lapPct || 70}% · Pit ${(strategy.interventions?.[1]?.pitBias || 'none').toUpperCase()}`, '🎛️')}
-              ${GL_UI.statRow('Setup Aero', `${strategy.setup?.aeroBalance ?? 50}%`, '🛩️')}
-              ${GL_UI.statRow('Setup Weather', `${strategy.setup?.wetBias ?? 50}%`, '🌧️')}
+              ${GL_UI.statRow(__('race_sc_reaction', 'Safety Car reaction'), __('race_sc_live_managed', 'Live by the staff'), '🟡')}
+              ${GL_UI.statRow(__('race_intervention_1', 'Intervention 1'), `${strategy.interventions?.[0]?.lapPct || 30}% · ${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel(strategy.interventions?.[0]?.pitBias || 'none')}`, '🎛️')}
+              ${GL_UI.statRow(__('race_intervention_2', 'Intervention 2'), `${strategy.interventions?.[1]?.lapPct || 70}% · ${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel(strategy.interventions?.[1]?.pitBias || 'none')}`, '🎛️')}
+              ${GL_UI.statRow(__('race_setup_aero', 'Aero setup'), `${strategy.setup?.aeroBalance ?? 50}%`, '🛩️')}
+              ${GL_UI.statRow(__('race_setup_weather', 'Weather setup'), `${strategy.setup?.wetBias ?? 50}%`, '🌧️')}
               ${racePilots.map((rp, idx) => {
                 const tyreMeta = this.getTyreMeta(rp.cfg.tyre);
-                return GL_UI.statRow(`Driver ${idx+1}`, `${rp.pilot.name} · ${tyreMeta.label} · ${(rp.cfg.engineMode || 'normal').toUpperCase()} · ${(rp.cfg.pitPlan || 'single').toUpperCase()} @ ${rp.cfg.pitLap ?? 50}%`, '🧑‍✈️');
+                return GL_UI.statRow(`${__('race_driver', 'Driver')} ${idx+1}`, `${rp.pilot.name} · ${tyreMeta.label} · ${this.getEngineModeLabel(rp.cfg.engineMode || 'normal')} · ${this.getPitPlanLabel(rp.cfg.pitPlan || 'single')} @ ${rp.cfg.pitLap ?? 50}%`, '🧑‍✈️');
               }).join('')}
-              ${racePilots.length === 0 && selectedPilot ? GL_UI.statRow('Primary Driver', `${selectedPilot.name} (${GL_ENGINE.pilotScore(selectedPilot)})`, '🧑‍✈️') : ''}
-              ${staffFx ? GL_UI.statRow('Staff Pit Quality', `${Math.round(staffFx.pitTimeGainChance * 100)}%`, '👥') : ''}
-              ${staffFx ? GL_UI.statRow('Staff Risk Control', `${Math.round((1 - staffFx.incidentRiskMult) * 100)}%`, '🧠') : ''}
+              ${racePilots.length === 0 && selectedPilot ? GL_UI.statRow(__('race_primary_driver', 'Lead driver'), `${selectedPilot.name} (${GL_ENGINE.pilotScore(selectedPilot)})`, '🧑‍✈️') : ''}
+              ${staffFx ? GL_UI.statRow(__('race_staff_pit_quality', 'Pit crew efficiency'), `${Math.round(staffFx.pitTimeGainChance * 100)}%`, '👥') : ''}
+              ${staffFx ? GL_UI.statRow(__('race_staff_risk_control', 'Risk control'), `${Math.round((1 - staffFx.incidentRiskMult) * 100)}%`, '🧠') : ''}
             </div>
           </div>
         </div>
@@ -1575,9 +1619,9 @@ const SCREENS = {
         </div>
         <div class="post-race-info">
           <div class="post-race-title">${leadCar.isDNF ? __('postrace_mech_fail') : leadCar.position === 1 ? __('postrace_victory') : leadCar.position <= 3 ? __('postrace_podium_fin') : `P${leadCar.position} ${__('postrace_finish')}`}</div>
-          <div style="color:var(--t-secondary)">${result.circuit?.name} · ${__('prerace_weather')}: ${result.weather}</div>
+            <div style="color:var(--t-secondary)">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)}</div>
           <div class="post-race-metrics">
-            <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">Team ${__('points')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
             <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
             <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
           </div>
@@ -1585,7 +1629,7 @@ const SCREENS = {
       </div>
       <div class="grid-2">
         <div class="card">
-          <div class="section-eyebrow">Team cars</div>
+            <div class="section-eyebrow">${__('race_team_cars')}</div>
           <div style="display:flex;flex-direction:column;gap:6px;margin:8px 0 14px 0">
             ${(playerCars.length ? playerCars : [{ pilotName: 'Driver', position: result.position, points: result.points, isDNF: result.isDNF }]).map((car) => `
               <div class="fin-item"><span>${car.pilotName}</span><strong>${car.isDNF ? 'DNF' : ('P'+car.position)} · ${car.points || 0} pts</strong></div>
