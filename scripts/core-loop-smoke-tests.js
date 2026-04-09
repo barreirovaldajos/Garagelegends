@@ -690,12 +690,12 @@ function testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox) {
   assert.ok(pitSnapshot, 'lap snapshots should flag the player car as pitting during the stop lap');
 }
 
-function testEngineModeAffectsQualyPace(engine, stateApi, sandbox) {
+function testEngineModeAffectsGridStrength(engine, stateApi, sandbox) {
   const state = createBaseState();
   const eco = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, { engineMode: 'eco' }, {}, () => 0.9);
   const push = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, { engineMode: 'push' }, {}, () => 0.9);
 
-  assert.ok(getPlayerGridEntry(push).qualyScore > getPlayerGridEntry(eco).qualyScore, 'push engine mode should improve qualifying pace versus eco');
+  assert.ok(getPlayerGridEntry(push).score > getPlayerGridEntry(eco).score, 'push engine mode should improve race-start strength versus eco');
 }
 
 function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
@@ -861,8 +861,42 @@ function testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox) {
     setup: { aeroBalance: 50, wetBias: 20 }
   }, { weather: 'wet', circuit: wetCircuit }, () => 0.9);
 
-  assert.ok(getPlayerGridEntry(powerBiased).qualyScore > getPlayerGridEntry(aeroBiased).qualyScore, 'power-biased setup should outperform aero-biased setup on high-speed tracks');
-  assert.ok(getPlayerGridEntry(wetReady).qualyScore > getPlayerGridEntry(dryReadyInWet).qualyScore, 'wet-biased setup should outperform dry-biased setup in wet conditions');
+  assert.ok(getPlayerGridEntry(powerBiased).score > getPlayerGridEntry(aeroBiased).score, 'power-biased setup should improve race-start strength on high-speed tracks');
+  assert.ok(getPlayerGridEntry(wetReady).score > getPlayerGridEntry(dryReadyInWet).score, 'wet-biased setup should improve race-start strength in wet conditions');
+}
+
+function testEnsureNextRaceRebalancesWetSeason(engine, stateApi) {
+  const state = createBaseState();
+  state.season.calendar = Array.from({ length: 8 }, (_, idx) => ({
+    round: idx + 1,
+    status: idx === 0 ? 'next' : 'upcoming',
+    weather: 'wet',
+    circuit: { name: `Track ${idx + 1}`, id: `track_${idx + 1}`, country: 'Testland', laps: 30, length: '5.0km', layout: 'mixed', weather: 75 },
+    result: null,
+    forecast: null
+  }));
+
+  stateApi._state = state;
+  const nextRace = engine.ensureNextRaceAvailable();
+  const wetRaces = state.season.calendar.filter((race) => race.weather === 'wet');
+
+  assert.ok(nextRace, 'a next race should still be available after rebalancing weather');
+  assert.ok(wetRaces.length <= 2, 'season rebalancing should cap wet races to a small minority of the calendar');
+}
+
+function testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const result = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    tyre: 'medium',
+    pitPlan: 'single',
+    pitLap: 80
+  }, {
+    weather: 'dry',
+    circuit: state.season.calendar[0].circuit
+  }, () => 0.01);
+
+  const weatherChangeEvents = result.events.filter((entry) => entry.text.includes('Sudden rain hits the circuit') || entry.text.includes('Track is drying quickly'));
+  assert.strictEqual(weatherChangeEvents.length, 0, 'dry races should not flip weather almost automatically under a low random seed');
 }
 
 function run() {
@@ -883,15 +917,17 @@ function run() {
   testPlayerPitTyreChoiceIsRespectedInWetRace(engine, stateApi, sandbox);
   testSimulateRaceProducesAiPitStops(engine, stateApi);
   testAiPitTyreReactionIsNotPerfect(engine, stateApi);
-  testEngineModeAffectsQualyPace(engine, stateApi, sandbox);
+  testEngineModeAffectsGridStrength(engine, stateApi, sandbox);
   testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox);
   testLegacyAdaptivePitPlanFallsBackToSingle(engine, stateApi, sandbox);
   testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox);
   testAggressionAffectsRacePace(engine, stateApi, sandbox);
   testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox);
   testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox);
+  testEnsureNextRaceRebalancesWetSeason(engine, stateApi);
+  testDryRaceDoesNotAlmostAlwaysFlipToRain(engine, stateApi, sandbox);
 
-  console.log('✓ Core loop smoke tests passed (21 cases).');
+  console.log('✓ Core loop smoke tests passed (23 cases).');
 }
 
 run();

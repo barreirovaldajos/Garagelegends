@@ -151,6 +151,17 @@ const CIRCUITS = [
 ];
 
 // ---- CALENDAR per season (8 rounds for Div 8) ----
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getSeasonWetRaceTarget(raceCount) {
+  if (raceCount <= 8) {
+    return 2 + (Math.random() < 0.45 ? 1 : 0);
+  }
+  return clampNumber(Math.round(raceCount * 0.3), 3, 4);
+}
+
 function generateCalendar(division) {
   if (typeof window !== 'undefined' && typeof window.RACE_STATUS === 'undefined') {
     // Cargar enums si no están presentes
@@ -159,13 +170,30 @@ function generateCalendar(division) {
   const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
   const count = Math.min(8 + (8 - division), 12);
   const shuffled = [...CIRCUITS].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count).map((c, i) => ({
+  const selectedCircuits = shuffled.slice(0, count);
+  const targetWetRaces = getSeasonWetRaceTarget(selectedCircuits.length);
+  const wetRaceIds = new Set(
+    selectedCircuits
+      .map((c) => ({
+        id: c.id,
+        weight: clampNumber(100 - (c.weather || 70), 5, 60) + (Math.random() * 12)
+      }))
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, targetWetRaces)
+      .map((entry) => entry.id)
+  );
+
+  return selectedCircuits.map((c, i) => ({
     // Forecast confidence mejora en divisiones altas (mejor data/weather ops)
     // Div 8: ~58-70%, Div 1: ~72-84%
     ...(() => {
+      const isWetRace = wetRaceIds.has(c.id);
       const baseConfidence = 58 + ((8 - division) * 2);
       const confidence = Math.max(50, Math.min(92, baseConfidence + Math.floor(Math.random() * 13)));
-      const startWetProb = Math.max(5, Math.min(95, 100 - c.weather + (Math.floor(Math.random() * 21) - 10)));
+      const forecastBase = isWetRace
+        ? clampNumber(52 + ((100 - (c.weather || 70)) * 0.35), 48, 78)
+        : clampNumber(16 + ((100 - (c.weather || 70)) * 0.22), 8, 38);
+      const startWetProb = Math.max(5, Math.min(95, forecastBase + (Math.floor(Math.random() * 17) - 8)));
       const midWetProb = Math.max(5, Math.min(95, startWetProb + (Math.floor(Math.random() * 25) - 12)));
       const endWetProb = Math.max(5, Math.min(95, midWetProb + (Math.floor(Math.random() * 25) - 12)));
       return {
@@ -183,7 +211,7 @@ function generateCalendar(division) {
     circuit: c,
     status: i === 0 ? RACE_STATUS_ENUM.NEXT : RACE_STATUS_ENUM.UPCOMING,
     result: null,
-    weather: Math.random() * 100 < (100 - c.weather) ? 'wet' : 'dry',
+    weather: wetRaceIds.has(c.id) ? 'wet' : 'dry',
   }));
 }
 

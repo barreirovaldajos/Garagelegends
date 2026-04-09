@@ -785,15 +785,16 @@ function simulateRace(options = {}) {
   const events = [];
   const lapSnapshots = [];
   let safetyCarActive = false;
+  let weatherChangesDone = 0;
 
-  // Qualify – sort with qualy weights
+  // Build the starting grid directly from race-weekend form.
   grid.forEach(e => {
-    e.qualyScore = e.score + (Math.random() - 0.5) * 8;
+    e.gridScore = e.score + (Math.random() - 0.5) * 8;
     if (e.isPlayer) {
       e.tyre = (e.strategy && e.strategy.tyre) || leadDriver.strategy.tyre;
     }
   });
-  grid.sort((a, b) => b.qualyScore - a.qualyScore);
+  grid.sort((a, b) => b.gridScore - a.gridScore);
   const gridStart = grid.map(e => ({...e}));
   const playerStarts = gridStart.filter(e => e.isPlayer).map((e) => ({
     carId: e.id,
@@ -801,10 +802,10 @@ function simulateRace(options = {}) {
     startPos: gridStart.findIndex((x) => x.id === e.id) + 1
   }));
 
-  const qualyText = playerStarts
+  const gridText = playerStarts
     .map((x) => `${x.pilotName}: P${x.startPos}`)
     .join(' · ');
-  events.push({ lap: 0, type: 'info', text: `<strong>Qualifying:</strong> ${qualyText}. ${liveWeather === 'wet' ? '🌧️ Wet track!' : '☀️ Dry conditions.'} ${circuits?.layout ? `· ${circuits.layout}` : ''}` });
+  events.push({ lap: 0, type: 'info', text: `<strong>Starting grid:</strong> ${gridText}. ${liveWeather === 'wet' ? '🌧️ Wet race expected.' : '☀️ Dry race expected.'} ${circuits?.layout ? `· ${circuits.layout}` : ''}` });
 
   // Race ticks
   const positions = grid.map((e, i) => ({
@@ -863,9 +864,13 @@ function simulateRace(options = {}) {
     });
 
     const uncertainty = forecast ? (1 - ((forecast.confidence || 60) / 100)) : 0.35;
-    const weatherFlipChance = 0.02 + (uncertainty * 0.08);
+    const raceWeatherSwingChance = forecast
+      ? clamp(0.05 + (uncertainty * 0.22), 0.04, 0.18)
+      : 0.12;
+    const weatherFlipChance = weatherChangesDone >= 1 ? 0 : (raceWeatherSwingChance / Math.max(18, totalLaps));
     if (Math.random() < weatherFlipChance) {
       liveWeather = liveWeather === 'wet' ? 'dry' : 'wet';
+      weatherChangesDone += 1;
       events.push({ lap, type: 'info', text: liveWeather === 'wet' ? '🌧️ Sudden rain hits the circuit!' : '☀️ Track is drying quickly.' });
     }
 
@@ -951,7 +956,7 @@ function simulateRace(options = {}) {
         rt.wear += getTyreWearStep(currentTyre, liveWeather) * lapProfile.tyreDegMult * (1 + engineFx.tyre) * setup.tyreMult;
       }
 
-      const rawPace = clamp(Number(entry.base || entry.score || entry.qualyScore || 60), 35, 99);
+      const rawPace = clamp(Number(entry.base || entry.score || entry.gridScore || 60), 35, 99);
       const paceMs = rawPace * (entry.isPlayer ? 175 : 160);
       const tyreMs = (getTyrePacePercent(currentTyre, liveWeather) - 100) * 180;
       const aggressionMs = ((s.aggression || 50) - 50) * 22;
@@ -1723,6 +1728,61 @@ function ensureNextRaceAvailable() {
   const cal = state.season.calendar;
   let changed = false;
 
+  const getSeasonWetRaceTarget = (raceCount) => {
+    if (raceCount <= 8) return 2;
+    return clamp(Math.round(raceCount * 0.3), 3, 4);
+  };
+
+  const resetForecastForRace = (race, isWetRace) => {
+    const circuitWetness = clamp(100 - (race?.circuit?.weather || 70), 5, 60);
+    const base = isWetRace
+      ? clamp(50 + (circuitWetness * 0.35), 48, 78)
+      : clamp(14 + (circuitWetness * 0.2), 8, 36);
+    race.forecast = {
+      confidence: Math.max(55, Number(race?.forecast?.confidence) || 60),
+      windows: [
+        { label: 'start', wetProb: base },
+        { label: 'mid', wetProb: clamp(base + (isWetRace ? 6 : 4), 5, 95) },
+        { label: 'end', wetProb: clamp(base + (isWetRace ? 2 : 0), 5, 95) }
+      ],
+      lastUpdateBucket: null
+    };
+  };
+
+  const rebalanceSeasonWeather = () => {
+    const totalRaces = cal.length;
+    if (!totalRaces) return false;
+
+    const completedWet = cal.filter((race) => race && race.status === 'completed' && race.weather === 'wet').length;
+    const pendingRaces = cal.filter((race) => race && race.status !== 'completed');
+    if (!pendingRaces.length) return false;
+
+    const targetWetRaces = getSeasonWetRaceTarget(totalRaces);
+    const pendingWetTarget = clamp(targetWetRaces - completedWet, 0, pendingRaces.length);
+    const wetRaceKeys = new Set(
+      pendingRaces
+        .map((race, index) => ({
+          key: `${race.round || index}_${race.circuit?.id || index}`,
+          weight: clamp(100 - (race.circuit?.weather || 70), 5, 60) + ((pendingRaces.length - index) * 0.01)
+        }))
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, pendingWetTarget)
+        .map((entry) => entry.key)
+    );
+
+    let weatherChanged = false;
+    pendingRaces.forEach((race, index) => {
+      const key = `${race.round || index}_${race.circuit?.id || index}`;
+      const nextWeather = wetRaceKeys.has(key) ? 'wet' : 'dry';
+      if (race.weather !== nextWeather) {
+        race.weather = nextWeather;
+        resetForecastForRace(race, nextWeather === 'wet');
+        weatherChanged = true;
+      }
+    });
+    return weatherChanged;
+  };
+
   cal.forEach((r) => {
     if (!r || !r.status) return;
     if (r.status === 'done' || r.status === 'finished') {
@@ -1730,6 +1790,10 @@ function ensureNextRaceAvailable() {
       changed = true;
     }
   });
+
+  if (rebalanceSeasonWeather()) {
+    changed = true;
+  }
 
   let next = cal.find((r) => r && r.status === 'next');
   if (next) {
