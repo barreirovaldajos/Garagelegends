@@ -767,6 +767,7 @@ function simulateRace(options = {}) {
     grid.push({
       id: secondDriver.id,
       name: `${state.team.name || 'Your Team'} · ${secondDriver.pilot.name}`,
+      color: state.team.colors.primary,
       pilotId: secondDriver.pilotId,
       pilotName: secondDriver.pilot.name,
       teamSlot: secondDriver.slot,
