@@ -1503,7 +1503,7 @@ const SCREENS = {
             return { ...car, pos: score };
           }).sort((a, b) => a.pos - b.pos);
 
-      gl.innerHTML = live.slice(0, 12).map((car, idx) => {
+      gl.innerHTML = live.slice(0, 20).map((car, idx) => {
         const gap = idx === 0
           ? __('race_leader')
           : (Number.isFinite(car.gapMs)
@@ -1511,13 +1511,18 @@ const SCREENS = {
               : `+${(idx * (0.9 + (1 - progress) * 0.35)).toFixed(1)}s`);
         const dotColor = car.color || '#888';
         const tyreMeta = this.getTyreMeta(car.tyre);
+        const status = car.retired
+          ? 'DNF'
+          : car.pit
+            ? `BOX ${Number.isFinite(car.pitLossMs) && car.pitLossMs > 0 ? `· -${(car.pitLossMs / 1000).toFixed(1)}s` : ''}`
+            : gap;
         return `
           <div class="race-pos-row ${car.isPlayer?'my-car':''}">
             <span class="race-pos-num">${car.pos || (idx + 1)}</span>
             <span class="race-pos-teamdot" style="background:${dotColor}"></span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
             <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>
-            <span class="race-pos-gap">${gap}</span>
+            <span class="race-pos-gap">${status}</span>
           </div>`;
       }).join('');
     };
