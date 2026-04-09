@@ -29,6 +29,9 @@ const SCREENS = {
   },
 
   getDriverStrategyDefaults(sharedStrategy, currentConfig = {}) {
+    const basePitTyres = Array.isArray(currentConfig.pitTyres)
+      ? currentConfig.pitTyres
+      : (Array.isArray(sharedStrategy.pitTyres) ? sharedStrategy.pitTyres : []);
     return {
       tyre: currentConfig.tyre || sharedStrategy.tyre || 'medium',
       aggression: Number.isFinite(currentConfig.aggression) ? currentConfig.aggression : (sharedStrategy.aggression || 50),
@@ -36,7 +39,8 @@ const SCREENS = {
       pitLap: Number.isFinite(currentConfig.pitLap) ? currentConfig.pitLap : (sharedStrategy.pitLap || 50),
       engineMode: currentConfig.engineMode || sharedStrategy.engineMode || 'normal',
       pitPlan: currentConfig.pitPlan || sharedStrategy.pitPlan || 'single',
-      strategy: currentConfig.strategy || sharedStrategy.strategy || 'balanced'
+      strategy: currentConfig.strategy || sharedStrategy.strategy || 'balanced',
+      pitTyres: [basePitTyres[0] || 'hard', basePitTyres[1] || 'soft']
     };
   },
 
@@ -864,6 +868,7 @@ const SCREENS = {
     const fc = next.forecast || { confidence: 60, windows: [{ label: 'start', wetProb: 30 }, { label: 'mid', wetProb: 35 }, { label: 'end', wetProb: 30 }] };
     const defaultStrategy = {
       tyre:'soft', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live',
+      pitTyres: ['hard', 'soft'],
       setup: { aeroBalance: 50, wetBias: 50 },
       interventions: [
         { lapPct: 30, pitBias: 'none' },
@@ -1061,6 +1066,22 @@ const SCREENS = {
                   </select>
                   <div style="font-size:0.72rem;color:var(--t-secondary);display:flex;align-items:center">Pit Window: <strong style="margin-left:6px">${cfg.pitLap ?? (window._raceStrategy?.pitLap ?? 50)}%</strong></div>
                 </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
+                  <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
+                    <option value="soft" ${cfg.pitTyres?.[0] === 'soft' ? 'selected' : ''}>Pit 1: Soft</option>
+                    <option value="medium" ${cfg.pitTyres?.[0] === 'medium' ? 'selected' : ''}>Pit 1: Medium</option>
+                    <option value="hard" ${cfg.pitTyres?.[0] === 'hard' ? 'selected' : ''}>Pit 1: Hard</option>
+                    <option value="intermediate" ${cfg.pitTyres?.[0] === 'intermediate' ? 'selected' : ''}>Pit 1: Intermediate</option>
+                    <option value="wet" ${cfg.pitTyres?.[0] === 'wet' ? 'selected' : ''}>Pit 1: Wet</option>
+                  </select>
+                  <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',1,this.value)">
+                    <option value="soft" ${cfg.pitTyres?.[1] === 'soft' ? 'selected' : ''}>Pit 2: Soft</option>
+                    <option value="medium" ${cfg.pitTyres?.[1] === 'medium' ? 'selected' : ''}>Pit 2: Medium</option>
+                    <option value="hard" ${cfg.pitTyres?.[1] === 'hard' ? 'selected' : ''}>Pit 2: Hard</option>
+                    <option value="intermediate" ${cfg.pitTyres?.[1] === 'intermediate' ? 'selected' : ''}>Pit 2: Intermediate</option>
+                    <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>Pit 2: Wet</option>
+                  </select>
+                </div>
                 <input type="range" min="0" max="100" value="${cfg.pitLap ?? (window._raceStrategy?.pitLap ?? 50)}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','pitLap',+this.value,true)">
                 <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:8px">Aggression: <strong>${cfg.aggression ?? 50}</strong></div>
                 <input type="range" min="0" max="100" value="${cfg.aggression ?? 50}" oninput="GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
@@ -1125,7 +1146,6 @@ const SCREENS = {
       window._raceStrategy.engineMode = 'normal';
       window._raceStrategy.riskLevel = 45;
     }
-    this.syncSharedToDrivers(true);
     const modeEl = document.getElementById('sv-engineMode');
     if (modeEl) modeEl.textContent = (window._raceStrategy.engineMode || 'normal').toUpperCase();
   },
@@ -1134,14 +1154,12 @@ const SCREENS = {
     document.querySelectorAll('.tire-btn').forEach(e=>{ e.classList.remove('selected','soft','medium','hard','intermediate','wet'); });
     el.classList.add('selected', t);
     if (window._raceStrategy) window._raceStrategy.tyre = t;
-    this.syncSharedToDrivers(true);
     window._advisorStrategySource = 'manual';
   },
 
   selectEngineMode(mode) {
     if (!window._raceStrategy) return;
     window._raceStrategy.engineMode = mode;
-    this.syncSharedToDrivers(true);
     window._advisorStrategySource = 'manual';
     const el = document.getElementById('sv-engineMode');
     if (el) el.textContent = mode.toUpperCase();
@@ -1212,6 +1230,17 @@ const SCREENS = {
     if (!silent) this.renderPreRace();
   },
 
+  updateDriverPitTyre(pid, stopIndex, value, silent = false) {
+    if (!window._raceStrategy) return;
+    if (!window._raceStrategy.driverConfigs) window._raceStrategy.driverConfigs = {};
+    if (!window._raceStrategy.driverConfigs[pid]) window._raceStrategy.driverConfigs[pid] = {};
+    const current = this.getDriverStrategyDefaults(window._raceStrategy, window._raceStrategy.driverConfigs[pid]);
+    current.pitTyres[stopIndex] = value;
+    window._raceStrategy.driverConfigs[pid].pitTyres = current.pitTyres;
+    window._advisorStrategySource = 'manual';
+    if (!silent) this.renderPreRace();
+  },
+
   syncSharedToDrivers(silent = false) {
     if (!window._raceStrategy) return;
     const ids = window._raceStrategy.selectedPilotIds || [];
@@ -1225,6 +1254,9 @@ const SCREENS = {
         engineMode: window._raceStrategy.engineMode || 'normal',
         pitPlan: window._raceStrategy.pitPlan || 'single',
         strategy: window._raceStrategy.strategy || 'balanced',
+        pitTyres: Array.isArray(window._raceStrategy.pitTyres)
+          ? [window._raceStrategy.pitTyres[0] || 'hard', window._raceStrategy.pitTyres[1] || 'soft']
+          : ['hard', 'soft'],
         safetyCarReaction: window._raceStrategy.safetyCarReaction || 'live'
       };
     });
@@ -1250,6 +1282,7 @@ const SCREENS = {
     if (nextIdx !== -1) {
       state.season.calendar[nextIdx].savedStrategy = GL_STATE.deepClone(window._raceStrategy || {
         tyre:'medium', strategy:'balanced', aggression:60, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+        pitTyres: ['hard', 'soft'],
         interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
         pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
         selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
@@ -1285,6 +1318,7 @@ const SCREENS = {
     const weather = next?.weather || 'dry';
     const strategy = GL_STATE.deepClone(window._raceStrategy || next?.savedStrategy || {
       tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      pitTyres: ['hard', 'soft'],
       interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
       pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
       selectedPilotIds: (state.pilots || []).slice(0,2).map((p) => p.id),
@@ -1373,6 +1407,7 @@ const SCREENS = {
     }
     const strategy = window._raceStrategy || {
       tyre:'medium', aggression:50, riskLevel:40, pitLap:50, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      pitTyres: ['hard', 'soft'],
       interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
       pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null
     };
@@ -1415,6 +1450,7 @@ const SCREENS = {
     const totalLaps = result.totalLaps || 30;
     const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
     const finalGrid = Array.isArray(result.finalGrid) ? result.finalGrid : [];
+    const lapSnapshots = Array.isArray(result.lapSnapshots) ? result.lapSnapshots : [];
     const startPosMap = {};
     const finalPosMap = {};
 
@@ -1435,21 +1471,29 @@ const SCREENS = {
     const renderLiveGrid = (progress) => {
       const gl = document.getElementById('race-grid-list');
       if (!gl) return;
-      const live = finalGrid.map((car) => {
-        const startPos = startPosMap[car.id] || 20;
-        const endPos = finalPosMap[car.id] || startPos;
-        const wobble = Math.sin((tick * 0.45) + (car.id || '').length) * 0.35 * (1 - progress);
-        const score = (startPos * (1 - progress)) + (endPos * progress) + wobble;
-        return { ...car, _liveScore: score };
-      }).sort((a, b) => a._liveScore - b._liveScore);
+      const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(progress * totalLaps) + 1));
+      const snapshot = lapSnapshots[currentLap - 1];
+      const live = snapshot && Array.isArray(snapshot.order) && snapshot.order.length
+        ? snapshot.order.slice().sort((a, b) => a.pos - b.pos)
+        : finalGrid.map((car) => {
+            const startPos = startPosMap[car.id] || 20;
+            const endPos = finalPosMap[car.id] || startPos;
+            const wobble = Math.sin((tick * 0.45) + (car.id || '').length) * 0.35 * (1 - progress);
+            const score = (startPos * (1 - progress)) + (endPos * progress) + wobble;
+            return { ...car, pos: score };
+          }).sort((a, b) => a.pos - b.pos);
 
       gl.innerHTML = live.slice(0, 12).map((car, idx) => {
-        const gap = idx === 0 ? __('race_leader') : `+${(idx * (0.9 + (1 - progress) * 0.35)).toFixed(1)}s`;
+        const gap = idx === 0
+          ? __('race_leader')
+          : (Number.isFinite(car.gapMs)
+              ? `+${(car.gapMs / 1000).toFixed(1)}s`
+              : `+${(idx * (0.9 + (1 - progress) * 0.35)).toFixed(1)}s`);
         const dotColor = car.color || '#888';
         const tyreMeta = this.getTyreMeta(car.tyre);
         return `
           <div class="race-pos-row ${car.isPlayer?'my-car':''}">
-            <span class="race-pos-num">${idx+1}</span>
+            <span class="race-pos-num">${car.pos || (idx + 1)}</span>
             <span class="race-pos-teamdot" style="background:${dotColor}"></span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
             <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>

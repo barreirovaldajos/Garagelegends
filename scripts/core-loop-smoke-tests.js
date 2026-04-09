@@ -50,6 +50,14 @@ function basePilot() {
   };
 }
 
+function makePilot(id, name, overrides = {}) {
+  const pilot = basePilot();
+  pilot.id = id;
+  pilot.name = name;
+  pilot.attrs = { ...pilot.attrs, ...(overrides.attrs || {}) };
+  return { ...pilot, ...overrides, attrs: pilot.attrs };
+}
+
 function baseCar() {
   return {
     components: {
@@ -383,14 +391,14 @@ function testOfflineCatchUpPassiveWindow(engine, stateApi) {
 
   const simulated = engine.catchUpOffline();
 
-  assert.strictEqual(simulated, 0, '4h-24h window should not force race simulation');
+  assert.strictEqual(simulated.simulatedRaces, 0, 'short offline window should not simulate races');
   assert.ok(state.finances.credits > 500, 'passive progression should add credits in short offline window');
   assert.ok(state.meta.saveTime <= Date.now(), 'saveTime should sync after catch-up');
 }
 
 function testOfflineCatchUpRaceWindow(engine, stateApi) {
   const state = createBaseState();
-  state.meta.saveTime = Date.now() - (30 * 60 * 60 * 1000);
+  state.meta.saveTime = Date.now() - (10 * 24 * 60 * 60 * 1000);
   state.season.week = 1;
   state.season.totalRaces = 20;
   stateApi._state = state;
@@ -398,10 +406,133 @@ function testOfflineCatchUpRaceWindow(engine, stateApi) {
   const beforePoints = state.standings.find((s) => s.id === 'player').points;
   const simulated = engine.catchUpOffline();
 
-  assert.ok(simulated >= 2, '24h+ window should simulate at least one practice and one race when calendar is available');
+  assert.ok(simulated.totalSimulated >= 2, '24h+ window should simulate at least one practice and one race when calendar is available');
+  assert.ok(simulated.simulatedRaces >= 1, '24h+ window should simulate at least one race when calendar is available');
   assert.ok(state.standings.find((s) => s.id === 'player').points >= beforePoints, 'player standings should update after offline race simulation');
   const completedRaces = state.season.calendar.filter((r) => r.status === 'completed').length;
   assert.ok(completedRaces >= 1, 'offline race simulation should complete at least one race');
+}
+
+function testBuildRaceGridUsesSelectedPilotStrength(engine, stateApi) {
+  const state = createBaseState();
+  stateApi._state = state;
+
+  const weakPilot = makePilot('pilot_slow', 'Slow Driver', {
+    attrs: { pace: 45, racePace: 48, consistency: 50, rain: 48, tyre: 50, aggression: 52, overtake: 46, techFB: 55, mental: 52, charisma: 50 }
+  });
+  const strongPilot = makePilot('pilot_fast', 'Fast Driver', {
+    attrs: { pace: 88, racePace: 91, consistency: 84, rain: 82, tyre: 86, aggression: 75, overtake: 85, techFB: 72, mental: 84, charisma: 70 }
+  });
+  const sharedStrategy = {
+    tyre: 'medium',
+    aggression: 55,
+    riskLevel: 40,
+    engineMode: 'normal',
+    pitPlan: 'single',
+    strategy: 'balanced',
+    setup: { aeroBalance: 50, wetBias: 50 }
+  };
+
+  const weakGrid = engine.buildRaceGrid(weakPilot, 'dry', state.season.calendar[0].circuit, sharedStrategy);
+  const strongGrid = engine.buildRaceGrid(strongPilot, 'dry', state.season.calendar[0].circuit, sharedStrategy);
+  const weakBase = weakGrid.find((entry) => entry.id === 'player').base;
+  const strongBase = strongGrid.find((entry) => entry.id === 'player').base;
+
+  assert.ok(strongBase > weakBase, 'player base pace should depend on selected pilot, not team average only');
+}
+
+function testSimulateRaceRespectsDriverTyresAndPitTyres(engine, stateApi) {
+  const state = createBaseState();
+  state.pilots = [
+    makePilot('pilot_1', 'Driver One', { attrs: { pace: 78, racePace: 80, tyre: 77, consistency: 74 } }),
+    makePilot('pilot_2', 'Driver Two', { attrs: { pace: 66, racePace: 72, tyre: 71, consistency: 79 } })
+  ];
+  stateApi._state = state;
+
+  const result = engine.simulateRace({
+    weather: 'dry',
+    circuits: state.season.calendar[0].circuit,
+    strategy: {
+      tyre: 'medium',
+      aggression: 50,
+      riskLevel: 40,
+      pitLap: 50,
+      engineMode: 'normal',
+      pitPlan: 'single',
+      strategy: 'balanced',
+      setup: { aeroBalance: 50, wetBias: 50 },
+      selectedPilotIds: ['pilot_1', 'pilot_2'],
+      pilotId: 'pilot_1',
+      driverConfigs: {
+        pilot_1: {
+          tyre: 'soft',
+          aggression: 68,
+          riskLevel: 46,
+          pitLap: 20,
+          engineMode: 'push',
+          pitPlan: 'single',
+          strategy: 'aggressive',
+          pitTyres: ['hard', 'soft']
+        },
+        pilot_2: {
+          tyre: 'hard',
+          aggression: 38,
+          riskLevel: 28,
+          pitLap: 24,
+          engineMode: 'eco',
+          pitPlan: 'single',
+          strategy: 'conservative',
+          pitTyres: ['medium', 'soft']
+        }
+      }
+    }
+  });
+
+  const car1 = result.playerCars.find((entry) => entry.pilotId === 'pilot_1');
+  const car2 = result.playerCars.find((entry) => entry.pilotId === 'pilot_2');
+
+  assert.ok(car1 && car2, 'simulateRace should return both selected player cars');
+  assert.strictEqual(car1.strategy.tyre, 'soft', 'driver one should start from its individual tyre selection');
+  assert.strictEqual(car2.strategy.tyre, 'hard', 'driver two should start from its individual tyre selection');
+  assert.strictEqual(car1.tyre, 'hard', 'driver one should finish on the configured first pit compound');
+  assert.strictEqual(car2.tyre, 'medium', 'driver two should finish on the configured first pit compound');
+}
+
+function testSimulateRaceProducesAiPitStops(engine, stateApi) {
+  const state = createBaseState();
+  stateApi._state = state;
+
+  const result = engine.simulateRace({
+    weather: 'dry',
+    circuits: state.season.calendar[0].circuit,
+    strategy: {
+      tyre: 'medium',
+      aggression: 50,
+      riskLevel: 40,
+      pitLap: 50,
+      engineMode: 'normal',
+      pitPlan: 'single',
+      strategy: 'balanced',
+      setup: { aeroBalance: 50, wetBias: 50 },
+      selectedPilotIds: ['pilot_1'],
+      pilotId: 'pilot_1',
+      driverConfigs: {
+        pilot_1: {
+          tyre: 'medium',
+          aggression: 50,
+          riskLevel: 40,
+          pitLap: 22,
+          engineMode: 'normal',
+          pitPlan: 'single',
+          strategy: 'balanced',
+          pitTyres: ['hard', 'soft']
+        }
+      }
+    }
+  });
+
+  const aiCarsOnNewCompound = result.finalGrid.filter((entry) => !entry.isPlayer && entry.strategy && entry.tyre !== entry.strategy.tyre);
+  assert.ok(aiCarsOnNewCompound.length > 0, 'at least one AI car should pit and switch compounds');
 }
 
 function run() {
@@ -417,8 +548,11 @@ function run() {
   testCampaignFailureStillPersistsSummary(engine, stateApi);
   testOfflineCatchUpPassiveWindow(engine, stateApi);
   testOfflineCatchUpRaceWindow(engine, stateApi);
+  testBuildRaceGridUsesSelectedPilotStrength(engine, stateApi);
+  testSimulateRaceRespectsDriverTyresAndPitTyres(engine, stateApi);
+  testSimulateRaceProducesAiPitStops(engine, stateApi);
 
-  console.log('✓ Core loop smoke tests passed (9 cases).');
+  console.log('✓ Core loop smoke tests passed (12 cases).');
 }
 
 run();

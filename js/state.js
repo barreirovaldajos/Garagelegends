@@ -21,6 +21,25 @@ function getPrimaryStateStorageKey() {
   return getStateStorageKeys()[0] || STATE_KEY;
 }
 
+function getScopedAuxiliaryStorageKeys() {
+  const keys = ['leagues'];
+  if (window.GL_AUTH && typeof GL_AUTH.getStorageKeySuffix === 'function') {
+    const suffix = GL_AUTH.getStorageKeySuffix();
+    if (suffix) keys.push(`leagues_${suffix}`);
+  }
+  return Array.from(new Set(keys));
+}
+
+function getCurrentAccountScope() {
+  const hasAuth = window.GL_AUTH && GL_AUTH.enabled;
+  if (!hasAuth) return null;
+  const userId = typeof GL_AUTH.getUserId === 'function' ? GL_AUTH.getUserId() : '';
+  const email = typeof GL_AUTH.getUserEmail === 'function' ? GL_AUTH.getUserEmail() : '';
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!userId && !normalizedEmail) return null;
+  return { userId: String(userId || ''), email: normalizedEmail };
+}
+
 const DEFAULT_STATE = {
   // MMO/social hooks
   faction: {
@@ -50,7 +69,7 @@ const DEFAULT_STATE = {
     raceIndex: 0,
     totalRaces: 8,
     division: 8,
-    phase: 'season', // onboarding | season | offseason
+    phase: 'onboarding', // onboarding | season | offseason
     lastSummary: null,
     lastSummaryPending: false
   },
@@ -173,6 +192,38 @@ function parseStateCandidate(raw, source, key, fallbackTimestamp) {
   }
 }
 
+function annotateStateWithAccount(state) {
+  if (!state || !state.meta) return;
+  const accountScope = getCurrentAccountScope();
+  if (!accountScope) {
+    delete state.meta.accountId;
+    delete state.meta.accountEmail;
+    return;
+  }
+  state.meta.accountId = accountScope.userId || '';
+  state.meta.accountEmail = accountScope.email || '';
+}
+
+function isCandidateCompatibleWithCurrentAccount(candidate) {
+  const accountScope = getCurrentAccountScope();
+  if (!accountScope) return true;
+  if (!candidate || !candidate.state) return false;
+  if (candidate.source === 'remote') return true;
+  if (candidate.key !== STATE_KEY) return true;
+
+  const meta = candidate.state.meta || {};
+  const candidateAccountId = String(meta.accountId || '');
+  const candidateAccountEmail = String(meta.accountEmail || '').trim().toLowerCase();
+
+  if (candidateAccountId && accountScope.userId) {
+    return candidateAccountId === accountScope.userId;
+  }
+  if (candidateAccountEmail && accountScope.email) {
+    return candidateAccountEmail === accountScope.email;
+  }
+  return false;
+}
+
 function choosePreferredStateCandidate(candidates) {
   return candidates.reduce((best, candidate) => {
     if (!candidate || !candidate.state) return best;
@@ -227,12 +278,12 @@ function loadState() {
 
     scopedKeys.forEach(candidateKey => {
       const parsed = parseStateCandidate(localStorage.getItem(candidateKey), 'local', candidateKey, 0);
-      if (parsed) candidates.push(parsed);
+      if (parsed && isCandidateCompatibleWithCurrentAccount(parsed)) candidates.push(parsed);
     });
 
     if (primaryKey !== STATE_KEY) {
       const legacyParsed = parseStateCandidate(localStorage.getItem(STATE_KEY), 'local', STATE_KEY, 0);
-      if (legacyParsed) candidates.push(legacyParsed);
+      if (legacyParsed && isCandidateCompatibleWithCurrentAccount(legacyParsed)) candidates.push(legacyParsed);
     }
 
     const preferred = choosePreferredStateCandidate(candidates);
@@ -282,7 +333,7 @@ function loadState() {
       if (typeof _state.finances.deficitStreak !== 'number') _state.finances.deficitStreak = 0;
       if (typeof _state.finances.criticalDeficit !== 'boolean') _state.finances.criticalDeficit = false;
       if (typeof _state.finances.lastNet !== 'number') _state.finances.lastNet = 0;
-      if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'season', lastSummary: null, lastSummaryPending: false };
+      if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'onboarding', lastSummary: null, lastSummaryPending: false };
       if (typeof _state.season.lastSummaryPending !== 'boolean') _state.season.lastSummaryPending = false;
       if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
       if (!_state.hq) _state.hq = { wind_tunnel: 1, rnd: 1, factory: 1, academy: 1, admin: 1 };
@@ -441,6 +492,7 @@ function saveState() {
     if (_state) {
       const offset = (_state.meta && typeof _state.meta.timeOffsetMs === 'number') ? _state.meta.timeOffsetMs : 0;
       _state.meta.saveTime = Date.now() + offset;
+      annotateStateWithAccount(_state);
       const serialized = JSON.stringify(_state);
       getStateStorageKeys().forEach(key => localStorage.setItem(key, serialized));
       if (isMeaningfulSave(_state) && window.GL_AUTH && typeof GL_AUTH.saveRemoteStateSnapshot === 'function') {
@@ -464,10 +516,26 @@ function setState(updater) {
 function resetState() {
   _state = deepClone(DEFAULT_STATE);
   _state.meta.created = Date.now();
+  _state.season.phase = 'onboarding';
+  _state.team.name = '';
+  _state.team.country = '';
+  _state.team.countryFlag = '';
+  _state.team.origin = '';
+  annotateStateWithAccount(_state);
   getStateStorageKeys().forEach(key => localStorage.removeItem(key));
-  if (window.GL_AUTH && typeof GL_AUTH.clearRemoteStateSnapshot === 'function') {
-    GL_AUTH.clearRemoteStateSnapshot();
+  localStorage.removeItem(STATE_KEY);
+  getScopedAuxiliaryStorageKeys().forEach(key => localStorage.removeItem(key));
+  if (typeof window !== 'undefined') {
+    delete window._raceStrategy;
+    delete window._raceRecommendation;
+    delete window._lastRaceResult;
+    window._advisorStrategySource = 'manual';
+    window._raceInProgress = false;
   }
+  if (window.GL_AUTH && typeof GL_AUTH.clearRemoteStateSnapshot === 'function') {
+    return GL_AUTH.clearRemoteStateSnapshot();
+  }
+  return Promise.resolve();
 }
 
 function hasOnboarded() {

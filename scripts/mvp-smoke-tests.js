@@ -5,6 +5,7 @@ const { spawnSync } = require('child_process');
 
 const scripts = [
   'core-loop-smoke-tests.js',
+  'account-state-smoke-tests.js',
   'advisor-smoke-tests.js'
 ];
 

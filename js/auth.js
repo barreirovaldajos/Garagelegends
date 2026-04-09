@@ -361,6 +361,10 @@
       return this.user && this.user.email ? this.user.email : '';
     },
 
+    getUserId() {
+      return this.user && this.user.id ? this.user.id : '';
+    },
+
     getRole() {
       return this.role || 'player';
     },

@@ -33,6 +33,14 @@ Run:
 node .\scripts\core-loop-smoke-tests.js
 ```
 
+## Account/State Smoke Tests
+
+Run:
+
+```powershell
+node .\scripts\account-state-smoke-tests.js
+```
+
 ## Unified MVP Smoke Tests
 
 Run both suites with one command:

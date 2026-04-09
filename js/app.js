@@ -322,18 +322,20 @@ const APP = {
     }
   },
 
-  logout() {
-    GL_UI.confirm(
+  async logout() {
+    const res = await GL_UI.confirm(
       __('logout_confirm_title') || 'Reset team data?',
       __('logout_confirm_desc') || 'This deletes the saved team progress for the current account.',
       __('logout_yes') || 'Yes, reset team',
       __('logout_no') || 'Cancel'
-    ).then(res => {
-      if (res) {
-        GL_STATE.resetState();
-        window.location.reload();
-      }
-    });
+    );
+    if (!res) return;
+    try {
+      await GL_STATE.resetState();
+      window.location.reload();
+    } catch (e) {
+      GL_UI.toast((e && e.message) ? e.message : 'Could not reset account data.', 'error');
+    }
   },
 
   attachGlobalHandlers() {
