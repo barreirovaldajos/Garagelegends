@@ -252,13 +252,13 @@ const SCREENS = {
       } else {
         const gapFraction = Number.isFinite(car.gapMs) ? (car.gapMs / estimatedLeaderLapMs) : (idx * 0.016);
         const trackProgress = intraLapProgress - gapFraction;
-        const laneOffset = ((idx % 3) - 1) * 8;
+        const laneOffset = ((idx % 3) - 1) * 4;
         point = this.getRaceTrackPoint(trackProgress, layout, laneOffset);
       }
 
       const aheadPoint = car.pit
         ? this.getRacePitLanePoint(Math.min(1, Math.max(0, 0.16 + (((car.pitLossMs || 0) / 26000) * 0.72))), layout)
-        : this.getRaceTrackPoint(((intraLapProgress + 0.004) - ((Number.isFinite(car.gapMs) ? car.gapMs : (idx * 1500)) / estimatedLeaderLapMs)), layout, ((idx % 3) - 1) * 8);
+        : this.getRaceTrackPoint(((intraLapProgress + 0.004) - ((Number.isFinite(car.gapMs) ? car.gapMs : (idx * 1500)) / estimatedLeaderLapMs)), layout, ((idx % 3) - 1) * 4);
       const angle = Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI);
       const tyreMeta = this.getTyreMeta(car.tyre);
       const label = car.isPlayer || idx < 3 ? `<span class="race-car-label">P${Math.max(1, Math.round(car.pos || (idx + 1)))}</span>` : '';
@@ -1730,7 +1730,7 @@ const SCREENS = {
           ? __('race_leader')
           : (Number.isFinite(car.gapMs)
               ? `+${(car.gapMs / 1000).toFixed(1)}s`
-              : `+${(idx * (0.9 + (1 - progress) * 0.35)).toFixed(1)}s`);
+              : `+${(idx * 0.9).toFixed(1)}s`);
         const dotColor = car.color || '#888';
         const tyreMeta = this.getTyreMeta(car.tyre);
         const status = car.retired
@@ -1739,7 +1739,7 @@ const SCREENS = {
             ? `BOX ${Number.isFinite(car.pitLossMs) && car.pitLossMs > 0 ? `· -${(car.pitLossMs / 1000).toFixed(1)}s` : ''}`
             : gap;
         return `
-          <div class="race-pos-row ${car.isPlayer?'my-car':''}">
+          <div class="race-pos-row ${car.isPlayer?'my-car':''}" style="--team-color:${dotColor}">
             <span class="race-pos-num">${car.pos || (idx + 1)}</span>
             <span class="race-pos-teamdot" style="background:${dotColor}"></span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>

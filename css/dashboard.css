@@ -306,7 +306,7 @@
 .race-track-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(232,41,42,0.05) 0%, transparent 70%); }
 .race-status-bar { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-3) var(--s-4); background: var(--c-surface-2); border-radius: var(--r-md); position: relative; z-index: 2; }
 .race-lap-counter { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; }
-.race-track-stage { position: relative; z-index: 2; min-height: 292px; border-radius: calc(var(--r-xl) - 4px); overflow: hidden; border: 1px solid rgba(255,255,255,0.08); background:
+.race-track-stage { position: relative; z-index: 2; min-height: 292px; aspect-ratio: 1000 / 620; width: 100%; border-radius: calc(var(--r-xl) - 4px); overflow: hidden; border: 1px solid rgba(255,255,255,0.08); background:
   linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)),
   radial-gradient(circle at 20% 20%, rgba(46,204,122,0.09), transparent 35%),
   linear-gradient(135deg, rgba(11, 24, 18, 0.96), rgba(19, 29, 38, 0.94)); }
@@ -323,7 +323,7 @@
 .race-track-hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 4; pointer-events: none; }
 .race-track-chip { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; background: rgba(7, 10, 15, 0.74); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.92); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .race-car-marker { position: absolute; width: 18px; height: 18px; transform: translate(-50%, -50%) rotate(var(--car-angle)); transform-origin: 50% 50%; z-index: 3; }
-.race-car-core { position: absolute; inset: 2px 1px 2px 1px; border-radius: 999px 999px 8px 8px; background: linear-gradient(90deg, rgba(255,255,255,0.34), transparent 35%), var(--car-color); box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 5px 14px rgba(0,0,0,0.35); }
+.race-car-core { position: absolute; inset: 2px 1px 2px 1px; border-radius: 999px 999px 8px 8px; background: linear-gradient(90deg, rgba(255,255,255,0.34), transparent 35%), var(--car-color); box-shadow: 0 0 0 1px rgba(255,255,255,0.18), 0 0 12px var(--car-color), 0 5px 14px rgba(0,0,0,0.35); }
 .race-car-core::after { content: ''; position: absolute; right: 2px; top: 4px; width: 4px; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.84); }
 .race-car-tyre { position: absolute; left: 4px; right: 4px; bottom: -2px; height: 3px; border-radius: 999px; background: var(--tyre-color); box-shadow: 0 0 10px rgba(255,255,255,0.18); }
 .race-car-marker.player { width: 22px; height: 22px; z-index: 5; }
@@ -341,8 +341,8 @@
 .race-event-text { color: var(--t-secondary); flex: 1; }
 .race-event-text strong { color: var(--t-primary); }
 .race-grid-list { display: flex; flex-direction: column; gap: var(--s-1); max-height: 70vh; overflow-y: auto; padding-right: 4px; }
-.race-pos-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--c-surface-2); font-size: 0.82rem; transition: all var(--tr-fast); }
-.race-pos-row.my-car { background: rgba(232,41,42,0.1); border: 1px solid rgba(232,41,42,0.2); }
+.race-pos-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--c-surface-2); border-left: 3px solid var(--team-color, var(--c-border)); box-shadow: inset 10px 0 0 -8px var(--team-color, transparent); font-size: 0.82rem; transition: all var(--tr-fast); }
+.race-pos-row.my-car { background: linear-gradient(90deg, rgba(232,41,42,0.16), transparent 58%), var(--c-surface-2); border: 1px solid rgba(232,41,42,0.24); border-left-width: 4px; }
 .postrace-strategy-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
 .postrace-strategy-row { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--c-surface-2); border: 1px solid var(--c-border); }
 .postrace-strategy-row.my-car { background: rgba(232,41,42,0.1); border-color: rgba(232,41,42,0.24); }
