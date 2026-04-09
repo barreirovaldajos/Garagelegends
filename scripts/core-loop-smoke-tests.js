@@ -350,6 +350,10 @@ function getPlayerIncidentScore(result, pilotName = 'Test Driver') {
   return incidents + dnf;
 }
 
+function getAiCarsWithPitStops(result) {
+  return result.finalGrid.filter((entry) => !entry.isPlayer && (entry.pitStopsDone || 0) > 0);
+}
+
 function testSeasonTransitionAndCampaignCompletion(engine, stateApi) {
   const state = createBaseState();
   state.finances.credits = 10000;
@@ -626,8 +630,34 @@ function testSimulateRaceProducesAiPitStops(engine, stateApi) {
     }
   });
 
-  const aiCarsOnNewCompound = result.finalGrid.filter((entry) => !entry.isPlayer && entry.strategy && entry.tyre !== entry.strategy.tyre);
+  const aiCarsWithPitStops = getAiCarsWithPitStops(result);
+  const aiCarsOnNewCompound = aiCarsWithPitStops.filter((entry) => entry.strategy && entry.tyre !== entry.strategy.tyre);
+  const aiPitSnapshot = result.lapSnapshots.some((snapshot) => snapshot.order.some((entry) => !entry.isPlayer && entry.pit));
+  const aiPitEventsWithLoss = result.events.filter((entry) => entry.type === 'pit' && entry.text.includes('pierde') && entry.text.includes('AI Team'));
+
+  assert.ok(aiCarsWithPitStops.length > 0, 'at least one AI car should complete a pit stop');
+  assert.ok(aiCarsWithPitStops.some((entry) => (entry.pitTimeMs || 0) >= 16000), 'AI pit stops should accumulate a visible time loss');
   assert.ok(aiCarsOnNewCompound.length > 0, 'at least one AI car should pit and switch compounds');
+  assert.ok(aiPitSnapshot, 'lap snapshots should flag at least one AI car as pitting');
+  assert.ok(aiPitEventsWithLoss.length > 0, 'AI pit events should report the seconds lost in the stop');
+}
+
+function testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const singleStop = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 92,
+    pitTyres: ['medium', 'soft']
+  }, {}, () => 0.9);
+
+  const singleStopEntry = getPlayerFinalEntry(singleStop);
+  const playerPitEvent = singleStop.events.find((entry) => entry.type === 'pit' && entry.text.includes('Test Driver'));
+  const pitSnapshot = singleStop.lapSnapshots.some((snapshot) => snapshot.order.some((entry) => entry.id === 'player_1' && entry.pit));
+
+  assert.ok(singleStopEntry.pitStopsDone === 1, 'planned single-stop race should record one pit stop');
+  assert.ok(singleStopEntry.pitTimeMs >= 16000, 'pit stop should record a meaningful pit time loss');
+  assert.ok(playerPitEvent && playerPitEvent.text.includes('Pierde'), 'pit event log should expose the seconds lost during the stop');
+  assert.ok(pitSnapshot, 'lap snapshots should flag the player car as pitting during the stop lap');
 }
 
 function testEngineModeAffectsQualyPace(engine, stateApi, sandbox) {
@@ -769,11 +799,12 @@ function run() {
   testSimulateRaceProducesAiPitStops(engine, stateApi);
   testEngineModeAffectsQualyPace(engine, stateApi, sandbox);
   testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox);
+  testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox);
   testAggressionAffectsRacePace(engine, stateApi, sandbox);
   testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox);
   testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox);
 
-  console.log('✓ Core loop smoke tests passed (17 cases).');
+  console.log('✓ Core loop smoke tests passed (18 cases).');
 }
 
 run();

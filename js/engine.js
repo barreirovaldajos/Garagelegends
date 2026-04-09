@@ -364,6 +364,36 @@ function normalizeTyreForWeather(tyre, weather) {
   return tyre;
 }
 
+function getPitStopTimeMs(entry, weather = 'dry', safetyCarActive = false, staffFx = {}) {
+  const aiPitSkill = entry && entry.strategy && entry.strategy.aiMeta
+    ? entry.strategy.aiMeta.pitSkill
+    : null;
+  const crewEfficiency = entry && entry.isPlayer
+    ? clamp((((staffFx.pitTimeGainChance || 0.45) - 0.25) / 0.53), 0, 1)
+    : clamp((((aiPitSkill || 58) - 46) / 46), 0, 1);
+  const errorMult = entry && entry.isPlayer
+    ? (staffFx.pitErrorChanceMult || 1)
+    : clamp(1.18 - ((aiPitSkill || 58) / 120), 0.72, 1.12);
+
+  const laneMs = safetyCarActive ? 13200 : 18400;
+  const weatherMs = weather === 'wet' ? 900 : 0;
+  const serviceBaseMs = 5150 - (crewEfficiency * 1100);
+  const serviceNoiseMs = Math.round((Math.random() - 0.5) * 700);
+  let totalMs = laneMs + weatherMs + serviceBaseMs + serviceNoiseMs;
+
+  const quickStopChance = entry && entry.isPlayer
+    ? (staffFx.pitTimeGainChance || 0.45)
+    : clamp(0.24 + (crewEfficiency * 0.45), 0.22, 0.72);
+  if (Math.random() < quickStopChance) totalMs -= 550;
+
+  const baseErrorChance = safetyCarActive ? 0.03 : 0.06;
+  if (Math.random() < (baseErrorChance * errorMult)) {
+    totalMs += 1600 + Math.round(Math.random() * 1400);
+  }
+
+  return clamp(Math.round(totalMs), safetyCarActive ? 11800 : 16800, safetyCarActive ? 22000 : 30000);
+}
+
 function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenceCarScore) {
   const seedRoot = `${team?.id || 'ai'}_${carSlot}_${(circuit && circuit.id) || profile.layout}_${weather}`;
   const aiPilots = (D.PILOT_POOL || []).filter((pilot) => String(pilot.id || '').indexOf('ai') === 0);
@@ -690,7 +720,18 @@ function simulateRace(options = {}) {
   events.push({ lap: 0, type: 'info', text: `<strong>Qualifying:</strong> ${qualyText}. ${liveWeather === 'wet' ? '🌧️ Wet track!' : '☀️ Dry conditions.'} ${circuits?.layout ? `· ${circuits.layout}` : ''}` });
 
   // Race ticks
-  const positions = grid.map((e, i) => ({ ...e, pos: i + 1, laps: 0, pit: false, retired: false, timeMs: i * 650 }));
+  const positions = grid.map((e, i) => ({
+    ...e,
+    pos: i + 1,
+    laps: 0,
+    pit: false,
+    retired: false,
+    timeMs: i * 650,
+    pitStopsDone: 0,
+    pitTimeMs: 0,
+    lastPitLossMs: 0,
+    lastPitLap: null
+  }));
   const runtimes = {};
   const updateRunningOrder = () => {
     const activeCars = positions.filter((entry) => !entry.retired).sort((a, b) => a.timeMs - b.timeMs);
@@ -733,6 +774,11 @@ function simulateRace(options = {}) {
   });
 
   for (let lap = 1; lap <= totalLaps; lap++) {
+    positions.forEach((entry) => {
+      entry.pit = false;
+      entry.lastPitLossMs = 0;
+    });
+
     positions.filter((e) => e.isPlayer && !e.retired).forEach((entry) => {
       const rt = runtimes[entry.id];
       if (!rt) return;
@@ -857,6 +903,7 @@ function simulateRace(options = {}) {
       entry.laps = lap;
     });
 
+    let pitStopsThisLap = false;
     positions.filter((e) => !e.retired).forEach((entry) => {
       const rt = runtimes[entry.id];
       const s = entry.strategy || leadDriver.strategy;
@@ -881,13 +928,20 @@ function simulateRace(options = {}) {
         rt.wear = 0;
         const requestedTyre = getConfiguredPitTyre(s, rt.pitStopsDone - 1, liveWeather);
         const newTyre = normalizeTyreForWeather(requestedTyre, liveWeather);
-        entry.timeMs += 20000;
+        const pitLossMs = getPitStopTimeMs(entry, liveWeather, safetyCarActive, staffFx);
+        entry.timeMs += pitLossMs;
         entry.tyre = newTyre;
+        entry.pit = true;
+        entry.pitStopsDone = rt.pitStopsDone;
+        entry.pitTimeMs += pitLossMs;
+        entry.lastPitLossMs = pitLossMs;
+        entry.lastPitLap = lap;
+        pitStopsThisLap = true;
         if (entry.isPlayer) {
           const tyreNote = requestedTyre !== newTyre ? ` (${requestedTyre} ajustado por clima)` : '';
-          events.push({ lap, type: 'pit', text: `🔵 <strong>${entry.pilotName} pits (stop ${rt.pitStopsDone}/${rt.maxPitStops})!</strong> Pierde 20s y monta ${newTyre}.${tyreNote}` });
+          events.push({ lap, type: 'pit', text: `🔵 <strong>${entry.pilotName} pits (stop ${rt.pitStopsDone}/${rt.maxPitStops})!</strong> Pierde ${(pitLossMs / 1000).toFixed(1)}s y monta ${newTyre}.${tyreNote}` });
         } else {
-          events.push({ lap, type: 'pit', text: `🛞 <strong>${entry.name}</strong> entra a box (stop ${rt.pitStopsDone}/${rt.maxPitStops}) y monta ${newTyre}.` });
+          events.push({ lap, type: 'pit', text: `🛞 <strong>${entry.name}</strong> entra a box (stop ${rt.pitStopsDone}/${rt.maxPitStops}) y pierde ${(pitLossMs / 1000).toFixed(1)}s. Monta ${newTyre}.` });
         }
 
         if (rt.pitStopsDone === 1 && rt.maxPitStops > 1) {
@@ -896,6 +950,8 @@ function simulateRace(options = {}) {
         }
       }
     });
+
+    if (pitStopsThisLap) updateRunningOrder();
 
     // Incidents
     positions.forEach(p => {
@@ -925,7 +981,7 @@ function simulateRace(options = {}) {
         }
       }
 
-      if (lap % 5 === 0 && !entry.retired) {
+      if (!entry.pit && lap % 5 === 0 && !entry.retired) {
         const ahead = positions.find((x) => x.pos === entry.pos - 1 && !x.retired);
         if (ahead && Math.random() < ((((0.3 + ((s.aggression || 50) / 200)) * lapProfile.overtakeBias) + staffFx.overtakeBonus) * (1 + Math.max(0, engineFx.pace)) * Math.max(0.9, setup.paceMult))) {
           entry.timeMs = Math.max(0, entry.timeMs - 950);
@@ -942,11 +998,11 @@ function simulateRace(options = {}) {
       const wearPenalty = Math.max(0, (rt.wear - 16) * 0.06);
       const perfScore = paceDelta - wearPenalty + ((s.aggression || 50) - 50) * 0.01;
 
-      if (perfScore > 2.2 && Math.random() < 0.12) {
+      if (!entry.pit && perfScore > 2.2 && Math.random() < 0.12) {
         entry.timeMs = Math.max(0, entry.timeMs - 650);
         events.push({ lap, type: 'good', text: `⚡ <strong>${entry.pilotName}</strong> gains pace advantage on ${currentTyre.toUpperCase()} and moves up.` });
       }
-      if (perfScore < -2.2 && Math.random() < 0.14) {
+      if (!entry.pit && perfScore < -2.2 && Math.random() < 0.14) {
         entry.timeMs += 1400;
         events.push({ lap, type: 'incident', text: `📉 <strong>${entry.pilotName}</strong> struggles with ${currentTyre.toUpperCase()} in ${liveWeather}.` });
       }
@@ -970,6 +1026,9 @@ function simulateRace(options = {}) {
           isPlayer: entry.isPlayer,
           pos: entry.pos,
           tyre: entry.tyre,
+          pit: !!entry.pit,
+          pitStopsDone: entry.pitStopsDone || 0,
+          pitLossMs: entry.lastPitLossMs || 0,
           color: entry.color,
           retired: entry.retired,
           gapMs: entry.retired || !Number.isFinite(leaderTime) ? null : Math.max(0, entry.timeMs - leaderTime)
@@ -999,6 +1058,8 @@ function simulateRace(options = {}) {
         startPos: start,
         improvement: finalPos - start,
         tyre: entry.tyre || 'medium',
+        pitStopsDone: entry.pitStopsDone || 0,
+        pitTimeMs: entry.pitTimeMs || 0,
         strategy: entry.strategy || leadDriver.strategy
       };
     })
