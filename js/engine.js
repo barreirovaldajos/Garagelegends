@@ -364,6 +364,42 @@ function normalizeTyreForWeather(tyre, weather) {
   return tyre;
 }
 
+function getForecastWetAverage(forecast, fallbackWeather = 'dry') {
+  const windows = Array.isArray(forecast?.windows) ? forecast.windows.filter((window) => Number.isFinite(window?.wetProb)) : [];
+  if (!windows.length) return fallbackWeather === 'wet' ? 75 : 25;
+  return windows.reduce((sum, window) => sum + window.wetProb, 0) / windows.length;
+}
+
+function choosePitTyreForConditions(entry, strategy, stopIndex, liveWeather, forecast = null, options = {}) {
+  const requestedTyre = getConfiguredPitTyre(strategy, stopIndex, liveWeather);
+  if (!entry || entry.isPlayer) return requestedTyre;
+
+  const aiMeta = (entry.strategy && entry.strategy.aiMeta) || strategy?.aiMeta || {};
+  const decisionSkill = clamp(Number(aiMeta.decisionSkill) || 0.55, 0.35, 0.95);
+  const rainSkill = clamp((Number(aiMeta.rainSkill) || 60) / 100, 0.35, 0.95);
+  const tyreSkill = clamp((Number(aiMeta.tyreSkill) || 60) / 100, 0.35, 0.95);
+  const confidence = clamp((Number(forecast?.confidence) || 60) / 100, 0.35, 0.95);
+  const wetExpectation = clamp(getForecastWetAverage(forecast, liveWeather) / 100, 0.05, 0.95);
+  const adaptRoll = Number.isFinite(options.adaptRoll) ? options.adaptRoll : Math.random();
+  const compoundRoll = Number.isFinite(options.compoundRoll) ? options.compoundRoll : Math.random();
+
+  if (liveWeather === 'wet' && requestedTyre !== 'intermediate' && requestedTyre !== 'wet') {
+    const adaptChance = clamp(0.08 + (decisionSkill * 0.28) + (rainSkill * 0.2) + (confidence * 0.08) + ((wetExpectation - 0.5) * 0.22), 0.12, 0.78);
+    if (adaptRoll >= adaptChance) return requestedTyre;
+    const fullWetChance = clamp(0.1 + (rainSkill * 0.55) + ((wetExpectation - 0.5) * 0.2), 0.18, 0.82);
+    return compoundRoll < fullWetChance ? 'wet' : 'intermediate';
+  }
+
+  if (liveWeather === 'dry' && (requestedTyre === 'intermediate' || requestedTyre === 'wet')) {
+    const dryExpectation = 1 - wetExpectation;
+    const adaptChance = clamp(0.1 + (decisionSkill * 0.24) + (tyreSkill * 0.22) + (confidence * 0.1) + ((dryExpectation - 0.5) * 0.2), 0.14, 0.8);
+    if (adaptRoll >= adaptChance) return requestedTyre;
+    return normalizeTyreForWeather(requestedTyre, 'dry');
+  }
+
+  return requestedTyre;
+}
+
 function normalizePitPlan(plan) {
   return plan === 'double' ? 'double' : 'single';
 }
@@ -385,11 +421,11 @@ function normalizeStrategyInterventions(strategy = {}, fallbackPitLap = 50) {
   return [
     {
       lapPct: firstLapPct,
-      pitBias: interventions[0]?.pitBias || 'none'
+      pitBias: 'none'
     },
     {
       lapPct: secondLapPct,
-      pitBias: interventions[1]?.pitBias || 'none'
+      pitBias: 'none'
     }
   ];
 }
@@ -398,15 +434,10 @@ function getConfiguredStopWindows(strategy = {}, totalLaps) {
   const interventions = normalizeStrategyInterventions(strategy, getPrimaryStopLapPct(strategy, 50));
   const firstPctBase = interventions[0].lapPct;
   const secondPctBase = interventions[1].lapPct;
-  const applyBiasToLap = (baseLap, bias) => {
-    if (bias === 'early') return Math.max(2, baseLap - 2);
-    if (bias === 'late') return Math.min(totalLaps - 2, baseLap + 2);
-    return baseLap;
-  };
   const firstBaseLap = Math.floor(clamp(firstPctBase, 10, 95) / 100 * totalLaps) + 1;
   const secondBaseLap = Math.floor(clamp(secondPctBase, 10, 95) / 100 * totalLaps) + 1;
-  const firstLap = applyBiasToLap(firstBaseLap, interventions[0]?.pitBias || 'none');
-  const secondLap = Math.min(totalLaps - 2, Math.max(firstLap + 6, applyBiasToLap(secondBaseLap, interventions[1]?.pitBias || 'none')));
+  const firstLap = firstBaseLap;
+  const secondLap = Math.min(totalLaps - 2, Math.max(firstLap + 6, secondBaseLap));
   return { firstLap, secondLap };
 }
 
@@ -499,6 +530,8 @@ function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenc
       decisionSkill,
       pitSkill,
       setupSkill,
+      rainSkill,
+      tyreSkill,
       driverRating,
       carScore: clamp(Math.round((referenceCarScore * seededRange(`${seedRoot}_car_scale`, 0.82, 1.04)) + seededRange(`${seedRoot}_car_delta`, -5, 5)), 42, 90)
     }
@@ -948,7 +981,7 @@ function simulateRace(options = {}) {
         rt.pitStopsDone++;
         rt.wear = 0;
         const requestedTyre = getConfiguredPitTyre(s, rt.pitStopsDone - 1, liveWeather);
-        const newTyre = normalizeTyreForWeather(requestedTyre, liveWeather);
+        const newTyre = choosePitTyreForConditions(entry, s, rt.pitStopsDone - 1, liveWeather, forecast);
         const pitLossMs = getPitStopTimeMs(entry, liveWeather, safetyCarActive, staffFx);
         entry.timeMs += pitLossMs;
         entry.tyre = newTyre;
@@ -959,10 +992,10 @@ function simulateRace(options = {}) {
         entry.lastPitLap = lap;
         pitStopsThisLap = true;
         if (entry.isPlayer) {
-          const tyreNote = requestedTyre !== newTyre ? ` (${requestedTyre} ajustado por clima)` : '';
-          events.push({ lap, type: 'pit', text: `🔵 <strong>${entry.pilotName} pits (stop ${rt.pitStopsDone}/${rt.maxPitStops})!</strong> Pierde ${(pitLossMs / 1000).toFixed(1)}s y monta ${newTyre}.${tyreNote}` });
+          events.push({ lap, type: 'pit', text: `🔵 <strong>${entry.pilotName} pits (stop ${rt.pitStopsDone}/${rt.maxPitStops})!</strong> Pierde ${(pitLossMs / 1000).toFixed(1)}s y monta ${newTyre}.` });
         } else {
-          events.push({ lap, type: 'pit', text: `🛞 <strong>${entry.name}</strong> entra a box (stop ${rt.pitStopsDone}/${rt.maxPitStops}) y pierde ${(pitLossMs / 1000).toFixed(1)}s. Monta ${newTyre}.` });
+          const tyreNote = requestedTyre !== newTyre ? ` Reacciona al clima y cambia el plan.` : '';
+          events.push({ lap, type: 'pit', text: `🛞 <strong>${entry.name}</strong> entra a box (stop ${rt.pitStopsDone}/${rt.maxPitStops}) y pierde ${(pitLossMs / 1000).toFixed(1)}s. Monta ${newTyre}.${tyreNote}` });
         }
 
         if (rt.pitStopsDone === 1 && rt.maxPitStops > 1) {
@@ -1885,8 +1918,8 @@ function recommendStrategyForRace(race, stateArg) {
     safetyCarReaction,
     setup,
     interventions: [
-      { lapPct: 30, engineMode: isLikelyWet ? 'normal' : 'push', pitBias: pitPlan === 'double' ? 'early' : 'none' },
-      { lapPct: 70, engineMode: isLikelyWet ? 'eco' : 'push', pitBias: isLikelyWet ? 'late' : 'none' }
+      { lapPct: 30, engineMode: isLikelyWet ? 'normal' : 'push', pitBias: 'none' },
+      { lapPct: 70, engineMode: isLikelyWet ? 'eco' : 'push', pitBias: 'none' }
     ]
   };
 
@@ -2319,6 +2352,7 @@ function trainPilot(pid) {
 
 window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
+  choosePitTyreForConditions,
   weeklyTick, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,

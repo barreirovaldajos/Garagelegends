@@ -597,6 +597,36 @@ function testSimulateRaceRespectsDriverTyresAndPitTyres(engine, stateApi) {
   assert.strictEqual(car2.tyre, 'medium', 'driver two should finish on the configured first pit compound');
 }
 
+function testPlayerPitTyreChoiceIsRespectedInWetRace(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  const wetRace = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    tyre: 'hard',
+    pitPlan: 'single',
+    pitLap: 50,
+    pitTyres: ['soft', 'soft'],
+    interventions: [{ lapPct: 50, pitBias: 'none' }, { lapPct: 80, pitBias: 'none' }]
+  }, { weather: 'wet' }, () => 0.9);
+
+  const gridEntry = getPlayerGridEntry(wetRace);
+  const finalEntry = getPlayerFinalEntry(wetRace);
+
+  assert.strictEqual(gridEntry.tyre, 'hard', 'player starting tyre should remain the configured compound even in a wet race');
+  assert.strictEqual(finalEntry.tyre, 'soft', 'player pit stop should mount the configured compound without automatic weather correction');
+}
+
+function testAiPitTyreReactionIsNotPerfect(engine) {
+  const playerEntry = { id: 'player_1', isPlayer: true, strategy: {} };
+  const cautiousAi = { id: 'ai_low', isPlayer: false, strategy: { aiMeta: { decisionSkill: 0.4, rainSkill: 45, tyreSkill: 48 } } };
+  const sharpAi = { id: 'ai_high', isPlayer: false, strategy: { aiMeta: { decisionSkill: 0.92, rainSkill: 88, tyreSkill: 82 } } };
+  const strategy = { tyre: 'medium', pitTyres: ['hard', 'soft'] };
+  const uncertainForecast = { confidence: 55, windows: [{ wetProb: 35 }, { wetProb: 45 }, { wetProb: 55 }] };
+  const wetForecast = { confidence: 90, windows: [{ wetProb: 88 }, { wetProb: 92 }, { wetProb: 96 }] };
+
+  assert.strictEqual(engine.choosePitTyreForConditions(playerEntry, strategy, 0, 'wet', uncertainForecast, { adaptRoll: 0, compoundRoll: 0 }), 'hard', 'player compound choices should be respected exactly');
+  assert.strictEqual(engine.choosePitTyreForConditions(cautiousAi, strategy, 0, 'wet', uncertainForecast, { adaptRoll: 0.95, compoundRoll: 0 }), 'hard', 'low-skill AI should sometimes stick with the original dry compound in surprise rain');
+  assert.strictEqual(engine.choosePitTyreForConditions(sharpAi, strategy, 0, 'wet', wetForecast, { adaptRoll: 0.01, compoundRoll: 0.9 }), 'intermediate', 'high-skill AI should be able to react to rain without always choosing the perfect full wet tyre');
+}
+
 function testSimulateRaceProducesAiPitStops(engine, stateApi) {
   const state = createBaseState();
   stateApi._state = state;
@@ -682,18 +712,6 @@ function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
     pitLap: 34,
     pitTyres: ['hard', 'soft']
   }, {}, () => 0.9);
-  const early = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
-    pitPlan: 'single',
-    pitLap: 50,
-    strategy: 'balanced',
-    interventions: [{ lapPct: 30, pitBias: 'early' }, { lapPct: 70, pitBias: 'none' }]
-  }, {}, () => 0.9);
-  const late = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
-    pitPlan: 'single',
-    pitLap: 50,
-    strategy: 'balanced',
-    interventions: [{ lapPct: 30, pitBias: 'late' }, { lapPct: 70, pitBias: 'none' }]
-  }, {}, () => 0.9);
   const secondStopSooner = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
     pitPlan: 'double',
     pitLap: 34,
@@ -720,22 +738,34 @@ function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
     strategy: 'balanced',
     interventions: [{ lapPct: 62, pitBias: 'none' }, { lapPct: 78, pitBias: 'none' }]
   }, {}, () => 0.9);
+  const legacyPitBias = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 30,
+    strategy: 'balanced',
+    interventions: [{ lapPct: 30, pitBias: 'late' }, { lapPct: 70, pitBias: 'early' }]
+  }, {}, () => 0.9);
+  const neutralPitBias = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    pitPlan: 'single',
+    pitLap: 30,
+    strategy: 'balanced',
+    interventions: [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }]
+  }, {}, () => 0.9);
 
   const singlePitLaps = getPlayerPitLaps(single, 'Driver One');
   const doublePitLaps = getPlayerPitLaps(double, 'Driver One');
-  const earlyPitLaps = getPlayerPitLaps(early, 'Driver One');
-  const latePitLaps = getPlayerPitLaps(late, 'Driver One');
   const secondSoonerPitLaps = getPlayerPitLaps(secondStopSooner, 'Driver One');
   const secondLaterPitLaps = getPlayerPitLaps(secondStopLater, 'Driver One');
   const stalePitLapStops = getPlayerPitLaps(stalePitLap, 'Driver One');
   const scheduledPitLapStops = getPlayerPitLaps(scheduledPitLap, 'Driver One');
+  const legacyPitBiasStops = getPlayerPitLaps(legacyPitBias, 'Driver One');
+  const neutralPitBiasStops = getPlayerPitLaps(neutralPitBias, 'Driver One');
 
   assert.strictEqual(singlePitLaps.length, 1, 'single pit plan should stop once');
   assert.strictEqual(doublePitLaps.length, 2, 'double pit plan should stop twice');
   assert.strictEqual(double.playerCars[0].tyre, 'soft', 'second pit tyre selection should define the final compound on a double-stop race');
-  assert.ok(earlyPitLaps[0] < latePitLaps[0], 'early pit bias should move the first stop ahead of a late pit bias');
   assert.ok(secondSoonerPitLaps[1] < secondLaterPitLaps[1], 'the second configured stop window should move the second stop timing on a double-stop plan');
   assert.strictEqual(stalePitLapStops[0], scheduledPitLapStops[0], 'configured stop window should override stale pitLap values');
+  assert.strictEqual(legacyPitBiasStops[0], neutralPitBiasStops[0], 'legacy pit bias values should no longer shift pit timing');
 }
 
 function testLegacyAdaptivePitPlanFallsBackToSingle(engine, stateApi, sandbox) {
@@ -850,7 +880,9 @@ function run() {
   testOfflineCatchUpRaceWindow(engine, stateApi);
   testBuildRaceGridUsesSelectedPilotStrength(engine, stateApi);
   testSimulateRaceRespectsDriverTyresAndPitTyres(engine, stateApi);
+  testPlayerPitTyreChoiceIsRespectedInWetRace(engine, stateApi, sandbox);
   testSimulateRaceProducesAiPitStops(engine, stateApi);
+  testAiPitTyreReactionIsNotPerfect(engine, stateApi);
   testEngineModeAffectsQualyPace(engine, stateApi, sandbox);
   testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox);
   testLegacyAdaptivePitPlanFallsBackToSingle(engine, stateApi, sandbox);
@@ -859,7 +891,7 @@ function run() {
   testRiskLevelIncreasesIncidentExposure(engine, stateApi, sandbox);
   testSetupAffectsTrackAndWeatherPace(engine, stateApi, sandbox);
 
-  console.log('✓ Core loop smoke tests passed (19 cases).');
+  console.log('✓ Core loop smoke tests passed (21 cases).');
 }
 
 run();

@@ -213,6 +213,21 @@
 .activity-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
 .activity-text { font-size: 0.82rem; color: var(--t-secondary); line-height: 1.5; }
 .activity-text strong { color: var(--t-primary); }
+
+.race-event.team-highlight {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-border));
+  background: linear-gradient(90deg, rgba(232, 41, 42, 0.16), rgba(232, 41, 42, 0.04));
+  box-shadow: inset 3px 0 0 var(--c-accent);
+}
+
+.race-event.team-highlight .race-event-lap {
+  color: var(--c-accent);
+  font-weight: 800;
+}
+
+.race-event.team-highlight .race-event-text {
+  color: var(--t-primary);
+}
 .activity-time { font-size: 0.7rem; color: var(--t-tertiary); margin-top: 2px; }
 
 /* sponsor strip */
@@ -303,6 +318,14 @@
 .race-grid-list { display: flex; flex-direction: column; gap: var(--s-1); max-height: 70vh; overflow-y: auto; padding-right: 4px; }
 .race-pos-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); background: var(--c-surface-2); font-size: 0.82rem; transition: all var(--tr-fast); }
 .race-pos-row.my-car { background: rgba(232,41,42,0.1); border: 1px solid rgba(232,41,42,0.2); }
+.postrace-strategy-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
+.postrace-strategy-row { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: var(--r-md); background: var(--c-surface-2); border: 1px solid var(--c-border); }
+.postrace-strategy-row.my-car { background: rgba(232,41,42,0.1); border-color: rgba(232,41,42,0.24); }
+.postrace-strategy-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.postrace-strategy-pos { font-family: var(--font-display); font-weight: 800; color: var(--t-primary); min-width: 28px; }
+.postrace-strategy-name { flex: 1; min-width: 180px; font-size: 0.84rem; color: var(--t-primary); }
+.postrace-strategy-plan { font-size: 0.74rem; color: var(--c-accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.postrace-strategy-meta { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.76rem; color: var(--t-secondary); }
 .race-pos-num { font-family: var(--font-display); font-weight: 800; flex: 0 0 24px; }
 .race-pos-teamdot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset; flex: 0 0 10px; }
 .race-pos-name { flex: 1; font-weight: 500; }

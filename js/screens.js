@@ -56,6 +56,17 @@ const SCREENS = {
     return map[plan] || map.single;
   },
 
+  getCompoundLabel(tyre) {
+    const map = {
+      soft: __('compound_soft', 'Soft'),
+      medium: __('compound_medium', 'Medium'),
+      hard: __('compound_hard', 'Hard'),
+      intermediate: __('compound_intermediate', 'Intermediate'),
+      wet: __('compound_wet', 'Wet')
+    };
+    return map[tyre] || tyre || '—';
+  },
+
   normalizePitPlan(plan) {
     return plan === 'double' ? 'double' : 'single';
   },
@@ -70,13 +81,51 @@ const SCREENS = {
     return fallback;
   },
 
-  getPitBiasLabel(bias) {
-    const map = {
-      none: __('pit_bias_none', 'Neutral'),
-      early: __('pit_bias_early', 'Early'),
-      late: __('pit_bias_late', 'Late')
+  stripHtmlTags(text) {
+    return String(text || '').replace(/<[^>]*>/g, ' ');
+  },
+
+  normalizeEventSearchText(text) {
+    return this.stripHtmlTags(text)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  },
+
+  getPlayerEventPilotNames(playerCars = []) {
+    return Array.from(new Set((Array.isArray(playerCars) ? playerCars : [])
+      .map((car) => String(car?.pilotName || '').trim())
+      .filter(Boolean)));
+  },
+
+  formatPitStrategySummary(strategy = {}) {
+    const safeStrategy = strategy || {};
+    const planLabel = this.getPitPlanLabel(safeStrategy.pitPlan || 'single');
+    const firstStop = this.getPrimaryStopLapPct(safeStrategy, 50);
+    const secondStop = Array.isArray(safeStrategy.interventions) && Number.isFinite(safeStrategy.interventions[1]?.lapPct)
+      ? Math.max(firstStop + 8, Math.min(95, Math.round(safeStrategy.interventions[1].lapPct)))
+      : Math.min(95, Math.max(firstStop + 20, 70));
+    const pitTyres = Array.isArray(safeStrategy.pitTyres) ? safeStrategy.pitTyres : [];
+    const tyreSummary = (safeStrategy.pitPlan === 'double'
+      ? [pitTyres[0], pitTyres[1]]
+      : [pitTyres[0]])
+      .filter(Boolean)
+      .map((tyre) => this.getCompoundLabel(tyre))
+      .join(' -> ');
+    const stopSummary = safeStrategy.pitPlan === 'double'
+      ? `P1 ${firstStop}% · P2 ${secondStop}%`
+      : `P1 ${firstStop}%`;
+    return {
+      planLabel,
+      stopSummary,
+      tyreSummary: tyreSummary || '—'
     };
-    return map[bias] || bias || '—';
+  },
+
+  isPlayerRelatedRaceEvent(eventText, playerPilotNames = []) {
+    const haystack = this.normalizeEventSearchText(eventText);
+    if (!haystack) return false;
+    return playerPilotNames.some((pilotName) => haystack.includes(this.normalizeEventSearchText(pilotName)));
   },
 
   getWeatherLabel(weather) {
@@ -115,7 +164,7 @@ const SCREENS = {
       },
       interventions: [0, 1].map((idx) => ({
         lapPct: Number.isFinite(sourceInterventions[idx]?.lapPct) ? sourceInterventions[idx].lapPct : (idx === 0 ? defaultPitLap : 70),
-        pitBias: sourceInterventions[idx]?.pitBias || 'none'
+        pitBias: 'none'
       }))
     });
   },
@@ -137,11 +186,11 @@ const SCREENS = {
     cfg.interventions = [
       {
         lapPct: firstLapPct,
-        pitBias: cfg.interventions[0]?.pitBias || 'none'
+        pitBias: 'none'
       },
       {
         lapPct: Math.min(95, secondLapPct),
-        pitBias: cfg.interventions[1]?.pitBias || 'none'
+        pitBias: 'none'
       }
     ];
     return cfg;
@@ -1073,7 +1122,7 @@ const SCREENS = {
                     <option value="intermediate" ${cfg.pitTyres?.[0] === 'intermediate' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_intermediate', 'Intermediate')}</option>
                     <option value="wet" ${cfg.pitTyres?.[0] === 'wet' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_wet', 'Wet')}</option>
                   </select>
-                  <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',1,this.value)">
+                  <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',1,this.value)" ${cfg.pitPlan === 'single' ? 'disabled' : ''}>
                     <option value="soft" ${cfg.pitTyres?.[1] === 'soft' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_soft', 'Soft')}</option>
                     <option value="medium" ${cfg.pitTyres?.[1] === 'medium' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_medium', 'Medium')}</option>
                     <option value="hard" ${cfg.pitTyres?.[1] === 'hard' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_hard', 'Hard')}</option>
@@ -1115,11 +1164,6 @@ const SCREENS = {
                     <div>
                       <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">${stopLabel}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
                       <input type="range" min="10" max="95" value="${cfg.interventions[idx].lapPct}" oninput="document.getElementById('driver-iv-${idx}-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'lapPct',+this.value,true)" style="width:100%" ${disabled ? 'disabled' : ''}>
-                      <select onchange="GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'pitBias',this.value)" style="width:100%;margin-top:4px" ${disabled ? 'disabled' : ''}>
-                        <option value="none" ${cfg.interventions[idx].pitBias === 'none' ? 'selected' : ''}>${__('prerace_stop_adjust_label', 'Stop adjustment')}: ${this.getPitBiasLabel('none')}</option>
-                        <option value="early" ${cfg.interventions[idx].pitBias === 'early' ? 'selected' : ''}>${__('prerace_stop_adjust_label', 'Stop adjustment')}: ${this.getPitBiasLabel('early')}</option>
-                        <option value="late" ${cfg.interventions[idx].pitBias === 'late' ? 'selected' : ''}>${__('prerace_stop_adjust_label', 'Stop adjustment')}: ${this.getPitBiasLabel('late')}</option>
-                      </select>
                     </div>
                       `;
                     })()}
@@ -1276,6 +1320,7 @@ const SCREENS = {
   updateDriverPitTyre(pid, stopIndex, value, silent = false) {
     const cfg = this.ensureDriverConfig(pid);
     if (!cfg) return;
+    if (stopIndex === 1 && cfg.pitPlan === 'single') return;
     cfg.pitTyres[stopIndex] = value;
     window._advisorStrategySource = 'manual';
     if (!silent) this.renderPreRace();
@@ -1438,8 +1483,8 @@ const SCREENS = {
             <div class="section-eyebrow">${__('race_strat_active')}</div>
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:var(--s-3)">
               ${GL_UI.statRow(__('race_sc_reaction', 'Safety Car reaction'), __('race_sc_live_managed', 'Live by the staff'), '🟡')}
-              ${GL_UI.statRow(__('race_intervention_1', 'Intervention 1'), `${strategy.interventions?.[0]?.lapPct || 30}% · ${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel(strategy.interventions?.[0]?.pitBias || 'none')}`, '🎛️')}
-              ${GL_UI.statRow(__('race_intervention_2', 'Intervention 2'), `${strategy.interventions?.[1]?.lapPct || 70}% · ${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitBiasLabel(strategy.interventions?.[1]?.pitBias || 'none')}`, '🎛️')}
+              ${GL_UI.statRow(__('race_intervention_1', 'Intervention 1'), `${strategy.interventions?.[0]?.lapPct || 30}%`, '🎛️')}
+              ${GL_UI.statRow(__('race_intervention_2', 'Intervention 2'), `${strategy.interventions?.[1]?.lapPct || 70}%`, '🎛️')}
               ${GL_UI.statRow(__('race_setup_aero', 'Aero setup'), `${strategy.setup?.aeroBalance ?? 50}%`, '🛩️')}
               ${GL_UI.statRow(__('race_setup_weather', 'Weather setup'), `${strategy.setup?.wetBias ?? 50}%`, '🌧️')}
               ${racePilots.map((rp, idx) => {
@@ -1510,6 +1555,7 @@ const SCREENS = {
     const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
     const finalGrid = Array.isArray(result.finalGrid) ? result.finalGrid : [];
     const lapSnapshots = Array.isArray(result.lapSnapshots) ? result.lapSnapshots : [];
+    const playerEventPilotNames = this.getPlayerEventPilotNames(result.playerCars);
     const startPosMap = {};
     const finalPosMap = {};
 
@@ -1578,11 +1624,25 @@ const SCREENS = {
       if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
       if (GL_ENGINE.ensureNextRaceAvailable) GL_ENGINE.ensureNextRaceAvailable();
       state.season.raceIndex = nextIdx + 1;
-      GL_ENGINE.weeklyTick();
       const prize = Number.isFinite(result.prizeMoney) ? result.prizeMoney : Number(result.prizeMoney || 0);
+      const creditsBeforeRacePayout = GL_STATE.getCredits();
       GL_STATE.addCredits(prize);
+      const creditsAfterRacePayout = GL_STATE.getCredits();
+      const immediatePrizeDelta = creditsAfterRacePayout - creditsBeforeRacePayout;
+      GL_ENGINE.weeklyTick();
+      const creditsAfterWeeklyTick = GL_STATE.getCredits();
+      const weeklyNetDelta = creditsAfterWeeklyTick - creditsAfterRacePayout;
       const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
       GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(prize)} CR`, 'good');
+      if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') {
+        GL_DASHBOARD.updateTopbar(GL_STATE.getState());
+      }
+      if (immediatePrizeDelta > 0 || weeklyNetDelta !== 0) {
+        const weeklyLabel = weeklyNetDelta === 0
+          ? ''
+          : ` · Balance semanal ${weeklyNetDelta > 0 ? '+' : '-'}${GL_UI.fmtCR(Math.abs(weeklyNetDelta))} CR`;
+        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(immediatePrizeDelta)} CR${weeklyLabel}`, immediatePrizeDelta + weeklyNetDelta >= 0 ? 'good' : 'info');
+      }
 
       if (GL_ENGINE.recordStrategyOutcome) {
         GL_ENGINE.recordStrategyOutcome(next, strategy, result, {
@@ -1617,7 +1677,8 @@ const SCREENS = {
         const ev = allEvents[eventCursor];
         if (log) {
           const div = document.createElement('div');
-          div.className = `race-event ${ev.type}`;
+          const teamHighlightClass = this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : '';
+          div.className = `race-event ${ev.type} ${teamHighlightClass}`.trim();
           div.innerHTML = `<span class="race-event-lap">${__('race_lap_short')} ${ev.lap}</span><span class="race-event-text">${ev.text}</span>`;
           log.appendChild(div);
           log.scrollTop = log.scrollHeight;
@@ -1641,9 +1702,25 @@ const SCREENS = {
     if (!el) return;
     if (!result) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('postrace_no_result')}</p></div>`; return; }
     const playerCars = Array.isArray(result.playerCars) ? result.playerCars : [];
+    const playerEventPilotNames = this.getPlayerEventPilotNames(playerCars);
     const leadCar = playerCars[0] || { position: result.position, isDNF: result.isDNF, pilotName: 'Driver', points: result.points };
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
+    const strategyRows = (Array.isArray(result.finalGrid) ? result.finalGrid : []).map((car, idx) => {
+      const summary = this.formatPitStrategySummary(car.strategy || {});
+      return `
+        <div class="postrace-strategy-row ${car.isPlayer ? 'my-car' : ''}">
+          <div class="postrace-strategy-main">
+            <span class="postrace-strategy-pos">P${idx + 1}</span>
+            <span class="postrace-strategy-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
+            <span class="postrace-strategy-plan">${summary.planLabel}</span>
+          </div>
+          <div class="postrace-strategy-meta">
+            <span>${summary.stopSummary}</span>
+            <span>${summary.tyreSummary}</span>
+          </div>
+        </div>`;
+    }).join('');
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -1681,7 +1758,7 @@ const SCREENS = {
           </div>
           <div class="section-eyebrow">${__('postrace_events')}</div>
           <div class="race-event-log" style="max-height:250px;overflow-y:auto">
-            ${result.events.map(ev => `<div class="race-event ${ev.type}"><span class="race-event-lap">L${ev.lap}</span><span class="race-event-text">${ev.text}</span></div>`).join('')}
+            ${result.events.map(ev => `<div class="race-event ${ev.type} ${this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : ''}"><span class="race-event-lap">L${ev.lap}</span><span class="race-event-text">${ev.text}</span></div>`).join('')}
           </div>
         </div>
         <div class="card">
@@ -1693,6 +1770,11 @@ const SCREENS = {
                 <span class="race-pos-name">${car.isPlayer?'<strong style="color:var(--c-accent)">'+car.name+'</strong>':car.name}</span>
                 <span style="font-size:0.78rem;color:var(--c-gold)">${GL_DATA.POINTS_TABLE[i]||0} pts</span>
               </div>`).join('')}
+          </div>
+          <div class="divider"></div>
+          <div class="section-eyebrow">${__('postrace_box_strategy_audit', 'Pit Strategy Audit')}</div>
+          <div class="postrace-strategy-list">
+            ${strategyRows}
           </div>
         </div>
       </div>`;
