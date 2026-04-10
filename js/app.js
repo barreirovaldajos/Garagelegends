@@ -66,6 +66,10 @@ const APP = {
 
   bootForCurrentSession() {
     const loaded = GL_STATE.loadState();
+    const authReady = window.GL_AUTH && GL_AUTH.enabled && typeof GL_AUTH.isAuthenticated === 'function' && GL_AUTH.isAuthenticated();
+    const syncStatus = authReady && typeof GL_AUTH.getSyncStatus === 'function'
+      ? GL_AUTH.getSyncStatus()
+      : null;
 
     if (loaded && GL_STATE.hasOnboarded()) {
       this.showApp();
@@ -74,6 +78,8 @@ const APP = {
       this.buildTopbar();
       if (window.GL_DASHBOARD) GL_DASHBOARD.init();
       this.navigateTo('dashboard');
+    } else if (authReady && syncStatus && syncStatus.lastError) {
+      this.showCloudRecovery(syncStatus);
     } else {
       console.log('App: State not onboarded or missing. Starting onboarding.');
       document.getElementById('app').style.display = 'none';
@@ -85,6 +91,50 @@ const APP = {
         GL_OB.start();
       }
     }
+  },
+
+  showCloudRecovery(syncStatus) {
+    const onboardingEl = document.getElementById('onboarding-screen');
+    document.getElementById('app').style.display = 'none';
+    this.buildSidebar();
+    this.buildTopbar();
+    if (!onboardingEl) return;
+    onboardingEl.style.display = 'flex';
+    onboardingEl.innerHTML = `
+      <div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,rgba(8,10,16,0.98),rgba(15,21,35,0.96));padding:24px;box-sizing:border-box">
+        <div style="max-width:680px;width:100%;background:rgba(255,255,255,0.045);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:24px;color:var(--t-primary)">
+          <div class="screen-eyebrow">${__('finances_cashflow_title', 'Cloud save')}</div>
+          <h2 style="margin:6px 0 10px;font-size:1.9rem">${__('profile_cloud_recovery_title', 'We found your account, but could not recover the cloud save.')}</h2>
+          <p style="margin:0 0 14px;color:var(--t-secondary);line-height:1.6">${__('profile_cloud_recovery_desc', 'This usually means the cloud sync failed or the remote save could not be loaded. Retry the sync before starting a new team.')}</p>
+          <div style="padding:12px 14px;border-radius:12px;background:rgba(232,41,42,0.08);border:1px solid rgba(232,41,42,0.25);color:var(--t-secondary);font-size:0.85rem;word-break:break-word">${syncStatus.lastError || __('profile_cloud_unknown', 'Unknown sync error.')}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:18px">
+            <button class="btn btn-primary" onclick="GL_APP.retryCloudRecovery()">${__('profile_cloud_recovery_retry', 'Retry cloud sync')}</button>
+            <button class="btn btn-ghost" onclick="GL_APP.startNewTeamAfterRecovery()">${__('profile_cloud_recovery_continue', 'Continue with a new team')}</button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  async retryCloudRecovery() {
+    if (!(window.GL_AUTH && typeof GL_AUTH.refreshRemoteProfile === 'function')) return;
+    try {
+      const status = await GL_AUTH.refreshRemoteProfile();
+      if (status && !status.lastError) {
+        this.bootForCurrentSession();
+        return;
+      }
+      GL_UI.toast(status?.lastError || __('profile_cloud_refresh_fail', 'Could not reload the cloud save.'), 'error');
+      this.showCloudRecovery(status || { lastError: __('profile_cloud_unknown', 'Unknown sync error.') });
+    } catch (e) {
+      GL_UI.toast((e && e.message) ? e.message : __('profile_cloud_refresh_fail', 'Could not reload the cloud save.'), 'error');
+    }
+  },
+
+  startNewTeamAfterRecovery() {
+    const onboardingEl = document.getElementById('onboarding-screen');
+    if (!onboardingEl) return;
+    onboardingEl.style.display = 'flex';
+    GL_OB.start();
   },
 
   resumeAuthenticatedSession() {
@@ -279,6 +329,30 @@ const APP = {
     const authEnabled = window.GL_AUTH && GL_AUTH.enabled;
     const authEmail = authEnabled ? (GL_AUTH.getUserEmail() || 'unknown') : '';
     const authRole = authEnabled ? (GL_AUTH.getRole() || 'player') : '';
+    const syncStatus = authEnabled && typeof GL_AUTH.getSyncStatus === 'function'
+      ? GL_AUTH.getSyncStatus()
+      : null;
+    const syncLabel = !syncStatus
+      ? ''
+      : syncStatus.pending
+        ? __('profile_cloud_pending', 'Sync in progress')
+        : syncStatus.lastError
+          ? __('profile_cloud_error', 'Sync error')
+          : syncStatus.hasRemoteSave
+            ? __('profile_cloud_synced', 'Cloud save synced')
+            : __('profile_cloud_empty', 'No cloud save detected yet');
+    const syncColor = !syncStatus
+      ? 'var(--t-secondary)'
+      : syncStatus.pending
+        ? 'var(--c-gold)'
+        : syncStatus.lastError
+          ? 'var(--c-red)'
+          : syncStatus.hasRemoteSave
+            ? 'var(--c-green)'
+            : 'var(--t-secondary)';
+    const syncDate = syncStatus && (syncStatus.remoteUpdatedAt || syncStatus.lastSyncAt)
+      ? new Date(syncStatus.remoteUpdatedAt || syncStatus.lastSyncAt).toLocaleString()
+      : '—';
     GL_UI.openModal({
       title: __('profile_title') || 'Team Profile',
       size: 'sm',
@@ -289,15 +363,51 @@ const APP = {
           <p style="color:var(--t-tertiary);margin:var(--s-1) 0 0;font-size:0.9rem">${state.team.origin || state.team.country} · ${__('division')} ${state.season.division}</p>
         </div>
         ${authEnabled ? `<div style="margin:0 0 var(--s-4);padding:10px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border);font-size:0.8rem;color:var(--t-secondary)">
-          <div style="margin-bottom:4px"><strong style="color:var(--t-primary)">Account:</strong> ${authEmail}</div>
-          <div><strong style="color:var(--t-primary)">Role:</strong> ${authRole}</div>
+          <div style="margin-bottom:4px"><strong style="color:var(--t-primary)">${__('profile_account_label', 'Account')}:</strong> ${authEmail}</div>
+          <div style="margin-bottom:4px"><strong style="color:var(--t-primary)">${__('profile_role_label', 'Role')}:</strong> ${authRole}</div>
+          <div style="margin-bottom:4px"><strong style="color:var(--t-primary)">${__('profile_cloud_status', 'Cloud save')}:</strong> <span style="color:${syncColor}">${syncLabel}</span></div>
+          <div style="margin-bottom:${syncStatus?.lastError ? '4px' : '0'}"><strong style="color:var(--t-primary)">${__('profile_cloud_last_sync', 'Last cloud update')}:</strong> ${syncDate}</div>
+          ${syncStatus?.lastError ? `<div style="margin-top:6px;color:var(--c-red)"><strong>${__('profile_cloud_error_label', 'Error')}:</strong> ${syncStatus.lastError}</div>` : ''}
         </div>` : ''}
         <hr style="border:0;border-top:1px solid var(--c-border-hi);margin:var(--s-5) 0"/>
         <p style="color:var(--t-secondary);font-size:0.85rem;margin-bottom:var(--s-4);text-align:center">${__('profile_logout_desc') || 'Session logout and local reset are separate actions.'}</p>
+        ${authEnabled ? `<button class="btn btn-primary w-full" style="justify-content:center;margin-bottom:10px" onclick="GL_APP.forceCloudSync()">${__('profile_cloud_force_sync', 'Force cloud sync')}</button>` : ''}
+        ${authEnabled ? `<button class="btn btn-ghost w-full" style="justify-content:center;margin-bottom:10px" onclick="GL_APP.refreshCloudProfile()">${__('profile_cloud_retry', 'Reload cloud save')}</button>` : ''}
         ${authEnabled ? `<button class="btn btn-secondary w-full" style="justify-content:center;margin-bottom:10px" onclick="GL_APP.sessionLogout()">Sign out account session</button>` : ''}
         <button class="btn btn-danger w-full" style="justify-content:center" onclick="GL_APP.logout()">Reset team data</button>
       `
     });
+  },
+
+  async forceCloudSync() {
+    if (!(window.GL_AUTH && typeof GL_AUTH.forceSyncCurrentState === 'function')) return;
+    try {
+      const status = await GL_AUTH.forceSyncCurrentState();
+      if (status?.lastError) {
+        GL_UI.toast(status.lastError, 'error');
+      } else {
+        GL_UI.toast(__('profile_cloud_sync_ok', 'Cloud save synchronized.'), 'good');
+      }
+      this.showProfile();
+    } catch (e) {
+      GL_UI.toast((e && e.message) ? e.message : __('profile_cloud_sync_fail', 'Could not synchronize the cloud save.'), 'error');
+    }
+  },
+
+  async refreshCloudProfile() {
+    if (!(window.GL_AUTH && typeof GL_AUTH.refreshRemoteProfile === 'function')) return;
+    try {
+      const status = await GL_AUTH.refreshRemoteProfile();
+      if (status?.lastError) {
+        GL_UI.toast(status.lastError, 'error');
+      } else {
+        GL_UI.toast(__('profile_cloud_refresh_ok', 'Cloud save reloaded.'), 'good');
+      }
+      this.bootForCurrentSession();
+      this.showProfile();
+    } catch (e) {
+      GL_UI.toast((e && e.message) ? e.message : __('profile_cloud_refresh_fail', 'Could not reload the cloud save.'), 'error');
+    }
   },
 
   async sessionLogout() {

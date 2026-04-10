@@ -16,6 +16,11 @@
     savePromise: null,
     pendingRemoteSave: null,
     lifecycleBound: false,
+    syncStatus: 'idle',
+    lastSyncAt: 0,
+    lastSyncError: '',
+    lastSyncErrorAt: 0,
+    lastProfileLoadAt: 0,
 
     isConfigured() {
       const cfg = window.GL_SUPABASE_CONFIG || {};
@@ -227,6 +232,15 @@
           profResult.data.save_data,
           profResult.data.save_updated_at
         );
+        this.lastProfileLoadAt = Date.now();
+        this.syncStatus = this.remoteSave ? 'synced' : 'ready';
+        this.lastSyncError = '';
+        this.lastSyncErrorAt = 0;
+      } else if (profResult.error) {
+        this.syncStatus = 'error';
+        this.lastSyncError = profResult.error.message || String(profResult.error);
+        this.lastSyncErrorAt = Date.now();
+        console.warn('Profile load warning:', this.lastSyncError);
       }
     },
 
@@ -268,6 +282,9 @@
       if (!this.client || !this.user || !state) return Promise.resolve();
       const snapshot = JSON.parse(JSON.stringify(state));
       const updatedAt = this.getSaveTimestamp(snapshot, Date.now());
+      this.syncStatus = 'pending';
+      this.lastSyncError = '';
+      this.lastSyncErrorAt = 0;
       this.remoteSave = snapshot;
       this.remoteSaveUpdatedAt = Math.max(this.remoteSaveUpdatedAt || 0, updatedAt);
       this.pendingRemoteSave = {
@@ -294,12 +311,22 @@
             })
             .eq('id', pending.userId);
           if (error) {
+            this.syncStatus = 'error';
+            this.lastSyncError = error.message || String(error);
+            this.lastSyncErrorAt = Date.now();
             console.warn('Remote save warning:', error.message || error);
           } else if (this.user && this.user.id === pending.userId) {
             this.remoteSave = pending.snapshot;
             this.remoteSaveUpdatedAt = Math.max(this.remoteSaveUpdatedAt || 0, pending.updatedAt || 0);
+            this.lastSyncAt = Date.now();
+            this.syncStatus = 'synced';
+            this.lastSyncError = '';
+            this.lastSyncErrorAt = 0;
           }
         } catch (e) {
+          this.syncStatus = 'error';
+          this.lastSyncError = e && e.message ? e.message : String(e);
+          this.lastSyncErrorAt = Date.now();
           console.warn('Remote save warning:', e && e.message ? e.message : e);
         }
       }
@@ -326,6 +353,34 @@
         const pending = this.savePromise;
         await pending;
       }
+    },
+
+    getSyncStatus() {
+      return {
+        status: this.syncStatus || 'idle',
+        lastSyncAt: this.lastSyncAt || 0,
+        lastProfileLoadAt: this.lastProfileLoadAt || 0,
+        lastError: this.lastSyncError || '',
+        lastErrorAt: this.lastSyncErrorAt || 0,
+        pending: Boolean(this.pendingRemoteSave || this.savePromise),
+        hasRemoteSave: Boolean(this.remoteSave),
+        remoteUpdatedAt: this.remoteSaveUpdatedAt || 0
+      };
+    },
+
+    async refreshRemoteProfile() {
+      if (!this.client || !this.user) return this.getSyncStatus();
+      await this.ensureProfile();
+      return this.getSyncStatus();
+    },
+
+    async forceSyncCurrentState() {
+      if (!(this.client && this.user && window.GL_STATE && typeof GL_STATE.saveState === 'function')) {
+        return this.getSyncStatus();
+      }
+      GL_STATE.saveState();
+      await this.flushRemoteStateSnapshot();
+      return this.getSyncStatus();
     },
 
     bindLifecyclePersistence() {
