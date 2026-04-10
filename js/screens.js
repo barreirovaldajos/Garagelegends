@@ -1100,9 +1100,9 @@ const SCREENS = {
       title: `${__('calendar_report_title')} · ${titleSuffix}`,
       size: 'lg',
       content: `
-        ${this.renderRacePerformanceReport(record?.performanceReport || null)}
-        <div class="divider" style="margin:18px 0"></div>
         ${this.renderRaceAdminReport(record?.adminReport || null, { copyAction: `GL_SCREENS.copyRaceAdminReport(${Number(round)})` })}
+        <div class="divider" style="margin:18px 0"></div>
+        ${this.renderRacePerformanceReport(record?.performanceReport || null)}
       `
     });
   },
@@ -2304,12 +2304,12 @@ const SCREENS = {
         </div>
       </div>
       <div class="card mb-4">
-        <div class="section-eyebrow">${__('postrace_performance_report')}</div>
-        <div style="margin-top:10px">${this.renderRacePerformanceReport(performanceReport, { compact: true })}</div>
-      </div>
-      <div class="card mb-4">
         <div class="section-eyebrow">${__('postrace_admin_report')}</div>
         <div style="margin-top:10px">${this.renderRaceAdminReport(adminReport, { compact: true, copyAction: 'GL_SCREENS.copyRaceAdminReport()' })}</div>
+      </div>
+      <div class="card mb-4">
+        <div class="section-eyebrow">${__('postrace_performance_report')}</div>
+        <div style="margin-top:10px">${this.renderRacePerformanceReport(performanceReport, { compact: true })}</div>
       </div>
       <div class="grid-2">
         <div class="card">
