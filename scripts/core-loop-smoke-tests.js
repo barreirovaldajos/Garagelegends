@@ -725,12 +725,20 @@ function testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox) {
   assert.ok(pitSnapshot, 'lap snapshots should flag the player car as pitting during the stop lap');
 }
 
-function testEngineModeAffectsGridStrength(engine, stateApi, sandbox) {
+function testRaceStrategyDoesNotChangeGridStrength(engine, stateApi, sandbox) {
   const state = createBaseState();
-  const eco = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, { engineMode: 'eco' }, {}, () => 0.9);
-  const push = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, { engineMode: 'push' }, {}, () => 0.9);
+  const conservative = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    aggression: 35,
+    engineMode: 'eco',
+    riskLevel: 25
+  }, {}, () => 0.9);
+  const aggressive = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    aggression: 75,
+    engineMode: 'push',
+    riskLevel: 70
+  }, {}, () => 0.9);
 
-  assert.ok(getPlayerGridEntry(push).score > getPlayerGridEntry(eco).score, 'push engine mode should improve race-start strength versus eco');
+  assert.strictEqual(getPlayerGridEntry(conservative).score, getPlayerGridEntry(aggressive).score, 'race strategy knobs should not alter the starting grid with the same underlying car and pilot');
 }
 
 function testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox) {
@@ -1106,7 +1114,7 @@ function run() {
   testPlayerPitTyreChoiceIsRespectedInWetRace(engine, stateApi, sandbox);
   testSimulateRaceProducesAiPitStops(engine, stateApi);
   testAiPitTyreReactionIsNotPerfect(engine, stateApi);
-  testEngineModeAffectsGridStrength(engine, stateApi, sandbox);
+  testRaceStrategyDoesNotChangeGridStrength(engine, stateApi, sandbox);
   testPitPlanAndWindowsAffectStops(engine, stateApi, sandbox);
   testLegacyAdaptivePitPlanFallsBackToSingle(engine, stateApi, sandbox);
   testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox);

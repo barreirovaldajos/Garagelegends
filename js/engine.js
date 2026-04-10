@@ -356,6 +356,26 @@ function getPilotRaceStrength(pilot, weather, strategy = {}) {
   return clamp(strength, 40, 96);
 }
 
+function getPilotGridStrength(pilot, weather) {
+  const overall = pilotScore(pilot);
+  const pace = getPilotAttr(pilot, 'pace', overall);
+  const racePace = getPilotAttr(pilot, 'racePace', overall);
+  const consistency = getPilotAttr(pilot, 'consistency', 60);
+  const techFeedback = getPilotAttr(pilot, 'techFB', 60);
+  const mental = getPilotAttr(pilot, 'mental', 60);
+  const rainSkill = getPilotAttr(pilot, 'rain', 60);
+
+  let strength = (overall * 0.26)
+    + (pace * 0.32)
+    + (racePace * 0.18)
+    + (consistency * 0.12)
+    + (techFeedback * 0.07)
+    + (mental * 0.05);
+
+  if (weather === 'wet') strength += (rainSkill - 60) * 0.18;
+  return clamp(strength, 40, 96);
+}
+
 function hashSeed(input) {
   const str = String(input || 'seed');
   let hash = 2166136261;
@@ -622,10 +642,9 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
     endurance: (carData.reliability.score + carData.tyreManage.score + carData.efficiency.score) / 3
   };
   const trackCarBonus = ((layoutCarComponent[layout] || car) - 50) * 0.12;
-  const aggressionBonus = ((strategy.aggression || 50) - 50) * 0.04;
   const weatherDriverMult = weather === 'wet' ? 0.92 : 1;
-  const leadDriverStrength = getPilotRaceStrength(playerPilot, weather, strategy);
-  const playerBase = ((car * 0.52 + leadDriverStrength * 0.48) + trackCarBonus + aggressionBonus) * weatherDriverMult * profile.paceBias * setupFx.paceMult;
+  const leadDriverStrength = getPilotGridStrength(playerPilot, weather);
+  const playerBase = ((car * 0.56 + leadDriverStrength * 0.44) + trackCarBonus) * weatherDriverMult * profile.paceBias * setupFx.paceMult;
 
   const grid = [{
     id: 'player',
@@ -642,11 +661,10 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
     for (let carSlot = 1; carSlot <= 2; carSlot++) {
       const aiProfile = buildAiDriverProfile(t, carSlot, weather, circuit, profile, car);
       const aiSetupFx = getSetupEffects(circuit, weather, aiProfile.strategy.setup || {});
-      const aiAggressionBonus = ((aiProfile.strategy.aggression || 50) - 50) * 0.04;
-      const aiPilotStrength = getPilotRaceStrength(aiProfile.pilot, weather, aiProfile.strategy);
+      const aiPilotStrength = getPilotGridStrength(aiProfile.pilot, weather);
       const aiCarScore = aiProfile.strategy.aiMeta.carScore;
       const aiTrackBias = ((aiCarScore - 50) * 0.11) + seededRange(`${t.id}_${carSlot}_track`, -2.5, 2.5);
-      const aiBase = ((aiCarScore * 0.5 + aiPilotStrength * 0.5) + aiTrackBias + aiAggressionBonus) * profile.paceBias * aiSetupFx.paceMult;
+      const aiBase = ((aiCarScore * 0.54 + aiPilotStrength * 0.46) + aiTrackBias) * profile.paceBias * aiSetupFx.paceMult;
       grid.push({
         id: `${t.id}_${carSlot}`,
         teamId: t.id,
@@ -1240,7 +1258,6 @@ function simulateRace(options = {}) {
 
   let grid = buildRaceGrid(leadDriver.pilot, liveWeather, circuits, leadDriver.strategy).map((entry) => {
     if (!entry.isPlayer) return entry;
-    const fx = getEngineModeFx(leadDriver.strategy.engineMode || 'normal');
     return {
       ...entry,
       id: leadDriver.id,
@@ -1249,7 +1266,7 @@ function simulateRace(options = {}) {
       pilotName: leadDriver.pilot.name,
       teamSlot: leadDriver.slot,
       strategy: cloneData(leadDriver.strategy),
-      score: entry.score * (1 + fx.pace) * (1 + staffFx.paceBonus)
+      score: entry.score * (1 + staffFx.paceBonus)
     };
   });
 
@@ -1257,7 +1274,7 @@ function simulateRace(options = {}) {
     const secondDriver = selectedDrivers[1];
     const carData = S.getCar().components;
     const car = carScore();
-    const pilotSc = getPilotRaceStrength(secondDriver.pilot, liveWeather, secondDriver.strategy);
+    const pilotSc = getPilotGridStrength(secondDriver.pilot, liveWeather);
     const setupFx = getSetupEffects(circuits, liveWeather, secondDriver.strategy.setup || {});
     const layout = profile.layout;
     const layoutCarComponent = {
@@ -1268,10 +1285,8 @@ function simulateRace(options = {}) {
       endurance: (carData.reliability.score + carData.tyreManage.score + carData.efficiency.score) / 3
     };
     const trackCarBonus = ((layoutCarComponent[layout] || car) - 50) * 0.12;
-    const aggressionBonus = ((secondDriver.strategy.aggression || 50) - 50) * 0.04;
     const weatherDriverMult = liveWeather === 'wet' ? 0.92 : 1;
-    const base = ((car * 0.5 + pilotSc * 0.5) + trackCarBonus + aggressionBonus) * weatherDriverMult * profile.paceBias * setupFx.paceMult;
-    const fx = getEngineModeFx(secondDriver.strategy.engineMode || 'normal');
+    const base = ((car * 0.56 + pilotSc * 0.44) + trackCarBonus) * weatherDriverMult * profile.paceBias * setupFx.paceMult;
     grid.push({
       id: secondDriver.id,
       name: `${state.team.name || 'Your Team'} · ${secondDriver.pilot.name}`,
@@ -1281,7 +1296,7 @@ function simulateRace(options = {}) {
       teamSlot: secondDriver.slot,
       isPlayer: true,
       base,
-      score: (base + (Math.random() - 0.5) * 10) * (1 + fx.pace) * (1 + staffFx.paceBonus),
+      score: (base + (Math.random() - 0.5) * 10) * (1 + staffFx.paceBonus),
       tyre: secondDriver.strategy.tyre || 'medium',
       wear: 0,
       gaps: 0,
