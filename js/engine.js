@@ -729,6 +729,237 @@ function getEngineModeFx(mode) {
   return map[mode] || map.normal;
 }
 
+function averageFinite(values = [], fallback = 0) {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (!valid.length) return fallback;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function scoreToStars(score) {
+  return clamp(Math.round((Number(score) || 0) / 20), 1, 5);
+}
+
+function buildRacePerformanceReport(result, stateArg = null) {
+  const state = stateArg || S.getState();
+  const playerCars = Array.isArray(result?.playerCars) ? result.playerCars : [];
+  const playerPilots = playerCars.map((car) => {
+    return (state?.pilots || []).find((pilot) => pilot.id === car.pilotId) || {
+      id: car.pilotId || car.id,
+      name: car.pilotName || 'Driver',
+      attrs: {
+        pace: 55,
+        racePace: 55,
+        consistency: 55,
+        rain: 55,
+        tyre: 55,
+        aggression: 55,
+        overtake: 55,
+        techFB: 55,
+        mental: 55,
+        charisma: 55
+      }
+    };
+  });
+  const avgAttr = (key, fallback = 55) => averageFinite(playerPilots.map((pilot) => getPilotAttr(pilot, key, fallback)), fallback);
+  const avgPosition = averageFinite(playerCars.map((car) => Number(car.position)), Number(result?.position) || 10);
+  const avgGridGain = averageFinite(playerCars.map((car) => -(Number(car.improvement) || 0)), 0);
+  const dnfCount = playerCars.filter((car) => car.isDNF).length;
+  const avgPitTimeMs = averageFinite(playerCars.map((car) => Number(car.pitTimeMs) || 0), 0);
+  const avgSetupFit = averageFinite(playerCars.map((car) => {
+    const setupFx = getSetupEffects(result?.circuit, result?.weather || 'dry', car?.strategy?.setup || {});
+    return clamp(56 + ((setupFx.paceMult - 1) * 180) - ((setupFx.tyreMult - 1) * 40), 20, 99);
+  }), 58);
+  const staffSetupScore = averageFinite((state?.staff || []).map((member) => Number(member?.attrs?.setup) || 0), 58);
+  const staffTechnicalScore = averageFinite((state?.staff || []).map((member) => Number(member?.attrs?.technical) || 0), 58);
+  const staffPitScore = averageFinite((state?.staff || []).map((member) => Number(member?.attrs?.pitStrategy) || 0), 58);
+  const hq = state?.hq || {};
+  const carComponents = state?.car?.components || {};
+  const carPaceCore = averageFinite([
+    Number(carComponents?.engine?.score),
+    Number(carComponents?.chassis?.score),
+    Number(carComponents?.aero?.score)
+  ], 60);
+  const tyreCore = averageFinite([
+    Number(carComponents?.tyreManage?.score),
+    Number(carComponents?.brakes?.score),
+    Number(carComponents?.gearbox?.score)
+  ], 60);
+  const reliabilityCore = averageFinite([
+    Number(carComponents?.reliability?.score),
+    Number(carComponents?.gearbox?.score),
+    Number(carComponents?.brakes?.score)
+  ], 60);
+  const positionScore = clamp(96 - ((avgPosition - 1) * 6), 24, 98);
+  const gainScore = clamp(52 + (avgGridGain * 8), 22, 96);
+  const finishPenalty = dnfCount * 12;
+  const pitExecutionScore = clamp(82 - Math.max(0, (avgPitTimeMs - 18000) / 280), 26, 94);
+
+  const categories = [
+    {
+      id: 'pace',
+      labelKey: 'report_category_pace',
+      score: clamp((avgAttr('pace') * 0.25) + (avgAttr('racePace') * 0.25) + (carPaceCore * 0.35) + (positionScore * 0.15) - finishPenalty, 20, 99),
+      focusAttrKeys: ['pace', 'racePace'],
+      buildingId: 'rnd',
+      componentKey: 'engine',
+      staffLabel: 'Chief Engineer'
+    },
+    {
+      id: 'race_craft',
+      labelKey: 'report_category_race_craft',
+      score: clamp((avgAttr('racePace') * 0.26) + (avgAttr('overtake') * 0.2) + (avgAttr('aggression') * 0.14) + (avgAttr('mental') * 0.1) + (positionScore * 0.15) + (gainScore * 0.15) - finishPenalty, 20, 99),
+      focusAttrKeys: ['racePace', 'overtake', 'aggression'],
+      buildingId: 'academy',
+      componentKey: null,
+      staffLabel: 'Pilot Coach'
+    },
+    {
+      id: 'tyre_management',
+      labelKey: 'report_category_tyre_management',
+      score: clamp((avgAttr('tyre') * 0.38) + (avgAttr('consistency') * 0.14) + (avgAttr('rain') * 0.08) + (tyreCore * 0.3) + (pitExecutionScore * 0.1) - finishPenalty, 20, 99),
+      focusAttrKeys: ['tyre', 'consistency'],
+      buildingId: 'factory',
+      componentKey: 'tyre_manage',
+      staffLabel: 'Pilot Coach'
+    },
+    {
+      id: 'setup_data',
+      labelKey: 'report_category_setup_data',
+      score: clamp((avgSetupFit * 0.34) + (staffSetupScore * 0.23) + (staffTechnicalScore * 0.18) + (avgAttr('techFB') * 0.15) + ((Number(hq?.wind_tunnel || 1) * 5) + (Number(hq?.rnd || 1) * 4)), 20, 99),
+      focusAttrKeys: ['techFB', 'mental'],
+      buildingId: 'wind_tunnel',
+      componentKey: 'aero',
+      staffLabel: 'Race Engineer / Data Analyst'
+    },
+    {
+      id: 'pit_execution',
+      labelKey: 'report_category_pit_execution',
+      score: clamp((staffPitScore * 0.34) + (avgAttr('mental') * 0.16) + (avgAttr('consistency') * 0.16) + (pitExecutionScore * 0.22) + (Number(hq?.factory || 1) * 6), 20, 99),
+      focusAttrKeys: ['mental', 'consistency'],
+      buildingId: 'factory',
+      componentKey: null,
+      staffLabel: 'Head of Pits'
+    },
+    {
+      id: 'reliability',
+      labelKey: 'report_category_reliability',
+      score: clamp((reliabilityCore * 0.42) + (avgAttr('consistency') * 0.18) + (avgAttr('mental') * 0.12) + (positionScore * 0.1) + (Number(hq?.factory || 1) * 5) - (dnfCount * 18), 15, 99),
+      focusAttrKeys: ['consistency', 'mental'],
+      buildingId: 'factory',
+      componentKey: 'reliability',
+      staffLabel: 'Chief Engineer'
+    }
+  ].map((category) => ({
+    ...category,
+    stars: scoreToStars(category.score)
+  }));
+
+  const driverReports = playerCars.map((car) => {
+    const pilot = playerPilots.find((entry) => entry.id === car.pilotId) || playerPilots[0] || { attrs: {} };
+    const finishAdjust = car.isDNF
+      ? -10
+      : clamp(10 - ((Number(car.position || result?.position || 10) - 1) * 1.6) + ((-(Number(car.improvement) || 0)) * 1.5), -4, 12);
+    const attributeKeys = ['pace', 'racePace', 'consistency', 'rain', 'tyre', 'mental', 'techFB'];
+    const attributes = attributeKeys.map((key) => {
+      const baseValue = getPilotAttr(pilot, key, 55);
+      const conditionBonus = key === 'rain' && result?.weather === 'wet'
+        ? 6
+        : key === 'tyre'
+          ? 4
+          : key === 'techFB'
+            ? 3
+            : 0;
+      const score = clamp(baseValue + finishAdjust + conditionBonus, 20, 99);
+      return {
+        key,
+        score,
+        stars: scoreToStars(score)
+      };
+    });
+    const sortedAttrs = [...attributes].sort((a, b) => a.score - b.score);
+    const overallScore = Math.round(averageFinite(attributes.map((attr) => attr.score), 55));
+    return {
+      pilotId: car.pilotId,
+      pilotName: car.pilotName,
+      position: car.position,
+      isDNF: !!car.isDNF,
+      overallScore,
+      overallStars: scoreToStars(overallScore),
+      weakestAttrKey: sortedAttrs[0]?.key || 'pace',
+      strongestAttrKey: sortedAttrs[sortedAttrs.length - 1]?.key || 'racePace',
+      attributes
+    };
+  });
+
+  const weakestCategories = [...categories].sort((a, b) => a.score - b.score).slice(0, 2).map((category) => category.id);
+  const teamFocusAttrs = Array.from(new Set(weakestCategories.flatMap((categoryId) => {
+    const category = categories.find((entry) => entry.id === categoryId);
+    return Array.isArray(category?.focusAttrKeys) ? category.focusAttrKeys : [];
+  })));
+  const overallScore = Math.round(averageFinite(categories.map((category) => category.score), 55));
+
+  return {
+    version: 1,
+    round: Number(result?.round || 0),
+    circuitId: result?.circuit?.id || null,
+    weather: result?.weather || 'dry',
+    generatedAt: Date.now(),
+    overallScore,
+    overallStars: scoreToStars(overallScore),
+    weakestCategories,
+    teamFocusAttrs,
+    categories,
+    driverReports
+  };
+}
+
+function buildRaceArchiveRecord(result, raceMeta = {}, stateArg = null) {
+  const report = result?.performanceReport || buildRacePerformanceReport(result, stateArg);
+  return {
+    round: Number(raceMeta?.round || result?.round || 0),
+    ts: Number(raceMeta?.ts || Date.now()),
+    circuit: result?.circuit ? {
+      id: result.circuit.id,
+      name: result.circuit.name,
+      country: result.circuit.country,
+      layout: result.circuit.layout,
+      laps: result.circuit.laps,
+      length: result.circuit.length
+    } : null,
+    weather: result?.weather || raceMeta?.weather || 'dry',
+    position: Number(result?.position || 0),
+    points: Number(result?.points || 0),
+    prizeMoney: Number(result?.prizeMoney || 0),
+    playerCars: Array.isArray(result?.playerCars) ? result.playerCars.map((car) => ({
+      pilotId: car.pilotId,
+      pilotName: car.pilotName,
+      position: car.position,
+      points: car.points,
+      isDNF: !!car.isDNF,
+      improvement: car.improvement,
+      pitStopsDone: car.pitStopsDone,
+      pitTimeMs: car.pitTimeMs
+    })) : [],
+    performanceReport: report
+  };
+}
+
+function upsertRaceArchiveRecord(stateArg, record) {
+  if (!stateArg || !record) return null;
+  if (!Array.isArray(stateArg.raceResults)) stateArg.raceResults = [];
+  const existingIdx = stateArg.raceResults.findIndex((entry) => {
+    return Number(entry?.round || 0) === Number(record.round || 0)
+      && String(entry?.circuit?.id || '') === String(record?.circuit?.id || '');
+  });
+  if (existingIdx >= 0) {
+    stateArg.raceResults[existingIdx] = record;
+  } else {
+    stateArg.raceResults.push(record);
+  }
+  if (stateArg.raceResults.length > 64) stateArg.raceResults.shift();
+  return record;
+}
+
 // ---- race simulation ----
 function simulateRace(options = {}) {
   const state = S.getState();
@@ -1223,6 +1454,7 @@ function simulateRace(options = {}) {
   const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || 200), 0);
 
   return {
+    round,
     position: leadResult.position,
     isDNF: leadResult.isDNF,
     points: teamPoints,
@@ -2462,8 +2694,11 @@ function catchUpOffline() {
       forecast: nextRaceObj.forecast || null
     });
     updateStandings(simResult);
+    simResult.performanceReport = buildRacePerformanceReport(simResult, state);
+    const archiveRecord = buildRaceArchiveRecord(simResult, { round: nextRaceObj.round, ts: raceTs || Date.now(), weather: nextRaceObj.weather || simResult.weather }, state);
     nextRaceObj.status = 'completed';
-    nextRaceObj.result = { position: simResult.position, points: simResult.points, playerCars: simResult.playerCars || [] };
+    nextRaceObj.result = archiveRecord;
+    upsertRaceArchiveRecord(state, archiveRecord);
 
     const cal = state.season.calendar || [];
     const newNext = cal.find((r) => r && (r.status === 'upcoming' || r.status === 'pending'));
@@ -2562,6 +2797,7 @@ window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
   choosePitTyreForConditions,
   getTyreUsefulLife, getTyrePaceDeltaMs, getCircuitRaceDistanceKm,
+  buildRacePerformanceReport, buildRaceArchiveRecord, upsertRaceArchiveRecord,
   weeklyTick, applyRaceWeekendEconomy, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,

@@ -930,6 +930,106 @@ const SCREENS = {
     GL_UI.toast(result && result.error ? result.error : 'No se pudo iniciar I+D', 'warning');
   },
 
+  renderStarRating(stars = 0) {
+    const safeStars = Math.max(0, Math.min(5, Math.round(Number(stars) || 0)));
+    return `<span style="letter-spacing:1px;color:var(--c-gold);font-size:0.9rem">${'★'.repeat(safeStars)}${'☆'.repeat(5 - safeStars)}</span>`;
+  },
+
+  getRaceArchiveRecord(round) {
+    const state = GL_STATE.getState();
+    const roundNumber = Number(round || 0);
+    const calendarRace = (state?.season?.calendar || []).find((race) => Number(race?.round || 0) === roundNumber);
+    if (calendarRace?.result?.performanceReport) return calendarRace.result;
+    return (state?.raceResults || []).find((entry) => Number(entry?.round || 0) === roundNumber) || null;
+  },
+
+  renderRacePerformanceReport(report, options = {}) {
+    if (!report) {
+      return `<p style="color:var(--t-secondary);font-size:0.82rem">${__('calendar_report_unavailable')}</p>`;
+    }
+    const compact = !!options.compact;
+    const categoryItems = Array.isArray(report.categories) ? report.categories : [];
+    const driverItems = Array.isArray(report.driverReports) ? report.driverReports : [];
+    const weakestSet = new Set(Array.isArray(report.weakestCategories) ? report.weakestCategories : []);
+    const componentLabels = {
+      engine: __('car_engine'),
+      aero: __('car_aero'),
+      reliability: __('car_reliability'),
+      tyre_manage: __('car_tyre_manage')
+    };
+
+    const categoryMarkup = categoryItems.map((category) => {
+      const trainLabel = (category.focusAttrKeys || []).map((key) => window.__(`attr_${key}`) || key).join(' / ');
+      const componentLabel = category.componentKey ? (componentLabels[category.componentKey] || category.componentKey) : '—';
+      const cardBorder = weakestSet.has(category.id) ? 'var(--c-red)' : 'var(--c-border)';
+      return `
+        <div style="padding:14px;border:1px solid ${cardBorder};border-radius:14px;background:rgba(255,255,255,0.02)">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+            <div style="font-weight:700">${__(category.labelKey)}</div>
+            <div style="text-align:right">${this.renderStarRating(category.stars)}<div style="font-size:0.72rem;color:var(--t-secondary)">${Math.round(category.score)}/99</div></div>
+          </div>
+          <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:10px;line-height:1.5">
+            <div>${__('report_focus_train')}: <strong style="color:var(--t-primary)">${trainLabel || '—'}</strong></div>
+            <div>${__('report_focus_upgrade')}: <strong style="color:var(--t-primary)">${__(`hq_${category.buildingId}`) || category.buildingId || '—'}</strong></div>
+            <div>${__('report_focus_component')}: <strong style="color:var(--t-primary)">${componentLabel}</strong></div>
+            <div>${__('report_focus_staff')}: <strong style="color:var(--t-primary)">${category.staffLabel || '—'}</strong></div>
+          </div>
+        </div>`;
+    }).join('');
+
+    const driverMarkup = driverItems.map((driver) => {
+      const attrs = Array.isArray(driver.attributes) ? driver.attributes : [];
+      return `
+        <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
+            <div>
+              <div style="font-weight:700">${driver.pilotName}</div>
+              <div style="font-size:0.76rem;color:var(--t-secondary)">${driver.isDNF ? 'DNF' : `P${driver.position}`} · ${__('report_driver_focus')}: <strong style="color:var(--t-primary)">${window.__(`attr_${driver.weakestAttrKey}`) || driver.weakestAttrKey}</strong></div>
+            </div>
+            <div style="text-align:right">${this.renderStarRating(driver.overallStars)}<div style="font-size:0.72rem;color:var(--t-secondary)">${Math.round(driver.overallScore)}/99</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px">
+            ${attrs.map((attr) => `
+              <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025)">
+                <div style="font-size:0.72rem;color:var(--t-secondary)">${window.__(`attr_${attr.key}`) || attr.key}</div>
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:4px">
+                  ${this.renderStarRating(attr.stars)}
+                  <span style="font-size:0.76rem;color:var(--t-primary)">${Math.round(attr.score)}/99</span>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div ${compact ? '' : 'style="padding-top:4px"'}>
+        <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px">
+          <div>
+            <div class="section-eyebrow">${__('report_overall_rating')}</div>
+            <div style="font-family:var(--font-display);font-size:${compact ? '1.4rem' : '1.8rem'};font-weight:800">${Math.round(report.overallScore || 0)}/99</div>
+          </div>
+          <div style="text-align:right">
+            ${this.renderStarRating(report.overallStars || 0)}
+            <div style="font-size:0.76rem;color:var(--t-secondary);margin-top:4px">${report.weather === 'wet' ? '🌧️' : '☀️'} ${this.getWeatherLabel(report.weather)}</div>
+          </div>
+        </div>
+        <div class="section-eyebrow" style="margin-bottom:10px">${__('report_team_categories')}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px">${categoryMarkup}</div>
+        <div class="section-eyebrow" style="margin-bottom:10px">${__('report_driver_attributes')}</div>
+        <div style="display:grid;gap:10px">${driverMarkup}</div>
+      </div>`;
+  },
+
+  openRaceReport(round) {
+    const record = this.getRaceArchiveRecord(round);
+    const titleSuffix = record?.circuit?.name || `R${round}`;
+    GL_UI.openModal({
+      title: `${__('calendar_report_title')} · ${titleSuffix}`,
+      size: 'lg',
+      content: this.renderRacePerformanceReport(record?.performanceReport || null)
+    });
+  },
+
   // ===== CALENDAR SCREEN =====
   renderCalendar() {
     const state = GL_STATE.getState();
@@ -969,8 +1069,11 @@ const SCREENS = {
             </div>
             <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
-              ${isDone && res ? `<div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div>
-                <div class="calendar-result-pts">+${res.points} ${__('points')}</div>` :
+              ${isDone && res ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                <div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div>
+                <div class="calendar-result-pts">+${res.points} ${__('points')}</div>
+                <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
+              </div>` :
               isNext ? `<button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>` :
               `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('calendar_upcoming')}</div>`}
             </div>
@@ -1932,10 +2035,20 @@ const SCREENS = {
       if (finished) return;
       finished = true;
 
+      result.performanceReport = GL_ENGINE.buildRacePerformanceReport
+        ? GL_ENGINE.buildRacePerformanceReport(result, state)
+        : null;
+      const archiveRecord = GL_ENGINE.buildRaceArchiveRecord
+        ? GL_ENGINE.buildRaceArchiveRecord(result, {
+            round: next?.round || result.round || 0,
+            weather: next?.weather || result.weather || 'dry'
+          }, state)
+        : null;
+
       GL_ENGINE.updateStandings(result);
       if (nextIdx >= 0 && cal[nextIdx]) {
         cal[nextIdx].status = 'completed';
-        cal[nextIdx].result = { position: result.position, points: result.points, playerCars: result.playerCars || [] };
+        cal[nextIdx].result = archiveRecord || { position: result.position, points: result.points, playerCars: result.playerCars || [] };
       }
       if (nextIdx + 1 < cal.length) cal[nextIdx + 1].status = 'next';
       if (GL_ENGINE.ensureNextRaceAvailable) GL_ENGINE.ensureNextRaceAvailable();
@@ -1974,6 +2087,9 @@ const SCREENS = {
 
       state.car.rnd.points = (state.car.rnd.points || 0) + 5 + Math.floor(Math.random() * 5);
       state.team.fans += 100 + (result.points || 0) * 50;
+      if (archiveRecord && GL_ENGINE.upsertRaceArchiveRecord) {
+        GL_ENGINE.upsertRaceArchiveRecord(state, archiveRecord);
+      }
 
       GL_STATE.saveState();
       window._raceInProgress = false;
@@ -2057,6 +2173,8 @@ const SCREENS = {
     const leadCar = playerCars[0] || { position: result.position, isDNF: result.isDNF, pilotName: 'Driver', points: result.points };
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
+    const performanceReport = result.performanceReport || (GL_ENGINE.buildRacePerformanceReport ? GL_ENGINE.buildRacePerformanceReport(result, state) : null);
+    if (performanceReport && !result.performanceReport) result.performanceReport = performanceReport;
     const strategyRows = (Array.isArray(result.finalGrid) ? result.finalGrid : []).map((car, idx) => {
       const summary = this.formatPitStrategySummary(car.strategy || {});
       return `
@@ -2102,6 +2220,10 @@ const SCREENS = {
             <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
           </div>
         </div>
+      </div>
+      <div class="card mb-4">
+        <div class="section-eyebrow">${__('postrace_performance_report')}</div>
+        <div style="margin-top:10px">${this.renderRacePerformanceReport(performanceReport, { compact: true })}</div>
       </div>
       <div class="grid-2">
         <div class="card">

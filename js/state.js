@@ -338,6 +338,7 @@ function loadState() {
       if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'onboarding', lastSummary: null, lastSummaryPending: false };
       if (typeof _state.season.lastSummaryPending !== 'boolean') _state.season.lastSummaryPending = false;
       if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
+      if (!Array.isArray(_state.raceResults)) _state.raceResults = [];
       if (!_state.hq) _state.hq = { wind_tunnel: 1, rnd: 1, factory: 1, academy: 1, admin: 1 };
       if (!_state.construction) _state.construction = { active: false, buildingId: null, startTime: 0, durationMs: 0, targetLevel: 0 };
       if (!Array.isArray(_state.sponsors)) _state.sponsors = [];

@@ -981,6 +981,33 @@ function testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi) {
   assert.strictEqual(stateApi.getState().finances.lastRaceSettlement.playerCars.length, 2, 'race settlement should preserve both finishing player cars for auditability');
 }
 
+function testRacePerformanceReportProvidesActionableSignals(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  stateApi._state = state;
+
+  const result = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    tyre: 'medium',
+    aggression: 56,
+    riskLevel: 34,
+    pitPlan: 'single',
+    pitLap: 44,
+    setup: { aeroBalance: 58, wetBias: 46 },
+    pitTyres: ['hard', 'soft']
+  }, {}, () => 0.9);
+
+  const report = engine.buildRacePerformanceReport(result, stateApi.getState());
+
+  assert.ok(report, 'race performance report should be generated');
+  assert.strictEqual(report.categories.length, 6, 'report should provide the full category set');
+  assert.ok(report.driverReports.length >= 1, 'report should include at least one player driver breakdown');
+  assert.ok(Array.isArray(report.teamFocusAttrs) && report.teamFocusAttrs.length >= 2, 'report should identify concrete training focus attributes');
+  report.categories.forEach((category) => {
+    assert.ok(category.buildingId, `category ${category.id} should point to a building improvement path`);
+    assert.ok(Array.isArray(category.focusAttrKeys) && category.focusAttrKeys.length >= 1, `category ${category.id} should point to training attributes`);
+    assert.ok(category.stars >= 1 && category.stars <= 5, `category ${category.id} should expose a bounded star rating`);
+  });
+}
+
 function testCircuitCatalogTargetsModernGrandPrixDistances() {
   const data = loadDataModule();
   const circuits = Array.isArray(data?.CIRCUITS) ? data.CIRCUITS : [];
@@ -1064,11 +1091,12 @@ function run() {
   testRaceUsesCircuitLapCount(engine, stateApi, sandbox);
   testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi);
   testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi);
+  testRacePerformanceReportProvidesActionableSignals(engine, stateApi, sandbox);
   testCircuitCatalogTargetsModernGrandPrixDistances();
   testTyreModelMatchesStrategicHierarchy(engine);
   testAiTeamColorsStayDistinctFromPlayer(engine, stateApi);
 
-  console.log('✓ Core loop smoke tests passed (29 cases).');
+  console.log('✓ Core loop smoke tests passed (30 cases).');
 }
 
 run();
