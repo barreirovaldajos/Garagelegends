@@ -379,6 +379,15 @@ const APP = {
     });
   },
 
+  reopenProfileModal() {
+    if (window.GL_UI && typeof GL_UI.closeTopModal === 'function') {
+      GL_UI.closeTopModal();
+    }
+    window.setTimeout(() => {
+      this.showProfile();
+    }, 220);
+  },
+
   async forceCloudSync() {
     if (!(window.GL_AUTH && typeof GL_AUTH.forceSyncCurrentState === 'function')) return;
     try {
@@ -388,7 +397,7 @@ const APP = {
       } else {
         GL_UI.toast(__('profile_cloud_sync_ok', 'Cloud save synchronized.'), 'good');
       }
-      this.showProfile();
+      this.reopenProfileModal();
     } catch (e) {
       GL_UI.toast((e && e.message) ? e.message : __('profile_cloud_sync_fail', 'Could not synchronize the cloud save.'), 'error');
     }
@@ -404,7 +413,7 @@ const APP = {
         GL_UI.toast(__('profile_cloud_refresh_ok', 'Cloud save reloaded.'), 'good');
       }
       this.bootForCurrentSession();
-      this.showProfile();
+      this.reopenProfileModal();
     } catch (e) {
       GL_UI.toast((e && e.message) ? e.message : __('profile_cloud_refresh_fail', 'Could not reload the cloud save.'), 'error');
     }
