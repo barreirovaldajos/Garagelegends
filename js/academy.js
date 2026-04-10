@@ -29,7 +29,7 @@ const Academy = {
     const caps = this.getAcademyCaps(state);
     if (state.academyQueue.length >= caps.trainingSlots) {
       if (typeof window !== 'undefined' && window.GL_STATE) {
-        window.GL_STATE.addLog('❌ Academia al límite. Mejora la Academia para más entrenamientos simultáneos.', 'warning');
+        window.GL_STATE.addLog(`❌ ${(window.__ && window.__('academy_queue_full', 'Academy is full. Upgrade the Academy to run more trainings in parallel.')) || 'Academy is full.'}`, 'warning');
       }
       return false;
     }
@@ -49,7 +49,12 @@ const Academy = {
       if (now - item.startTime >= item.duration) {
         this.improveAttribute(state, item.pilotId, item.targetAttr);
         if (typeof window !== 'undefined' && window.GL_STATE) {
-          window.GL_STATE.addLog(`🎓 ${item.trainingType}: ${item.targetAttr} mejorado para piloto ${item.pilotId}.`, 'good');
+          const attrLabel = (window.__ && window.__(`attr_${item.targetAttr}`, item.targetAttr)) || item.targetAttr;
+          const logText = ((window.__ && window.__('academy_training_complete', '{trainingType}: {attrLabel} improved for driver {pilotId}.')) || '{trainingType}: {attrLabel} improved for driver {pilotId}.')
+            .replace('{trainingType}', item.trainingType)
+            .replace('{attrLabel}', attrLabel)
+            .replace('{pilotId}', item.pilotId);
+          window.GL_STATE.addLog(`🎓 ${logText}`, 'good');
         }
         changed = true;
         return false;

@@ -19,9 +19,74 @@ function getWeeklyEconomyBreakdown(state) {
   };
 }
 
+function getFinanceOverview(state) {
+  const breakdown = getWeeklyEconomyBreakdown(state);
+  const rawSettlement = state?.finances?.lastRaceSettlement && typeof state.finances.lastRaceSettlement === 'object'
+    ? state.finances.lastRaceSettlement
+    : null;
+  const latestHistoryWeek = Array.isArray(state?.finances?.history) && state.finances.history.length
+    ? Number(state.finances.history[state.finances.history.length - 1]?.week)
+    : null;
+  const settlementWeek = Number(rawSettlement?.week);
+  const settlement = rawSettlement && (!Number.isFinite(settlementWeek) || settlementWeek === latestHistoryWeek)
+    ? rawSettlement
+    : null;
+  const currentCredits = Number(state?.finances?.credits || 0);
+  const deficitStreak = Number(state?.finances?.deficitStreak || 0);
+  const legacyCritical = !!state?.finances?.criticalDeficit;
+  const competitionNet = settlement ? Number(settlement.prizeDelta || settlement.prizeMoney || 0) : 0;
+  const operatingNet = settlement && Number.isFinite(settlement.weeklyNetDelta)
+    ? Number(settlement.weeklyNetDelta)
+    : Number(breakdown.net || 0);
+  const totalNet = settlement && Number.isFinite(settlement.totalDelta)
+    ? Number(settlement.totalDelta)
+    : operatingNet + competitionNet;
+  const openingCash = settlement && Number.isFinite(settlement.creditsBefore)
+    ? Number(settlement.creditsBefore)
+    : Math.max(0, currentCredits - totalNet);
+  const closingCash = settlement && Number.isFinite(settlement.creditsAfterWeekly)
+    ? Number(settlement.creditsAfterWeekly)
+    : currentCredits;
+
+  let health = 'healthy';
+  let reasonKey = 'finances_health_reason_positive_total';
+
+  if (currentCredits < 10000 || (totalNet < 0 && deficitStreak >= 3) || (legacyCritical && !settlement)) {
+    health = 'critical';
+    reasonKey = currentCredits < 10000
+      ? 'finances_health_reason_low_cash'
+      : 'finances_health_reason_negative_total';
+  } else if (totalNet < 0) {
+    health = 'warning';
+    reasonKey = 'finances_health_reason_negative_total';
+  } else if (operatingNet < 0 || deficitStreak > 0 || currentCredits < 30000) {
+    health = 'warning';
+    reasonKey = (operatingNet < 0 || deficitStreak > 0)
+      ? 'finances_health_reason_operating_pressure'
+      : 'finances_health_reason_low_cash';
+  }
+
+  return {
+    breakdown,
+    settlement,
+    currentCredits,
+    openingCash,
+    closingCash,
+    operatingNet,
+    competitionNet,
+    totalNet,
+    deficitStreak,
+    health,
+    isCritical: health === 'critical',
+    isWarning: health === 'warning',
+    reasonKey
+  };
+}
+
 // Exportar para uso global
 if (typeof window !== 'undefined') {
   window.getWeeklyEconomyBreakdown = getWeeklyEconomyBreakdown;
+  window.getFinanceOverview = getFinanceOverview;
 }
 // ===== ENGINE.JS – Race simulation + economy + events =====
 
@@ -766,6 +831,14 @@ function translateText(key, fallback = '') {
   return resolved && resolved !== key ? resolved : (fallback || key);
 }
 
+function formatTranslatedText(key, replacements = {}, fallback = '') {
+  const template = translateText(key, fallback);
+  return String(template).replace(/\{(\w+)\}/g, (_, token) => {
+    const value = replacements[token];
+    return value == null ? '' : String(value);
+  });
+}
+
 function formatGapMs(value) {
   return Number.isFinite(value) ? `${(value / 1000).toFixed(1)}s` : 'n/a';
 }
@@ -1329,7 +1402,21 @@ function simulateRace(options = {}) {
   const gridText = playerStarts
     .map((x) => `${x.pilotName}: P${x.startPos}`)
     .join(' · ');
-  events.push({ lap: 0, type: 'info', text: `<strong>Starting grid:</strong> ${gridText}. ${liveWeather === 'wet' ? '🌧️ Wet race expected.' : '☀️ Dry race expected.'} ${circuits?.layout ? `· ${circuits.layout}` : ''}` });
+  const openingWeatherText = liveWeather === 'wet'
+    ? `🌧️ ${translateText('race_weather_expected_wet', 'Wet race expected.')}`
+    : `☀️ ${translateText('race_weather_expected_dry', 'Dry race expected.')}`;
+  const openingLayoutText = circuits?.layout
+    ? ` · ${translateText(`track_layout_${String(circuits.layout).replace('-', '_')}`, circuits.layout)}`
+    : '';
+  events.push({
+    lap: 0,
+    type: 'info',
+    text: formatTranslatedText('race_event_starting_grid', {
+      grid: gridText,
+      weatherText: openingWeatherText,
+      layoutText: openingLayoutText
+    }, '<strong>Starting grid:</strong> {grid}. {weatherText}{layoutText}')
+  });
 
   // Race ticks
   const positions = grid.map((e, i) => ({
@@ -1395,7 +1482,7 @@ function simulateRace(options = {}) {
     if (Math.random() < weatherFlipChance) {
       liveWeather = liveWeather === 'wet' ? 'dry' : 'wet';
       weatherChangesDone += 1;
-      events.push({ lap, type: 'info', text: liveWeather === 'wet' ? '🌧️ Sudden rain hits the circuit!' : '☀️ Track is drying quickly.' });
+      events.push({ lap, type: 'info', text: liveWeather === 'wet' ? `🌧️ ${translateText('race_event_weather_rain', 'Sudden rain hits the circuit!')}` : `☀️ ${translateText('race_event_weather_drying', 'Track is drying quickly.')}` });
     }
 
     const lapProfile = getCircuitProfile(circuits, liveWeather);
@@ -1403,7 +1490,7 @@ function simulateRace(options = {}) {
     // Safety car event
     if (!safetyCarActive && Math.random() < 0.06) {
       safetyCarActive = true;
-      events.push({ lap, type: 'safety', text: `🟡 <strong>Virtual Safety Car deployed!</strong> Pack bunches up.` });
+      events.push({ lap, type: 'safety', text: `🟡 ${translateText('race_event_vsc', '<strong>Virtual Safety Car deployed!</strong> Pack bunches up.')}` });
       const activeCars = positions.filter((entry) => !entry.retired).sort((a, b) => a.timeMs - b.timeMs);
       const leaderTime = activeCars[0]?.timeMs || 0;
       activeCars.forEach((entry, index) => {
@@ -1428,7 +1515,11 @@ function simulateRace(options = {}) {
       events.push({
         lap,
         type: 'info',
-        text: `👥 Live pit wall call: <strong>${liveSafetyCarCall.toUpperCase()}</strong> (Undercut ${underPct}% · Overcut ${overPct}%).`
+        text: `👥 ${formatTranslatedText('race_event_live_pit_call', {
+          callLabel: translateText(`race_call_${liveSafetyCarCall}`, liveSafetyCarCall.toUpperCase()),
+          underPct,
+          overPct
+        }, 'Live pit wall call: <strong>{callLabel}</strong> (Undercut {underPct}% · Overcut {overPct}%).')}`
       });
 
       positions.filter((e) => !e.retired).forEach((entry) => {
@@ -1440,12 +1531,12 @@ function simulateRace(options = {}) {
           if (rt.pitStopsDone === 0 && rt.adaptivePitLap - lap <= 3) {
             rt.adaptivePitLap = Math.max(lap + 1, undercutWorks ? 2 : rt.adaptivePitLap - 1);
             if (entry.isPlayer || decisionSkill > 0.76) {
-              events.push({ lap, type: 'info', text: undercutWorks ? `🧠 ${entry.pilotName || entry.name}: undercut call under VSC.` : `🧠 ${entry.pilotName || entry.name}: undercut attempt, minor gain.` });
+              events.push({ lap, type: 'info', text: `🧠 ${formatTranslatedText(undercutWorks ? 'race_event_undercut_good' : 'race_event_undercut_minor', { name: entry.pilotName || entry.name }, '{name}: undercut call under VSC.')}` });
             }
           } else if (rt.pitStopsDone === 1 && rt.adaptivePitLap2 - lap <= 3) {
             rt.adaptivePitLap2 = Math.max(lap + 1, undercutWorks ? rt.adaptivePitLap2 - 1 : rt.adaptivePitLap2);
             if (entry.isPlayer || decisionSkill > 0.8) {
-              events.push({ lap, type: 'info', text: undercutWorks ? `🧠 ${entry.pilotName || entry.name}: undercut second stop.` : `🧠 ${entry.pilotName || entry.name}: no clear undercut window.` });
+              events.push({ lap, type: 'info', text: `🧠 ${formatTranslatedText(undercutWorks ? 'race_event_undercut_second_good' : 'race_event_undercut_second_bad', { name: entry.pilotName || entry.name }, '{name}: undercut second stop.')}` });
             }
           }
         }
@@ -1454,12 +1545,12 @@ function simulateRace(options = {}) {
           if (rt.pitStopsDone === 0 && lap >= rt.adaptivePitLap - 2) {
             rt.adaptivePitLap = Math.min(totalLaps - 3, rt.adaptivePitLap + (overcutWorks ? 2 : 1));
             if (entry.isPlayer || decisionSkill > 0.76) {
-              events.push({ lap, type: 'info', text: overcutWorks ? `🧠 ${entry.pilotName || entry.name}: overcut call under VSC.` : `🧠 ${entry.pilotName || entry.name}: overcut attempt, small extension.` });
+              events.push({ lap, type: 'info', text: `🧠 ${formatTranslatedText(overcutWorks ? 'race_event_overcut_good' : 'race_event_overcut_minor', { name: entry.pilotName || entry.name }, '{name}: overcut call under VSC.')}` });
             }
           } else if (rt.pitStopsDone === 1 && lap >= rt.adaptivePitLap2 - 2) {
             rt.adaptivePitLap2 = Math.min(totalLaps - 2, rt.adaptivePitLap2 + (overcutWorks ? 2 : 1));
             if (entry.isPlayer || decisionSkill > 0.8) {
-              events.push({ lap, type: 'info', text: overcutWorks ? `🧠 ${entry.pilotName || entry.name}: overcut second stop.` : `🧠 ${entry.pilotName || entry.name}: weak overcut delta.` });
+              events.push({ lap, type: 'info', text: `🧠 ${formatTranslatedText(overcutWorks ? 'race_event_overcut_second_good' : 'race_event_overcut_second_bad', { name: entry.pilotName || entry.name }, '{name}: overcut second stop.')}` });
             }
           }
         }
@@ -1467,7 +1558,7 @@ function simulateRace(options = {}) {
     }
     if (safetyCarActive && Math.random() < 0.4) {
       safetyCarActive = false;
-      events.push({ lap, type: 'info', text: `🟢 Safety car period ends. Green flag!` });
+      events.push({ lap, type: 'info', text: `🟢 ${translateText('race_event_green_flag', 'Safety car period ends. Green flag!')}` });
     }
 
     positions.filter((entry) => !entry.retired).forEach((entry) => {
@@ -1517,11 +1608,25 @@ function simulateRace(options = {}) {
         entry.lastPitLossMs = pitLossMs;
         entry.lastPitLap = lap;
         pitStopsThisLap = true;
+        const tyreLabel = translateText(`compound_${newTyre}`, newTyre);
         if (entry.isPlayer) {
-          events.push({ lap, type: 'pit', text: `🔵 <strong>${entry.pilotName} pits (stop ${rt.pitStopsDone}/${rt.maxPitStops})!</strong> Pierde ${(pitLossMs / 1000).toFixed(1)}s y monta ${newTyre}.` });
+          events.push({ lap, type: 'pit', text: `🔵 ${formatTranslatedText('race_event_player_pit', {
+            pilotName: entry.pilotName,
+            stop: rt.pitStopsDone,
+            maxStops: rt.maxPitStops,
+            lossSec: (pitLossMs / 1000).toFixed(1),
+            tyreLabel
+          }, '<strong>{pilotName} pits (stop {stop}/{maxStops})!</strong> Loses {lossSec}s and fits {tyreLabel}.')}` });
         } else {
-          const tyreNote = requestedTyre !== newTyre ? ` Reacciona al clima y cambia el plan.` : '';
-          events.push({ lap, type: 'pit', text: `🛞 <strong>${entry.name}</strong> entra a box (stop ${rt.pitStopsDone}/${rt.maxPitStops}) y pierde ${(pitLossMs / 1000).toFixed(1)}s. Monta ${newTyre}.${tyreNote}` });
+          const tyreNote = requestedTyre !== newTyre ? translateText('race_event_ai_pit_adjust', ' Reacts to the weather and changes the plan.') : '';
+          events.push({ lap, type: 'pit', text: `🛞 ${formatTranslatedText('race_event_ai_pit', {
+            teamName: entry.name,
+            stop: rt.pitStopsDone,
+            maxStops: rt.maxPitStops,
+            lossSec: (pitLossMs / 1000).toFixed(1),
+            tyreLabel,
+            tyreNote
+          }, '<strong>{teamName}</strong> pits (stop {stop}/{maxStops}) and loses {lossSec}s. Fits {tyreLabel}.{tyreNote}')}` });
         }
 
         if (rt.pitStopsDone === 1 && rt.maxPitStops > 1) {
@@ -1538,7 +1643,7 @@ function simulateRace(options = {}) {
       if (!p.retired && !p.isPlayer) {
         if (Math.random() < 0.012) {
           p.retired = true;
-          events.push({ lap, type: 'incident', text: `💥 <strong>${p.name}</strong> retires with mechanical failure!` });
+          events.push({ lap, type: 'incident', text: `💥 ${formatTranslatedText('race_event_ai_retire', { name: p.name }, '<strong>{name}</strong> retires with mechanical failure!')}` });
         }
       }
     });
@@ -1553,11 +1658,11 @@ function simulateRace(options = {}) {
       if (Math.random() < (0.008 * riskFactor + 0.005) * lapProfile.riskBias * (1 + engineFx.risk) * staffFx.incidentRiskMult * setup.riskMult) {
         if (Math.random() < 0.3) {
           entry.retired = true;
-          events.push({ lap, type: 'incident', text: `💥 <strong>${entry.pilotName} retires!</strong> Mechanical issue. DNF.` });
+          events.push({ lap, type: 'incident', text: `💥 ${formatTranslatedText('race_event_player_retire', { pilotName: entry.pilotName }, '<strong>{pilotName} retires!</strong> Mechanical issue. DNF.')}` });
         } else {
           const lostPos = Math.floor(Math.random() * 3) + 1;
           entry.timeMs += lostPos * 2600;
-          events.push({ lap, type: 'incident', text: `⚠️ <strong>${entry.pilotName}</strong> has a spin! Drops ${lostPos} position(s).` });
+          events.push({ lap, type: 'incident', text: `⚠️ ${formatTranslatedText('race_event_player_spin', { pilotName: entry.pilotName, lostPos }, '<strong>{pilotName}</strong> has a spin! Drops {lostPos} position(s).')}` });
         }
       }
 
@@ -1566,10 +1671,10 @@ function simulateRace(options = {}) {
         if (ahead && Math.random() < ((((0.3 + ((s.aggression || 50) / 200)) * lapProfile.overtakeBias) + staffFx.overtakeBonus) * (1 + Math.max(0, engineFx.pace)) * Math.max(0.9, setup.paceMult))) {
           entry.timeMs = Math.max(0, entry.timeMs - 950);
           ahead.timeMs += 950;
-          events.push({ lap, type: 'good', text: `✅ <strong>${entry.pilotName}</strong> overtakes <strong>${ahead.name}</strong>! Moves up to P${entry.pos}.` });
+          events.push({ lap, type: 'good', text: `✅ ${formatTranslatedText('race_event_player_overtake', { pilotName: entry.pilotName, aheadName: ahead.name, position: entry.pos }, '<strong>{pilotName}</strong> overtakes <strong>{aheadName}</strong>! Moves up to P{position}.')}` });
         }
         if (Math.random() < 0.12) {
-          events.push({ lap, type: 'good', text: `🟢 Personal best lap by <strong>${entry.pilotName}</strong> on lap ${lap}.` });
+          events.push({ lap, type: 'good', text: `🟢 ${formatTranslatedText('race_event_player_best_lap', { pilotName: entry.pilotName, lap }, 'Personal best lap by <strong>{pilotName}</strong> on lap {lap}.')}` });
         }
       }
 
@@ -1578,18 +1683,20 @@ function simulateRace(options = {}) {
       const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
       const wearPenalty = Math.max(0, ((rt.wear / Math.max(1, usefulLife)) - 0.8) * 5.5);
       const perfScore = paceDelta - wearPenalty + ((s.aggression || 50) - 50) * 0.01;
+      const currentTyreLabel = translateText(`compound_${currentTyre}`, currentTyre);
+      const weatherLabel = translateText(liveWeather === 'wet' ? 'weather_wet' : 'weather_dry', liveWeather);
 
       if (!entry.pit && perfScore > 2.2 && Math.random() < 0.12) {
         entry.timeMs = Math.max(0, entry.timeMs - 650);
-        events.push({ lap, type: 'good', text: `⚡ <strong>${entry.pilotName}</strong> gains pace advantage on ${currentTyre.toUpperCase()} and moves up.` });
+        events.push({ lap, type: 'good', text: `⚡ ${formatTranslatedText('race_event_player_tyre_push', { pilotName: entry.pilotName, tyreLabel: currentTyreLabel }, '<strong>{pilotName}</strong> gains pace advantage on {tyreLabel} and moves up.')}` });
       }
       if (!entry.pit && perfScore < -2.2 && Math.random() < 0.14) {
         entry.timeMs += 1400;
-        events.push({ lap, type: 'incident', text: `📉 <strong>${entry.pilotName}</strong> struggles with ${currentTyre.toUpperCase()} in ${liveWeather}.` });
+        events.push({ lap, type: 'incident', text: `📉 ${formatTranslatedText('race_event_player_tyre_struggle', { pilotName: entry.pilotName, tyreLabel: currentTyreLabel, weatherLabel }, '<strong>{pilotName}</strong> struggles with {tyreLabel} in {weatherLabel}.')}` });
       }
 
       if (rt.wear > usefulLife * 0.88 && rt.wear < (usefulLife * 0.88) + 1.4 && !entry.retired) {
-        events.push({ lap, type: 'incident', text: `⚠️ Tyre performance dropping for <strong>${entry.pilotName}</strong>.` });
+        events.push({ lap, type: 'incident', text: `⚠️ ${formatTranslatedText('race_event_player_tyre_drop', { pilotName: entry.pilotName }, 'Tyre performance dropping for <strong>{pilotName}</strong>.')}` });
       }
     });
 
@@ -1654,7 +1761,11 @@ function simulateRace(options = {}) {
       events.push({
         lap: totalLaps,
         type: car.position <= 3 ? 'good' : 'info',
-        text: `🏁 <strong>${car.pilotName}</strong> finishes P${car.position}. ${car.points > 0 ? `${car.points} pts` : 'No points'}.`
+        text: `🏁 ${formatTranslatedText('race_event_player_finish', {
+          pilotName: car.pilotName,
+          position: car.position,
+          pointsText: car.points > 0 ? `${car.points} ${translateText('points', 'pts')}` : translateText('race_event_no_points', 'No points')
+        }, '<strong>{pilotName}</strong> finishes P{position}. {pointsText}.')}`
       });
     }
   });
@@ -1828,6 +1939,9 @@ function applyRaceWeekendEconomy(raceResult) {
   if (refreshedState?.finances) {
     refreshedState.finances.lastRaceSettlement = {
       ts: Date.now(),
+      week: Array.isArray(refreshedState.finances.history) && refreshedState.finances.history.length
+        ? refreshedState.finances.history[refreshedState.finances.history.length - 1].week
+        : (refreshedState?.season?.week || 1) - 1,
       round: raceResult?.round || refreshedState?.season?.raceIndex || 0,
       prizeMoney,
       creditsBefore,
@@ -1941,10 +2055,10 @@ function evaluateCampaignObjective(state, seasonSummary) {
   let completed = false;
   const finishPos = Number(seasonSummary?.finishPosition) || 99;
   const division = Number(seasonSummary?.division || state?.season?.division) || 8;
-  const criticalDeficit = !!state?.finances?.criticalDeficit;
+  const financeOverview = getFinanceOverview(state);
 
   if (objective.id === 'phase1_survive_prove') {
-    completed = (finishPos <= 3) && !criticalDeficit;
+    completed = (finishPos <= 3) && !financeOverview.isCritical;
   } else if (objective.id === 'phase2_climb') {
     completed = division <= 5;
   } else if (objective.id === 'phase3_dynasty') {
@@ -2983,7 +3097,7 @@ function trainPilot(pid) {
   const now = getNowDate();
   const lastDate = p.lastTrained ? new Date(p.lastTrained) : new Date(0);
   if (lastDate.toDateString() === now.toDateString()) {
-    GL_UI.toast(window.__('pilots_trained_today') || 'Trained Today', 'warning');
+    GL_UI.toast(window.__('pilots_trained_today', 'Trained Today'), 'warning');
     return;
   }
   
@@ -2995,8 +3109,12 @@ function trainPilot(pid) {
   
   p.lastTrained = now.getTime();
   S.saveState();
-  
-  GL_UI.toast(`🏋️ ${p.name}: +${gain} ${window.__(`attr_${targetAttr}`)||targetAttr}!`, 'good');
+
+  GL_UI.toast(`🏋️ ${formatTranslatedText('training_gain_toast', {
+    pilotName: p.name,
+    gain,
+    attrLabel: translateText(`attr_${targetAttr}`, targetAttr)
+  }, '{pilotName}: +{gain} {attrLabel}!')}`, 'good');
   if (window.GL_SCREENS && document.getElementById('screen-pilots').classList.contains('active')) {
     window.GL_SCREENS.renderPilots();
   }
@@ -3007,6 +3125,7 @@ window.GL_ENGINE = {
   choosePitTyreForConditions,
   getTyreUsefulLife, getTyrePaceDeltaMs, getCircuitRaceDistanceKm,
   buildRacePerformanceReport, buildRaceAdminReport, buildRaceArchiveRecord, upsertRaceArchiveRecord,
+  getFinanceOverview,
   weeklyTick, applyRaceWeekendEconomy, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,

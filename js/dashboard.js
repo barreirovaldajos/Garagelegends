@@ -40,7 +40,7 @@ const DASHBOARD = {
 
   timeTravel(days) {
     if (!window.GL_ENGINE || typeof window.GL_ENGINE.shiftTimeByDays !== 'function') {
-      GL_UI.toast('Time travel is not available in this build.', 'warning');
+      GL_UI.toast(__('dash_time_travel_unavailable', 'Time travel is not available in this build.'), 'warning');
       return;
     }
 
@@ -52,7 +52,7 @@ const DASHBOARD = {
       ? (simulated.totalSimulated || 0)
       : Number(simulated || 0);
     if (totalSimulated > 0) {
-      GL_UI.toast(`Auto-simulado: ${totalSimulated} evento(s).`, 'good');
+      GL_UI.toast((__('dash_time_autosim_events', 'Auto-simulated: {count} event(s).')).replace('{count}', totalSimulated), 'good');
     }
 
     this.refresh();
@@ -90,23 +90,23 @@ const DASHBOARD = {
     }
 
     input.value = this.formatDateTimeLocal(target);
-    GL_UI.toast(`Preset aplicado: ${target.toLocaleString('es-ES')}`, 'info');
+    GL_UI.toast((__('dash_time_preset_applied', 'Preset applied: {date}')).replace('{date}', target.toLocaleString('es-ES')), 'info');
   },
 
   applyExactTime() {
     const input = document.getElementById('dash-time-target');
     if (!input || !input.value) {
-      GL_UI.toast('Selecciona fecha y hora objetivo.', 'warning');
+      GL_UI.toast(__('dash_time_target_select', 'Choose a target date and time.'), 'warning');
       return;
     }
     if (!window.GL_ENGINE || typeof window.GL_ENGINE.shiftTimeToMs !== 'function') {
-      GL_UI.toast('Exact time travel is not available in this build.', 'warning');
+      GL_UI.toast(__('dash_time_travel_exact_unavailable', 'Exact time travel is not available in this build.'), 'warning');
       return;
     }
 
     const targetMs = new Date(input.value).getTime();
     if (!Number.isFinite(targetMs)) {
-      GL_UI.toast('Fecha/hora inválida.', 'warning');
+      GL_UI.toast(__('dash_time_target_invalid', 'Invalid date/time.'), 'warning');
       return;
     }
 
@@ -114,7 +114,7 @@ const DASHBOARD = {
     const minAllowedMs = Number(state?.meta?.created || 0);
     if (Number.isFinite(minAllowedMs) && minAllowedMs > 0 && targetMs < minAllowedMs) {
       const minDate = new Date(minAllowedMs);
-      GL_UI.toast(`No puedes viajar antes del inicio de partida (${minDate.toLocaleString('es-ES')}).`, 'warning');
+      GL_UI.toast((__('dash_time_before_start', 'You cannot travel before the save start ({date}).')).replace('{date}', minDate.toLocaleString('es-ES')), 'warning');
       return;
     }
 
@@ -122,10 +122,10 @@ const DASHBOARD = {
     const deltaMs = targetMs - currentMs;
     const result = window.GL_ENGINE.shiftTimeToMs(targetMs);
     const deltaHours = Math.round(deltaMs / (60 * 60 * 1000));
-    const sign = deltaHours > 0 ? '+' : '';
-    GL_UI.toast(`Tiempo ajustado (${sign}${deltaHours}h).`, 'info');
+    const signedHours = `${deltaHours > 0 ? '+' : ''}${deltaHours}`;
+    GL_UI.toast((__('dash_time_adjusted', 'Time adjusted ({deltaHours}h).')).replace('{deltaHours}', signedHours), 'info');
     if ((result?.simulatedRaces || 0) > 0) {
-      GL_UI.toast(`Auto-simulado: ${result.simulatedRaces} carrera(s).`, 'good');
+      GL_UI.toast((__('dash_time_autosim_races', 'Auto-simulated: {count} race(s).')).replace('{count}', result.simulatedRaces), 'good');
     }
 
     this.refresh();
@@ -267,10 +267,10 @@ const DASHBOARD = {
         <div class="screen-actions">
           <button class="btn btn-primary" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
           <input id="dash-time-target" type="datetime-local" value="${targetDefault}" min="${minAllowedValue}" style="min-width:210px;padding:8px 10px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--t-primary);border-radius:8px;font-size:0.78rem">
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_wed_18')">Próx. mié 18:00</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_sun_18')">Próx. dom 18:00</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_week_start')">Inicio próx. semana</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.applyExactTime()">Ir a fecha/hora</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_wed_18')">${__('dash_preset_next_wed', 'Next Wed 18:00')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_sun_18')">${__('dash_preset_next_sun', 'Next Sun 18:00')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_week_start')">${__('dash_preset_next_week', 'Start next week')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.applyExactTime()">${__('dash_preset_exact', 'Go to date/time')}</button>
         </div>
       </div>
       <div class="dashboard-grid stagger">
@@ -412,7 +412,7 @@ const DASHBOARD = {
     const c = next.circuit;
     
     const nextRaceObj = GL_ENGINE.getNextRaceDate();
-    const typeLabel = nextRaceObj.type === 'practice' ? (window.__('next_practice_lbl') || 'PRÁCTICA') : (window.__('next_race_lbl') || 'CARRERA');
+    const typeLabel = nextRaceObj.type === 'practice' ? window.__('next_practice_lbl', 'PRÁCTICA') : window.__('next_race_lbl', 'CARRERA');
 
     el.innerHTML = `
       <div class="next-event-card">
@@ -462,18 +462,35 @@ const DASHBOARD = {
   renderFinances(state) {
     const el = document.getElementById('dash-finances');
     if (!el) return;
-    const breakdown = window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, salaries: 0, hqCost: 0, contractCost: 0, net: 0 };
-    const deficitStreak = state.finances?.deficitStreak || 0;
-    const critical = !!state.finances?.criticalDeficit;
+    const financeOverview = window.getFinanceOverview
+      ? window.getFinanceOverview(state)
+      : {
+          breakdown: window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, salaries: 0, hqCost: 0, contractCost: 0, net: 0 },
+          operatingNet: 0,
+          competitionNet: 0,
+          totalNet: 0,
+          closingCash: Number(state?.finances?.credits || 0),
+          deficitStreak: Number(state?.finances?.deficitStreak || 0),
+          isCritical: !!state?.finances?.criticalDeficit,
+          isWarning: !state?.finances?.criticalDeficit && Number(state?.finances?.deficitStreak || 0) > 0,
+          reasonKey: 'finances_health_reason_positive_total'
+        };
+    const breakdown = financeOverview.breakdown;
+    const statusLabel = financeOverview.isCritical
+      ? __('dash_finance_critical_state')
+      : (financeOverview.isWarning ? __('dash_finance_warning_state') : __('dash_finance_healthy_state'));
+    const statusClass = financeOverview.isCritical ? 'negative' : (financeOverview.isWarning ? '' : 'positive');
     el.innerHTML = `
       <div class="finance-row"><span class="finance-row-label">${__('eco_income')}</span><span class="finance-row-val positive">+${GL_UI.fmtCR(breakdown.income)}${__('per_week')}</span></div>
       <div class="finance-row"><span class="finance-row-label">${__('eco_salaries')}</span><span class="finance-row-val negative">-${GL_UI.fmtCR(breakdown.salaries)}${__('per_week')}</span></div>
       <div class="finance-row"><span class="finance-row-label">${__('eco_hq')}</span><span class="finance-row-val negative">-${GL_UI.fmtCR(breakdown.hqCost)}${__('per_week')}</span></div>
       <div class="finance-row"><span class="finance-row-label">${__('eco_contracts')}</span><span class="finance-row-val negative">-${GL_UI.fmtCR(breakdown.contractCost)}${__('per_week')}</span></div>
-      <div class="finance-row"><span class="finance-row-label">${__('dash_finance_deficit_streak_label')}</span><span class="finance-row-val ${critical ? 'negative' : 'positive'}">${deficitStreak} ${__('dash_finance_deficit_streak_weeks')}${critical ? ` · ${__('dash_finance_critical_state')}` : ''}</span></div>
+      <div class="finance-row"><span class="finance-row-label">${__('finances_operating_flow')}</span><span class="finance-row-val ${financeOverview.operatingNet>=0?'positive':'negative'}">${GL_UI.fmtSign(financeOverview.operatingNet)}</span></div>
+      <div class="finance-row"><span class="finance-row-label">${__('finances_competition_flow')}</span><span class="finance-row-val ${financeOverview.competitionNet>=0?'positive':'negative'}">${GL_UI.fmtSign(financeOverview.competitionNet)}</span></div>
+      <div class="finance-row"><span class="finance-row-label">${__('finances_health_label')}</span><span class="finance-row-val ${statusClass}">${statusLabel}</span></div>
       <div class="finance-row" style="border-top:2px solid var(--c-border-hi)">
-        <span class="finance-row-label" style="font-weight:700;color:var(--t-primary)">${__('eco_net')}</span>
-        <span class="finance-row-val ${breakdown.net>=0?'positive':'negative'}" style="font-size:1rem">${GL_UI.fmtSign(breakdown.net)}</span>
+        <span class="finance-row-label" style="font-weight:700;color:var(--t-primary)">${__('finances_total_flow')}</span>
+        <span class="finance-row-val ${financeOverview.totalNet>=0?'positive':'negative'}" style="font-size:1rem">${GL_UI.fmtSign(financeOverview.totalNet)}</span>
       </div>`;
   },
 
@@ -596,13 +613,16 @@ const DASHBOARD = {
     if (!el) return;
     const alerts = [];
     if (state.finances.credits < 20000) alerts.push({ type:'danger', icon:'⚠️', text: __('dash_low_budget') });
-    const breakdown = window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { net: 0 };
+    const financeOverview = window.getFinanceOverview ? window.getFinanceOverview(state) : null;
+    const breakdown = financeOverview?.breakdown || (window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { net: 0 });
     if (breakdown.net < 0) alerts.push({ type:'warning', icon:'💸', text: __('dash_losing_money') });
-    if ((state.finances?.deficitStreak || 0) > 0) {
+    if ((financeOverview?.deficitStreak || state.finances?.deficitStreak || 0) > 0) {
+      const alertType = financeOverview?.isCritical ? 'danger' : 'warning';
+      const alertIcon = financeOverview?.isCritical ? '🚨' : '📉';
       alerts.push({
-        type: (state.finances?.criticalDeficit ? 'danger' : 'warning'),
-        icon: state.finances?.criticalDeficit ? '🚨' : '📉',
-        text: `${__('dash_finance_deficit_streak_label')}: <strong>${state.finances.deficitStreak}</strong> ${__('dash_finance_deficit_streak_weeks')}${state.finances?.criticalDeficit ? ` · ${__('dash_finance_critical_state')}` : ''}`
+        type: alertType,
+        icon: alertIcon,
+        text: `${__('dash_finance_deficit_streak_label')}: <strong>${financeOverview?.deficitStreak || state.finances.deficitStreak}</strong> ${__('dash_finance_deficit_streak_weeks')} · ${__(financeOverview?.reasonKey || 'finances_health_reason_negative_total')}`
       });
     }
     const injuredPilot = (state.pilots||[]).find(p=>p.injured);

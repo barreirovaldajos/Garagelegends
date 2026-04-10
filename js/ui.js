@@ -80,7 +80,7 @@ function forceCloseAllModals() {
 }
 
 // ---- Confirm Dialog ----
-function confirm(title, message, okLabel = 'Confirm', cancelLabel = 'Cancel') {
+function confirm(title, message, okLabel = ((typeof window !== 'undefined' && window.__) ? window.__('btn_confirm', 'Confirm') : 'Confirm'), cancelLabel = ((typeof window !== 'undefined' && window.__) ? window.__('btn_cancel', 'Cancel') : 'Cancel')) {
   return new Promise(resolve => {
     const { modal, close } = openModal({
       title,

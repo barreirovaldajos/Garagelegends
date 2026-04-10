@@ -698,7 +698,11 @@ function testSimulateRaceProducesAiPitStops(engine, stateApi) {
   const aiCarsWithPitStops = getAiCarsWithPitStops(result);
   const aiCarsOnNewCompound = aiCarsWithPitStops.filter((entry) => entry.strategy && entry.tyre !== entry.strategy.tyre);
   const aiPitSnapshot = result.lapSnapshots.some((snapshot) => snapshot.order.some((entry) => !entry.isPlayer && entry.pit));
-  const aiPitEventsWithLoss = result.events.filter((entry) => entry.type === 'pit' && entry.text.includes('pierde') && entry.text.includes('AI Team'));
+  const aiPitEventsWithLoss = result.events.filter((entry) => {
+    return entry.type === 'pit'
+      && entry.text.includes('AI Team')
+      && (entry.text.includes('pierde') || entry.text.includes('loses'));
+  });
 
   assert.ok(aiCarsWithPitStops.length > 0, 'at least one AI car should complete a pit stop');
   assert.ok(aiCarsWithPitStops.some((entry) => (entry.pitTimeMs || 0) >= 16000), 'AI pit stops should accumulate a visible time loss');
@@ -721,7 +725,7 @@ function testPitStopAddsMeaningfulRaceTime(engine, stateApi, sandbox) {
 
   assert.ok(singleStopEntry.pitStopsDone === 1, 'planned single-stop race should record one pit stop');
   assert.ok(singleStopEntry.pitTimeMs >= 16000, 'pit stop should record a meaningful pit time loss');
-  assert.ok(playerPitEvent && playerPitEvent.text.includes('Pierde'), 'pit event log should expose the seconds lost during the stop');
+  assert.ok(playerPitEvent && (playerPitEvent.text.includes('Pierde') || playerPitEvent.text.includes('Loses')), 'pit event log should expose the seconds lost during the stop');
   assert.ok(pitSnapshot, 'lap snapshots should flag the player car as pitting during the stop lap');
 }
 
@@ -989,6 +993,21 @@ function testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi) {
   assert.strictEqual(stateApi.getState().finances.lastRaceSettlement.playerCars.length, 2, 'race settlement should preserve both finishing player cars for auditability');
 }
 
+function testPositiveRaceSettlementOverridesLegacyCriticalHealth(engine, stateApi) {
+  const state = createBaseState();
+  state.finances.credits = 10000;
+  state.finances.deficitStreak = 3;
+  state.finances.criticalDeficit = true;
+  stateApi._state = state;
+
+  engine.applyRaceWeekendEconomy({ prizeMoney: 50000 });
+  const overview = engine.getFinanceOverview(stateApi.getState());
+
+  assert.strictEqual(overview.isCritical, false, 'positive total cash flow after race settlement should not remain in critical state');
+  assert.strictEqual(overview.isWarning, true, 'legacy operating pressure should still surface as warning while the streak remains active');
+  assert.strictEqual(overview.totalNet, 53000, 'finance overview should include both prize and weekly net in total cash flow');
+}
+
 function testRacePerformanceReportProvidesActionableSignals(engine, stateApi, sandbox) {
   const state = createBaseState();
   stateApi._state = state;
@@ -1126,13 +1145,14 @@ function run() {
   testRaceUsesCircuitLapCount(engine, stateApi, sandbox);
   testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi);
   testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi);
+  testPositiveRaceSettlementOverridesLegacyCriticalHealth(engine, stateApi);
   testRacePerformanceReportProvidesActionableSignals(engine, stateApi, sandbox);
   testRaceAdminReportProvidesCopyableTechnicalBreakdown(engine, stateApi, sandbox);
   testCircuitCatalogTargetsModernGrandPrixDistances();
   testTyreModelMatchesStrategicHierarchy(engine);
   testAiTeamColorsStayDistinctFromPlayer(engine, stateApi);
 
-  console.log('✓ Core loop smoke tests passed (31 cases).');
+  console.log('✓ Core loop smoke tests passed (32 cases).');
 }
 
 run();

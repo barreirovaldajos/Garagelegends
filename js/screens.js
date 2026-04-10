@@ -19,11 +19,11 @@ const SCREENS = {
 
   getTyreMeta(tyre) {
     const compounds = {
-      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: '+0.5s a +1.0s vs Medium en seco', durabilityText: 'Dura 15-30% de carrera · en mojado cae a 10-20%' },
-      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: 'Compuesto base y más versátil', durabilityText: 'Dura 30-50% de carrera · muy fuerte para Medium -> Hard' },
-      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: '0.5s a 0.8s más lento que Medium', durabilityText: 'Dura 50-70% de carrera · mejor para una parada' },
-      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: 'Referencia en pista húmeda', durabilityText: 'Dura 40-70% en mojado · en seco solo 10-25%' },
-      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: 'Solo lluvia extrema · suele ser más lento que el Inter', durabilityText: 'Dura 20-40% en mojado · en seco se destruye en 5-15%' }
+      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: __('compound_soft_pace', '+0.5s to +1.0s vs Medium in the dry'), durabilityText: __('compound_soft_durability', 'Lasts 15-30% of the race · drops to 10-20% in the wet') },
+      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: __('compound_medium_pace', 'Baseline compound and the most versatile'), durabilityText: __('compound_medium_durability', 'Lasts 30-50% of the race · strong for Medium -> Hard plans') },
+      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: __('compound_hard_pace', '0.5s to 0.8s slower than Medium'), durabilityText: __('compound_hard_durability', 'Lasts 50-70% of the race · best for one-stop plans') },
+      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: __('compound_intermediate_pace', 'Reference tyre on a damp track'), durabilityText: __('compound_intermediate_durability', 'Lasts 40-70% in the wet · only 10-25% on dry asphalt') },
+      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: __('compound_wet_pace', 'Only for extreme rain · usually slower than Intermediates'), durabilityText: __('compound_wet_durability', 'Lasts 20-40% in the wet · overheats in 5-15% on dry asphalt') }
     };
     return compounds[tyre] || compounds.medium;
   },
@@ -65,6 +65,69 @@ const SCREENS = {
       wet: __('compound_wet', 'Wet')
     };
     return map[tyre] || tyre || '—';
+  },
+
+  getAttrLabel(attrKey) {
+    const key = String(attrKey || '');
+    const readableFallbacks = {
+      pace: 'Ritmo',
+      racePace: 'Ritmo de carrera',
+      consistency: 'Consistencia',
+      rain: 'Rendimiento en lluvia',
+      tyre: 'Gestion de neumaticos',
+      aggression: 'Agresividad',
+      overtake: 'Adelantamientos',
+      techFB: 'Feedback tecnico',
+      mental: 'Mentalidad',
+      charisma: 'Carisma'
+    };
+    return __(key.startsWith('attr_') ? key : `attr_${key}`, readableFallbacks[key] || key || '—');
+  },
+
+  getHqLabel(buildingId) {
+    const key = String(buildingId || '');
+    const readableFallbacks = {
+      admin: 'Administracion',
+      wind_tunnel: 'Tunel de viento',
+      rnd: 'Centro de I+D',
+      factory: 'Fabrica',
+      academy: 'Academia de pilotos'
+    };
+    return __(key.startsWith('hq_') ? key : `hq_${key}`, readableFallbacks[key] || key || '—');
+  },
+
+  getStaffFocusLabel(staffLabel) {
+    const keyOrLabel = String(staffLabel || '');
+    const aliasMap = {
+      'Chief Engineer': 'staff_focus_chief_engineer',
+      'Pilot Coach': 'staff_focus_pilot_coach',
+      'Race Engineer / Data Analyst': 'staff_focus_race_engineer_data_analyst',
+      'Head of Pits': 'staff_focus_head_of_pits'
+    };
+    const resolvedKey = aliasMap[keyOrLabel] || keyOrLabel;
+    const readableFallbacks = {
+      staff_focus_chief_engineer: 'Ingeniero jefe',
+      staff_focus_pilot_coach: 'Coach de pilotos',
+      staff_focus_race_engineer_data_analyst: 'Ingeniero de carrera / Analista de datos',
+      staff_focus_head_of_pits: 'Jefe de boxes'
+    };
+    return __(resolvedKey, readableFallbacks[resolvedKey] || keyOrLabel || '—');
+  },
+
+  getStaffRoleLabel(role) {
+    const roleLabel = String(role || '');
+    const roleMap = {
+      'Chief Engineer': 'staff_role_chief_engineer',
+      'Race Engineer': 'staff_role_race_engineer',
+      Scout: 'staff_role_scout',
+      'Pilot Coach': 'staff_role_pilot_coach',
+      'Commercial Dir.': 'staff_role_commercial_dir',
+      'Data Analyst': 'staff_role_data_analyst',
+      'Head of Pits': 'staff_role_head_of_pits',
+      'Medic/Physio': 'staff_role_medic_physio'
+    };
+    const key = roleMap[roleLabel] || roleLabel;
+    return __(key, roleLabel || '—');
   },
 
   normalizePitPlan(plan) {
@@ -757,7 +820,7 @@ const SCREENS = {
             <div class="icon-circle ${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'green'}" style="width:52px;height:52px;font-size:1.5rem">${s.emoji||'👤'}</div>
             <div style="flex:1">
               <div style="font-family:var(--font-display);font-weight:700;font-size:0.95rem">${s.name}</div>
-              <div style="font-size:0.75rem;color:var(--t-secondary);margin-bottom:var(--s-2)">${s.role} · ${s.nat}</div>
+              <div style="font-size:0.75rem;color:var(--t-secondary);margin-bottom:var(--s-2)">${this.getStaffRoleLabel(s.role)} · ${s.nat}</div>
               <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}">${s.rarity||'common'}</span>
               <div style="margin-top:var(--s-3);font-size:0.75rem;color:var(--t-tertiary)">${s.bio||''}</div>
             </div>
@@ -774,14 +837,14 @@ const SCREENS = {
 
   showHireStaff() {
     const available = GL_DATA.STAFF_POOL.filter(s => !GL_STATE.getState().staff.find(st=>st.id===s.id));
-    GL_UI.openModal({ title: 'Hire Staff', size: 'lg', content: `
+    GL_UI.openModal({ title: __('staff_hire'), size: 'lg', content: `
       <div style="display:flex;flex-direction:column;gap:var(--s-3)">
         ${available.map(s => `
           <div class="market-pilot-row" onclick="GL_SCREENS.hireStaff('${s.id}', this.closest('.modal-overlay'))">
             <div class="market-pilot-avatar" style="font-size:1.5rem">${s.emoji||'👤'}</div>
             <div class="market-pilot-info">
               <div class="market-pilot-name">${s.name}</div>
-              <div class="market-pilot-meta">${s.role} · ${s.nat}</div>
+              <div class="market-pilot-meta">${this.getStaffRoleLabel(s.role)} · ${s.nat}</div>
               <div style="font-size:0.75rem;color:var(--t-tertiary);margin-top:4px">${s.bio||''}</div>
             </div>
             <div class="market-pilot-salary"><div class="market-pilot-salary-val">${GL_UI.fmtCR(s.salary)}/wk</div>
@@ -794,10 +857,10 @@ const SCREENS = {
     const s = GL_DATA.STAFF_POOL.find(s=>s.id===id);
     if (!s) return;
     GL_STATE.getState().staff.push(GL_STATE.deepClone(s));
-    GL_STATE.addLog(`👥 ${s.name} joined as ${s.role}.`, 'good');
+    GL_STATE.addLog(`👥 ${__('staff_joined_as', '{name} joined as {role}.').replace('{name}', s.name).replace('{role}', this.getStaffRoleLabel(s.role))}`, 'good');
     GL_STATE.saveState();
     overlay?.remove();
-    GL_UI.toast(`${s.name} hired!`, 'success');
+    GL_UI.toast(`${s.name} ${__('staff_hired')}`, 'success');
     this.renderStaff();
   },
 
@@ -1032,7 +1095,7 @@ const SCREENS = {
     };
 
     const categoryMarkup = categoryItems.map((category) => {
-      const trainLabel = (category.focusAttrKeys || []).map((key) => window.__(`attr_${key}`) || key).join(' / ');
+      const trainLabel = (category.focusAttrKeys || []).map((key) => this.getAttrLabel(key)).join(' / ');
       const componentLabel = category.componentKey ? (componentLabels[category.componentKey] || category.componentKey) : '—';
       const cardBorder = weakestSet.has(category.id) ? 'var(--c-red)' : 'var(--c-border)';
       return `
@@ -1043,9 +1106,9 @@ const SCREENS = {
           </div>
           <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:10px;line-height:1.5">
             <div>${__('report_focus_train')}: <strong style="color:var(--t-primary)">${trainLabel || '—'}</strong></div>
-            <div>${__('report_focus_upgrade')}: <strong style="color:var(--t-primary)">${__(`hq_${category.buildingId}`) || category.buildingId || '—'}</strong></div>
+            <div>${__('report_focus_upgrade')}: <strong style="color:var(--t-primary)">${this.getHqLabel(category.buildingId)}</strong></div>
             <div>${__('report_focus_component')}: <strong style="color:var(--t-primary)">${componentLabel}</strong></div>
-            <div>${__('report_focus_staff')}: <strong style="color:var(--t-primary)">${category.staffLabel || '—'}</strong></div>
+            <div>${__('report_focus_staff')}: <strong style="color:var(--t-primary)">${this.getStaffFocusLabel(category.staffLabelKey || category.staffLabel)}</strong></div>
           </div>
         </div>`;
     }).join('');
@@ -1057,14 +1120,14 @@ const SCREENS = {
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
             <div>
               <div style="font-weight:700">${driver.pilotName}</div>
-              <div style="font-size:0.76rem;color:var(--t-secondary)">${driver.isDNF ? 'DNF' : `P${driver.position}`} · ${__('report_driver_focus')}: <strong style="color:var(--t-primary)">${window.__(`attr_${driver.weakestAttrKey}`) || driver.weakestAttrKey}</strong></div>
+              <div style="font-size:0.76rem;color:var(--t-secondary)">${driver.isDNF ? 'DNF' : `P${driver.position}`} · ${__('report_driver_focus')}: <strong style="color:var(--t-primary)">${this.getAttrLabel(driver.weakestAttrKey)}</strong></div>
             </div>
             <div style="text-align:right">${this.renderStarRating(driver.overallStars)}<div style="font-size:0.72rem;color:var(--t-secondary)">${Math.round(driver.overallScore)}/99</div></div>
           </div>
           <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px">
             ${attrs.map((attr) => `
               <div style="padding:10px;border-radius:10px;background:rgba(255,255,255,0.025)">
-                <div style="font-size:0.72rem;color:var(--t-secondary)">${window.__(`attr_${attr.key}`) || attr.key}</div>
+                <div style="font-size:0.72rem;color:var(--t-secondary)">${this.getAttrLabel(attr.key)}</div>
                 <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-top:4px">
                   ${this.renderStarRating(attr.stars)}
                   <span style="font-size:0.76rem;color:var(--t-primary)">${Math.round(attr.score)}/99</span>
@@ -1287,23 +1350,31 @@ const SCREENS = {
     const el = document.getElementById('screen-finances');
     if (!el) return;
     const history = fi.history || [];
-    const lastRaceSettlement = fi.lastRaceSettlement && typeof fi.lastRaceSettlement === 'object'
-      ? fi.lastRaceSettlement
-      : null;
-    const breakdown = window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, expenses: 0, net: 0, sponsorIncome: 0, fanRevenue: 0, divisionGrant: 0, salaries: 0, hqCost: 0, contractCost: 0 };
+    const financeOverview = window.getFinanceOverview
+      ? window.getFinanceOverview(state)
+      : {
+          breakdown: window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, expenses: 0, net: 0, sponsorIncome: 0, fanRevenue: 0, divisionGrant: 0, salaries: 0, hqCost: 0, contractCost: 0 },
+          settlement: fi.lastRaceSettlement && typeof fi.lastRaceSettlement === 'object' ? fi.lastRaceSettlement : null,
+          openingCash: Number(fi.credits || 0),
+          closingCash: Number(fi.credits || 0),
+          operatingNet: 0,
+          competitionNet: 0,
+          totalNet: 0,
+          deficitStreak: Number(fi.deficitStreak || 0),
+          health: fi.criticalDeficit ? 'critical' : (fi.deficitStreak > 0 ? 'warning' : 'healthy'),
+          isCritical: !!fi.criticalDeficit,
+          isWarning: !fi.criticalDeficit && Number(fi.deficitStreak || 0) > 0,
+          reasonKey: 'finances_health_reason_positive_total'
+        };
+    const breakdown = financeOverview.breakdown;
     const income = breakdown.income;
     const expenses = breakdown.expenses;
-    const critical = !!fi.criticalDeficit;
-    const deficitStreak = fi.deficitStreak || 0;
-    const healthLabel = critical
+    const lastRaceSettlement = financeOverview.settlement;
+    const deficitStreak = financeOverview.deficitStreak;
+    const healthLabel = financeOverview.isCritical
       ? __('dash_finance_critical_state')
-      : (deficitStreak > 0 ? __('dash_finance_warning_state') : __('dash_finance_healthy_state'));
-    const healthColor = critical ? 'var(--c-red)' : (deficitStreak > 0 ? 'var(--c-gold)' : 'var(--c-green)');
-    const settlementPrize = Number(lastRaceSettlement?.prizeMoney || 0);
-    const settlementWeekly = Number(lastRaceSettlement?.weeklyNetDelta || 0);
-    const settlementTotal = Number(lastRaceSettlement?.totalDelta || 0);
-    const settlementBefore = Number(lastRaceSettlement?.creditsBefore || 0);
-    const settlementAfter = Number(lastRaceSettlement?.creditsAfterWeekly || 0);
+      : (financeOverview.isWarning ? __('dash_finance_warning_state') : __('dash_finance_healthy_state'));
+    const healthColor = financeOverview.isCritical ? 'var(--c-red)' : (financeOverview.isWarning ? 'var(--c-gold)' : 'var(--c-green)');
     const settlementRound = Number.isFinite(lastRaceSettlement?.round) ? `R${lastRaceSettlement.round}` : '—';
     const settlementDate = Number.isFinite(lastRaceSettlement?.ts)
       ? new Date(lastRaceSettlement.ts).toLocaleString()
@@ -1328,27 +1399,27 @@ const SCREENS = {
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
           <div style="font-size:0.9rem;color:var(--t-secondary)">${__('finances_health_label')}: <strong style="color:${healthColor}">${healthLabel}</strong></div>
           <div style="font-size:0.82rem;color:var(--t-secondary)">${__('dash_finance_deficit_streak_label')}: <strong>${deficitStreak}</strong> ${__('dash_finance_deficit_streak_weeks')}</div>
-          <div style="font-size:0.82rem;color:${breakdown.net>=0?'var(--c-green)':'var(--c-red)'}">${__('finances_weekly_net')}: <strong>${GL_UI.fmtSign(breakdown.net)}</strong></div>
+          <div style="font-size:0.82rem;color:${financeOverview.totalNet>=0?'var(--c-green)':'var(--c-red)'}">${__('finances_total_flow')}: <strong>${GL_UI.fmtSign(financeOverview.totalNet)}</strong></div>
         </div>
+        <div style="margin-top:10px;font-size:0.82rem;color:var(--t-secondary)">${__(financeOverview.reasonKey)}</div>
       </div>
       <div class="card mb-4">
         <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
           <div>
-            <div class="section-eyebrow">${__('finances_race_settlement')}</div>
+            <div class="section-eyebrow">${__('finances_cashflow_title')}</div>
             <div style="font-size:0.9rem;font-weight:700;color:var(--t-primary)">${__('finances_last_race')}: ${settlementRound}</div>
-            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">${__('finances_race_settlement_hint')}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">${__('finances_cashflow_subtitle')}</div>
           </div>
           <div style="font-size:0.76rem;color:var(--t-secondary);text-align:right">${settlementDate || ''}${settlementPlayerSummary ? `<br>${settlementPlayerSummary}` : ''}</div>
         </div>
-        ${lastRaceSettlement ? `
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:var(--s-4)">
-            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--c-green)">${GL_UI.fmtSign(settlementPrize)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('postrace_prize')}</div></div>
-            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${settlementWeekly >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(settlementWeekly)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_weekly_net')}</div></div>
-            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${settlementTotal >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(settlementTotal)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_total_settlement')}</div></div>
-            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(settlementBefore)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('postrace_credits_before')}</div></div>
-            <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:rgba(255,255,255,0.02)"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(settlementAfter)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('postrace_credits_after')}</div></div>
-          </div>` : `
-          <p style="color:var(--t-tertiary);font-size:0.82rem;margin-top:var(--s-4)">${__('finances_no_race_settlement')}</p>`}
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:var(--s-4)">
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(financeOverview.openingCash)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_opening_cash')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${financeOverview.operatingNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(financeOverview.operatingNet)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_operating_flow')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${financeOverview.competitionNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(financeOverview.competitionNet)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_competition_flow')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${financeOverview.totalNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(financeOverview.totalNet)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_total_flow')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(financeOverview.closingCash)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_closing_cash')}</div></div>
+        </div>
+        ${lastRaceSettlement ? `<div style="margin-top:10px;font-size:0.78rem;color:var(--t-secondary)">${__('finances_race_settlement_hint')}</div>` : `<p style="color:var(--t-tertiary);font-size:0.82rem;margin-top:var(--s-4)">${__('finances_no_race_settlement')}</p>`}
       </div>
       <div class="grid-2 mb-6">
         <div class="card">
@@ -1374,6 +1445,7 @@ const SCREENS = {
       </div>
       <div class="card">
         <div class="section-eyebrow">${__('finances_history')}</div>
+        <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:6px">${__('finances_history_hint')}</div>
         ${history.length ? `
           <div style="display:flex;align-items:flex-end;gap:4px;height:80px;margin-top:var(--s-4)">
             ${history.slice(-12).map(h => {

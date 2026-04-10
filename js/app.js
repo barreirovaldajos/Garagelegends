@@ -116,7 +116,7 @@ const APP = {
       // If time arrived, simulate!
       if (diffMs <= 0) {
         if (window._raceInProgress || APP.currentScreen === 'race') {
-          const lblStr = nextRaceObj.type === 'practice' ? (window.__('next_practice_lbl') || 'NEXT PRAC') : (window.__('next_race_lbl') || 'NEXT RACE');
+          const lblStr = nextRaceObj.type === 'practice' ? window.__('next_practice_lbl', 'PRÁCTICA') : window.__('next_race_lbl', 'PRÓX. CARRERA');
           elNext.textContent = `${lblStr}: LIVE`;
           return;
         }
@@ -142,7 +142,7 @@ const APP = {
          countdown = `${diffHrs}h ${diffMins}m ${diffSecs}s`;
       }
       
-      const lblStr = nextRaceObj.type === 'practice' ? (window.__('next_practice_lbl') || 'NEXT PRAC') : (window.__('next_race_lbl') || 'NEXT RACE');
+      const lblStr = nextRaceObj.type === 'practice' ? window.__('next_practice_lbl', 'PRÁCTICA') : window.__('next_race_lbl', 'PRÓX. CARRERA');
       elNext.textContent = `${lblStr}: ${countdown}`;
     };
     
@@ -169,7 +169,7 @@ const APP = {
       <div class="topbar-separator"></div>
       <div class="topbar-clock rt-clock" id="topbar-clock">
         <div class="rt-clock-time" id="rt-clock-time">--:--</div>
-        <div class="rt-clock-next" id="rt-clock-next">NEXT RACE: --:--</div>
+        <div class="rt-clock-next" id="rt-clock-next">${window.__ ? window.__('next_race_lbl', 'PRÓX. CARRERA') : 'PRÓX. CARRERA'}: --:--</div>
       </div>
       <div class="topbar-actions">
         <div class="topbar-credits" title="Credits" onclick="GL_APP.navigateTo('finances')">
