@@ -943,6 +943,79 @@ const SCREENS = {
     return (state?.raceResults || []).find((entry) => Number(entry?.round || 0) === roundNumber) || null;
   },
 
+  escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
+  copyTextToClipboard(content, successMessage, failedMessage) {
+    const onSuccess = () => GL_UI.toast(successMessage, 'good');
+    const onFailure = () => GL_UI.toast(failedMessage, 'warning');
+
+    const fallbackCopy = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = content;
+        ta.setAttribute('readonly', 'true');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (ok) onSuccess();
+        else onFailure();
+      } catch (error) {
+        onFailure();
+      }
+    };
+
+    if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(content).then(onSuccess).catch(fallbackCopy);
+      return;
+    }
+    fallbackCopy();
+  },
+
+  copyRaceAdminReport(round = null) {
+    const state = GL_STATE.getState();
+    const source = round == null ? window._lastRaceResult : this.getRaceArchiveRecord(round);
+    const report = source?.adminReport || (round == null && GL_ENGINE.buildRaceAdminReport ? GL_ENGINE.buildRaceAdminReport(source, state) : null);
+    if (report && source && !source.adminReport) source.adminReport = report;
+    if (!report?.text) {
+      GL_UI.toast(__('admin_report_unavailable'), 'info');
+      return;
+    }
+    this.copyTextToClipboard(report.text, __('admin_report_copy_success'), __('admin_report_copy_failed'));
+  },
+
+  renderRaceAdminReport(report, options = {}) {
+    if (!report?.text) {
+      return `<p style="color:var(--t-secondary);font-size:0.82rem">${__('admin_report_unavailable')}</p>`;
+    }
+    const compact = !!options.compact;
+    const flags = Array.isArray(report.flags) ? report.flags : [];
+    const copyAction = options.copyAction || '';
+    return `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <div>
+            <div class="section-eyebrow">${__('admin_report_title')}</div>
+            <div style="font-size:0.76rem;color:var(--t-secondary);margin-top:4px">${__('admin_report_subtitle')}</div>
+          </div>
+          ${copyAction ? `<button class="btn btn-secondary btn-sm" onclick="${copyAction}">${__('admin_report_copy')}</button>` : ''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:0.72rem;font-weight:700;color:var(--t-secondary);text-transform:uppercase;letter-spacing:0.06em">${__('admin_report_flags')}</div>
+          ${(flags.length ? flags : [__('admin_report_no_flags')]).map((flag) => `<div style="padding:8px 10px;border-radius:10px;background:rgba(255,255,255,0.035);border:1px solid var(--c-border);font-size:0.78rem;line-height:1.45">${this.escapeHtml(flag)}</div>`).join('')}
+        </div>
+        <textarea readonly style="width:100%;min-height:${compact ? '260px' : '420px'};padding:12px;border-radius:14px;border:1px solid var(--c-border);background:rgba(6,10,16,0.86);color:var(--t-primary);font-size:0.74rem;line-height:1.45;font-family:Consolas, 'Courier New', monospace;resize:vertical">${this.escapeHtml(report.text)}</textarea>
+      </div>`;
+  },
+
   renderRacePerformanceReport(report, options = {}) {
     if (!report) {
       return `<p style="color:var(--t-secondary);font-size:0.82rem">${__('calendar_report_unavailable')}</p>`;
@@ -1026,7 +1099,11 @@ const SCREENS = {
     GL_UI.openModal({
       title: `${__('calendar_report_title')} · ${titleSuffix}`,
       size: 'lg',
-      content: this.renderRacePerformanceReport(record?.performanceReport || null)
+      content: `
+        ${this.renderRacePerformanceReport(record?.performanceReport || null)}
+        <div class="divider" style="margin:18px 0"></div>
+        ${this.renderRaceAdminReport(record?.adminReport || null, { copyAction: `GL_SCREENS.copyRaceAdminReport(${Number(round)})` })}
+      `
     });
   },
 
@@ -2038,6 +2115,9 @@ const SCREENS = {
       result.performanceReport = GL_ENGINE.buildRacePerformanceReport
         ? GL_ENGINE.buildRacePerformanceReport(result, state)
         : null;
+      result.adminReport = GL_ENGINE.buildRaceAdminReport
+        ? GL_ENGINE.buildRaceAdminReport(result, state)
+        : null;
       const archiveRecord = GL_ENGINE.buildRaceArchiveRecord
         ? GL_ENGINE.buildRaceArchiveRecord(result, {
             round: next?.round || result.round || 0,
@@ -2175,6 +2255,8 @@ const SCREENS = {
     const state = GL_STATE.getState();
     const performanceReport = result.performanceReport || (GL_ENGINE.buildRacePerformanceReport ? GL_ENGINE.buildRacePerformanceReport(result, state) : null);
     if (performanceReport && !result.performanceReport) result.performanceReport = performanceReport;
+    const adminReport = result.adminReport || (GL_ENGINE.buildRaceAdminReport ? GL_ENGINE.buildRaceAdminReport(result, state) : null);
+    if (adminReport && !result.adminReport) result.adminReport = adminReport;
     const strategyRows = (Array.isArray(result.finalGrid) ? result.finalGrid : []).map((car, idx) => {
       const summary = this.formatPitStrategySummary(car.strategy || {});
       return `
@@ -2224,6 +2306,10 @@ const SCREENS = {
       <div class="card mb-4">
         <div class="section-eyebrow">${__('postrace_performance_report')}</div>
         <div style="margin-top:10px">${this.renderRacePerformanceReport(performanceReport, { compact: true })}</div>
+      </div>
+      <div class="card mb-4">
+        <div class="section-eyebrow">${__('postrace_admin_report')}</div>
+        <div style="margin-top:10px">${this.renderRaceAdminReport(adminReport, { compact: true, copyAction: 'GL_SCREENS.copyRaceAdminReport()' })}</div>
       </div>
       <div class="grid-2">
         <div class="card">

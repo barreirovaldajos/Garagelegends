@@ -739,6 +739,198 @@ function scoreToStars(score) {
   return clamp(Math.round((Number(score) || 0) / 20), 1, 5);
 }
 
+function translateText(key, fallback = '') {
+  const translate = (typeof window !== 'undefined' && typeof window.__ === 'function')
+    ? window.__
+    : (typeof globalThis.__ === 'function' ? globalThis.__ : null);
+  if (!translate) return fallback || key;
+  const resolved = translate(key);
+  return resolved && resolved !== key ? resolved : (fallback || key);
+}
+
+function formatGapMs(value) {
+  return Number.isFinite(value) ? `${(value / 1000).toFixed(1)}s` : 'n/a';
+}
+
+function formatSignedDelta(value, zeroLabel = '0') {
+  const safeValue = Number(value) || 0;
+  if (!safeValue) return zeroLabel;
+  return `${safeValue > 0 ? '+' : ''}${safeValue}`;
+}
+
+function formatSignedGapDeltaMs(value) {
+  if (!Number.isFinite(value)) return 'n/a';
+  const seconds = value / 1000;
+  return `${seconds > 0 ? '+' : ''}${seconds.toFixed(1)}s`;
+}
+
+function pickRaceSnapshotLaps(totalLaps) {
+  const safeTotal = Math.max(1, Math.round(Number(totalLaps) || 1));
+  return Array.from(new Set([
+    1,
+    Math.max(1, Math.round(safeTotal * 0.25)),
+    Math.max(1, Math.round(safeTotal * 0.5)),
+    Math.max(1, Math.round(safeTotal * 0.75)),
+    safeTotal
+  ])).sort((a, b) => a - b);
+}
+
+function buildRaceAdminReport(result, stateArg = null) {
+  const state = stateArg || S.getState();
+  const playerCars = Array.isArray(result?.playerCars) ? result.playerCars : [];
+  const finalGrid = Array.isArray(result?.finalGrid) ? result.finalGrid : [];
+  const gridStart = Array.isArray(result?.gridStart) ? result.gridStart : [];
+  const lapSnapshots = Array.isArray(result?.lapSnapshots) ? result.lapSnapshots : [];
+  const totalLaps = Math.max(1, Math.round(Number(result?.totalLaps || result?.circuit?.laps || lapSnapshots.length || 1)));
+  const lastSnapshot = lapSnapshots[lapSnapshots.length - 1] || null;
+  const weatherStart = lapSnapshots[0]?.weather || result?.weather || 'dry';
+  const weatherEnd = lastSnapshot?.weather || result?.weather || weatherStart;
+  const weatherChanges = lapSnapshots.reduce((count, snapshot, idx) => {
+    if (idx === 0) return count;
+    return snapshot?.weather !== lapSnapshots[idx - 1]?.weather ? count + 1 : count;
+  }, 0);
+  const componentState = state?.car?.components || {};
+  const hq = state?.hq || {};
+  const pilotMap = Object.fromEntries((state?.pilots || []).map((pilot) => [pilot.id, pilot]));
+  const finalGridMap = Object.fromEntries(finalGrid.map((entry) => [entry.id, entry]));
+  const startGridMap = Object.fromEntries(gridStart.map((entry) => [entry.id, entry]));
+  const checkpointLaps = pickRaceSnapshotLaps(totalLaps);
+  const circuitProfile = result?.circuitProfile || getCircuitProfile(result?.circuit, weatherEnd);
+  const staffFx = result?.staffImpact || getRaceStaffEffects(state);
+  const eventCounts = (Array.isArray(result?.events) ? result.events : []).reduce((acc, event) => {
+    const key = String(event?.type || 'info');
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, { info: 0, good: 0, pit: 0, safety: 0, incident: 0 });
+
+  const getSnapshotEntry = (lap, carId) => {
+    const snapshot = lapSnapshots[Math.max(0, Math.min(lapSnapshots.length - 1, Math.round(Number(lap) || 1) - 1))];
+    if (!snapshot || !Array.isArray(snapshot.order)) return null;
+    return snapshot.order.find((entry) => entry.id === carId) || null;
+  };
+
+  const topClassification = ((lastSnapshot && Array.isArray(lastSnapshot.order)) ? lastSnapshot.order : finalGrid)
+    .slice(0, 5)
+    .map((entry, idx) => {
+      const label = entry?.pilotName || entry?.name || `Car ${idx + 1}`;
+      const gap = idx === 0 ? 'leader' : formatGapMs(entry?.gapMs);
+      return `- P${idx + 1}: ${label} | gap ${gap}`;
+    });
+
+  const flags = [];
+  const p2Gap = Number(lastSnapshot?.order?.[1]?.gapMs);
+  if (Number.isFinite(p2Gap) && p2Gap >= 20000) {
+    flags.push(`Final gap leader -> P2 = ${formatGapMs(p2Gap)} (threshold 20.0s)`);
+  }
+
+  const avgPlayerPitMs = averageFinite(playerCars.map((car) => Number(car?.pitTimeMs) || 0), 0);
+  if (avgPlayerPitMs >= 24000) {
+    flags.push(`Average player pit loss = ${formatGapMs(avgPlayerPitMs)} (threshold 24.0s)`);
+  }
+  if (weatherChanges > 1) {
+    flags.push(`Weather changed ${weatherChanges} times in one race.`);
+  }
+
+  const driverSections = playerCars.map((car, index) => {
+    const pilot = pilotMap[car.pilotId] || {
+      id: car.pilotId,
+      name: car.pilotName || `Driver ${index + 1}`,
+      attrs: {}
+    };
+    const finalEntry = finalGridMap[car.id] || {};
+    const startEntry = startGridMap[car.id] || {};
+    const strategy = car.strategy || finalEntry.strategy || {};
+    const setupFx = getSetupEffects(result?.circuit, weatherEnd, strategy?.setup || {});
+    const engineFx = getEngineModeFx(strategy?.engineMode || 'normal');
+    const raceStrength = getPilotRaceStrength(pilot, weatherEnd, strategy);
+    const basePaceScore = Number(finalEntry?.base || finalEntry?.score || finalEntry?.gridScore || raceStrength);
+    const finalGapMs = Number(getSnapshotEntry(totalLaps, car.id)?.gapMs);
+    const lastFiveRefGapMs = Number(getSnapshotEntry(Math.max(1, totalLaps - 4), car.id)?.gapMs);
+    const lastFiveDeltaMs = Number.isFinite(finalGapMs) && Number.isFinite(lastFiveRefGapMs)
+      ? (finalGapMs - lastFiveRefGapMs)
+      : null;
+    const gridGain = Number(car?.startPos || startEntry?.pos || 0) - Number(car?.position || finalEntry?.pos || 0);
+    const finalTyre = finalEntry?.tyre || car?.tyre || strategy?.tyre || 'medium';
+    const tyreUsefulLife = getTyreUsefulLife(finalTyre, weatherEnd, totalLaps);
+    const tyrePaceDeltaMs = getTyrePaceDeltaMs(finalTyre, weatherEnd);
+
+    if (Number.isFinite(finalGapMs) && finalGapMs >= 20000) {
+      flags.push(`${car.pilotName || pilot.name} finished ${formatGapMs(finalGapMs)} behind the leader.`);
+    }
+    if (Number.isFinite(lastFiveDeltaMs) && lastFiveDeltaMs >= 12000) {
+      flags.push(`${car.pilotName || pilot.name} lost ${formatSignedGapDeltaMs(lastFiveDeltaMs)} to the leader over the last 5 laps.`);
+    }
+
+    const pilotAttrs = ['pace', 'racePace', 'consistency', 'rain', 'tyre', 'aggression', 'overtake', 'techFB', 'mental']
+      .map((key) => `${translateText(`attr_${key}`, key)} ${getPilotAttr(pilot, key, 55)}`)
+      .join(' | ');
+
+    const checkpoints = checkpointLaps
+      .map((lap) => {
+        const snapshotEntry = getSnapshotEntry(lap, car.id);
+        if (!snapshotEntry) return null;
+        return `L${lap}: P${snapshotEntry.pos} ${formatGapMs(snapshotEntry.gapMs)}${snapshotEntry.pit ? ' PIT' : ''}`;
+      })
+      .filter(Boolean)
+      .join(' | ');
+
+    return [
+      `DRIVER ${index + 1}: ${car.pilotName || pilot.name}`,
+      `- Finish: ${car.isDNF ? 'DNF' : `P${car.position}`} from P${car.startPos || startEntry.pos || '?'} | grid delta ${formatSignedDelta(gridGain, '0')} | points ${car.points || 0} | final gap ${formatGapMs(finalGapMs)} | pit loss ${formatGapMs(car.pitTimeMs)} | stops ${car.pitStopsDone || 0}`,
+      `- Strategy: start tyre ${(strategy.tyre || car.tyre || 'medium')} | finish tyre ${finalTyre} | pit plan ${strategy.pitPlan || 'single'} | aggression ${strategy.aggression || 50} | risk ${strategy.riskLevel || 40} | engine ${strategy.engineMode || 'normal'} | aero ${strategy?.setup?.aeroBalance ?? 50} | wet ${strategy?.setup?.wetBias ?? 50}`,
+      `- Pilot attrs: ${pilotAttrs}`,
+      `- Derived inputs: raceStrength ${raceStrength.toFixed(1)} | base pace ${basePaceScore.toFixed(1)} | setup paceMult ${setupFx.paceMult.toFixed(3)} | setup riskMult ${setupFx.riskMult.toFixed(3)} | setup tyreMult ${setupFx.tyreMult.toFixed(3)} | engine paceFx ${engineFx.pace.toFixed(2)} | engine riskFx ${engineFx.risk.toFixed(2)} | tyre delta ${tyrePaceDeltaMs} ms/lap | useful tyre life ${tyreUsefulLife.toFixed(1)} laps`,
+      `- Gap checkpoints: ${checkpoints || 'n/a'}`,
+      `- Last 5 laps gap delta: ${formatSignedGapDeltaMs(lastFiveDeltaMs)}`
+    ].join('\n');
+  });
+
+  const summaryLines = [
+    'ADMIN RACE REPORT',
+    `Round: ${Number(result?.round || 0)}`,
+    `Circuit: ${result?.circuit?.name || 'Unknown'} | layout ${(result?.circuit?.layout || 'mixed')} | laps ${totalLaps} | length ${result?.circuit?.length || 'n/a'}`,
+    `Weather: start ${weatherStart} -> end ${weatherEnd} | changes ${weatherChanges}`,
+    `Team result: ${result?.points || 0} pts | best finish ${playerCars[0]?.isDNF ? 'DNF' : `P${playerCars[0]?.position || result?.position || 0}`} | prize ${Number(result?.prizeMoney || 0)} CR`,
+    '',
+    'BALANCE FLAGS',
+    ...(flags.length ? flags.map((line) => `- ${line}`) : ['- No extreme balance flags detected with current thresholds.']),
+    '',
+    'TOP OF CLASSIFICATION',
+    ...(topClassification.length ? topClassification : ['- n/a']),
+    '',
+    'RACE CONTEXT',
+    `- Circuit profile: paceBias ${Number(circuitProfile?.paceBias || 1).toFixed(3)} | overtakeBias ${Number(circuitProfile?.overtakeBias || 1).toFixed(3)} | tyreDegMult ${Number(circuitProfile?.tyreDegMult || 1).toFixed(3)} | riskBias ${Number(circuitProfile?.riskBias || 1).toFixed(3)}`,
+    `- Staff effects: pitErrorMult ${Number(staffFx?.pitErrorChanceMult || 1).toFixed(3)} | pitGainChance ${(Number(staffFx?.pitTimeGainChance || 0) * 100).toFixed(0)}% | undercut ${(Number(staffFx?.undercutStrength || 0) * 100).toFixed(0)}% | overcut ${(Number(staffFx?.overcutStrength || 0) * 100).toFixed(0)}% | incidentRiskMult ${Number(staffFx?.incidentRiskMult || 1).toFixed(3)} | overtakeBonus ${Number(staffFx?.overtakeBonus || 0).toFixed(3)} | paceBonus ${Number(staffFx?.paceBonus || 0).toFixed(3)}`,
+    `- HQ: admin ${Number(hq?.admin || 1)} | wind_tunnel ${Number(hq?.wind_tunnel || 1)} | rnd ${Number(hq?.rnd || 1)} | factory ${Number(hq?.factory || 1)} | academy ${Number(hq?.academy || 1)}`,
+    `- Car components: engine ${Number(componentState?.engine?.score || 0)} | chassis ${Number(componentState?.chassis?.score || 0)} | aero ${Number(componentState?.aero?.score || 0)} | tyreManage ${Number(componentState?.tyreManage?.score || 0)} | brakes ${Number(componentState?.brakes?.score || 0)} | gearbox ${Number(componentState?.gearbox?.score || 0)} | reliability ${Number(componentState?.reliability?.score || 0)} | efficiency ${Number(componentState?.efficiency?.score || 0)}`,
+    `- Event counts: info ${eventCounts.info || 0} | good ${eventCounts.good || 0} | pit ${eventCounts.pit || 0} | safety ${eventCounts.safety || 0} | incident ${eventCounts.incident || 0}`,
+    '',
+    'MODEL COEFFICIENTS',
+    '- Base race strength uses 50% car score + 50% pilot race strength, then applies track/setup multipliers and some aggression bonus.',
+    '- Player lap time formula: 94500 - rawPace*175 - aggressionDelta*22 - engineModePace*2600 + tyreDelta + wearPenalty + noise.',
+    '- AI lap time uses the same structure but rawPace is multiplied by 160 instead of 175 and noise is wider.',
+    '- Wear penalty begins after useful tyre life and scales as (wear - usefulLife) * 1900 ms/lap.',
+    '- Safety car lap base is 110000 ms and compresses active gaps to 55% of their previous spread.',
+    '- Successful overtake events swing roughly 950 ms; spin events add about 2600 ms per lost position.',
+    '',
+    ...driverSections.flatMap((section) => ['', section])
+  ];
+
+  return {
+    version: 1,
+    generatedAt: Date.now(),
+    flags,
+    summary: {
+      weatherStart,
+      weatherEnd,
+      weatherChanges,
+      p2GapMs: Number.isFinite(p2Gap) ? p2Gap : null,
+      averagePlayerPitMs: avgPlayerPitMs
+    },
+    text: summaryLines.join('\n')
+  };
+}
+
 function buildRacePerformanceReport(result, stateArg = null) {
   const state = stateArg || S.getState();
   const playerCars = Array.isArray(result?.playerCars) ? result.playerCars : [];
@@ -915,6 +1107,7 @@ function buildRacePerformanceReport(result, stateArg = null) {
 
 function buildRaceArchiveRecord(result, raceMeta = {}, stateArg = null) {
   const report = result?.performanceReport || buildRacePerformanceReport(result, stateArg);
+  const adminReport = result?.adminReport || buildRaceAdminReport(result, stateArg);
   return {
     round: Number(raceMeta?.round || result?.round || 0),
     ts: Number(raceMeta?.ts || Date.now()),
@@ -940,7 +1133,8 @@ function buildRaceArchiveRecord(result, raceMeta = {}, stateArg = null) {
       pitStopsDone: car.pitStopsDone,
       pitTimeMs: car.pitTimeMs
     })) : [],
-    performanceReport: report
+    performanceReport: report,
+    adminReport
   };
 }
 
@@ -2797,7 +2991,7 @@ window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
   choosePitTyreForConditions,
   getTyreUsefulLife, getTyrePaceDeltaMs, getCircuitRaceDistanceKm,
-  buildRacePerformanceReport, buildRaceArchiveRecord, upsertRaceArchiveRecord,
+  buildRacePerformanceReport, buildRaceAdminReport, buildRaceArchiveRecord, upsertRaceArchiveRecord,
   weeklyTick, applyRaceWeekendEconomy, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,

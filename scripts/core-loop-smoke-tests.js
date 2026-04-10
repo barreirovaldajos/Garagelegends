@@ -1008,6 +1008,33 @@ function testRacePerformanceReportProvidesActionableSignals(engine, stateApi, sa
   });
 }
 
+function testRaceAdminReportProvidesCopyableTechnicalBreakdown(engine, stateApi, sandbox) {
+  const state = createBaseState();
+  stateApi._state = state;
+
+  const result = simulateSingleDriverRace(engine, stateApi, cloneData(state), sandbox, {
+    tyre: 'soft',
+    aggression: 62,
+    riskLevel: 48,
+    pitPlan: 'double',
+    pitLap: 34,
+    engineMode: 'push',
+    setup: { aeroBalance: 42, wetBias: 38 },
+    pitTyres: ['medium', 'hard']
+  }, {}, createSeededRandom(1234));
+
+  const report = engine.buildRaceAdminReport(result, stateApi.getState());
+  const archive = engine.buildRaceArchiveRecord({ ...result, adminReport: report }, { round: 1, weather: result.weather }, stateApi.getState());
+
+  assert.ok(report, 'admin report should be generated');
+  assert.ok(typeof report.text === 'string' && report.text.includes('ADMIN RACE REPORT'), 'admin report should expose a copyable text payload');
+  assert.ok(report.text.includes('BALANCE FLAGS'), 'admin report should include balance warnings section');
+  assert.ok(report.text.includes('MODEL COEFFICIENTS'), 'admin report should include model coefficient section');
+  assert.ok(report.text.includes('DRIVER 1:'), 'admin report should include per-driver detail');
+  assert.ok(Array.isArray(report.flags), 'admin report should preserve a machine-readable flag list');
+  assert.ok(archive.adminReport && archive.adminReport.text === report.text, 'archive record should persist the admin report for later access');
+}
+
 function testCircuitCatalogTargetsModernGrandPrixDistances() {
   const data = loadDataModule();
   const circuits = Array.isArray(data?.CIRCUITS) ? data.CIRCUITS : [];
@@ -1092,11 +1119,12 @@ function run() {
   testApplyRaceWeekendEconomyReturnsClearBreakdown(engine, stateApi);
   testApplyRaceWeekendEconomySupportsTwoCarTeamPayout(engine, stateApi);
   testRacePerformanceReportProvidesActionableSignals(engine, stateApi, sandbox);
+  testRaceAdminReportProvidesCopyableTechnicalBreakdown(engine, stateApi, sandbox);
   testCircuitCatalogTargetsModernGrandPrixDistances();
   testTyreModelMatchesStrategicHierarchy(engine);
   testAiTeamColorsStayDistinctFromPlayer(engine, stateApi);
 
-  console.log('✓ Core loop smoke tests passed (30 cases).');
+  console.log('✓ Core loop smoke tests passed (31 cases).');
 }
 
 run();
