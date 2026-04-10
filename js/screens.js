@@ -398,7 +398,7 @@ const SCREENS = {
       const aheadPoint = car.pit
         ? this.getRacePitLanePoint(Math.min(1, Math.max(0, 0.16 + (((car.pitLossMs || 0) / 26000) * 0.72))), layout)
         : this.getRaceTrackPoint(((intraLapProgress + 0.004) - ((Number.isFinite(car.gapMs) ? car.gapMs : (idx * 1500)) / estimatedLeaderLapMs)), layout, ((idx % 3) - 1) * 4);
-      const angle = (Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI)) - 90;
+      const angle = (Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI)) + 90;
       const tyreMeta = this.getTyreMeta(car.tyre);
       const label = car.isPlayer || idx < 3 ? `<span class="race-car-label">P${Math.max(1, Math.round(car.displayPos || car.pos || (idx + 1)))}</span>` : '';
       return `
