@@ -96,6 +96,96 @@ const SCREENS = {
     return __(key.startsWith('hq_') ? key : `hq_${key}`, readableFallbacks[key] || key || '—');
   },
 
+  getHqCapabilitySnapshot(state, overrideBuildingId = null, overrideLevel = null) {
+    if (!state || !GL_ENGINE.getHqCapabilities) return null;
+    if (!overrideBuildingId) return GL_ENGINE.getHqCapabilities(state);
+    const shadowState = JSON.parse(JSON.stringify(state));
+    shadowState.hq = shadowState.hq || {};
+    shadowState.hq[overrideBuildingId] = overrideLevel;
+    return GL_ENGINE.getHqCapabilities(shadowState);
+  },
+
+  getHqUpgradeImpactText(state, def, currentLevel) {
+    const fmtCR = (value) => {
+      if (window.GL_UI && typeof window.GL_UI.fmtCR === 'function') return window.GL_UI.fmtCR(value);
+      return `${Math.round(Number(value) || 0).toLocaleString('es-ES')} CR`;
+    };
+    const nextLevelData = def?.levels?.[currentLevel];
+    const currentLevelData = def?.levels?.[Math.max(0, currentLevel - 1)];
+    if (!nextLevelData) {
+      return currentLevelData?.effect
+        ? `Efecto actual: ${currentLevelData.effect}`
+        : 'Nivel maximo alcanzado';
+    }
+
+    const beforeCaps = this.getHqCapabilitySnapshot(state);
+    const afterCaps = this.getHqCapabilitySnapshot(state, def.id, currentLevel + 1);
+    if (!beforeCaps || !afterCaps) return `Mejora: ${nextLevelData.effect}`;
+
+    if (def.id === 'admin') {
+      const pct = Math.round((afterCaps.sponsorMultiplier - beforeCaps.sponsorMultiplier) * 100);
+      if (pct > 0) {
+        const breakdown = (typeof window.getWeeklyEconomyBreakdown === 'function')
+          ? window.getWeeklyEconomyBreakdown(state)
+          : null;
+        const sponsorIncome = Number(breakdown?.sponsorIncome || 0);
+        const beforeMult = Number(beforeCaps.sponsorMultiplier || 1);
+        const afterMult = Number(afterCaps.sponsorMultiplier || 1);
+        let estimate = '';
+        if (sponsorIncome > 0 && beforeMult > 0 && afterMult > beforeMult) {
+          const projectedDelta = sponsorIncome * ((afterMult - beforeMult) / beforeMult);
+          if (projectedDelta > 0) estimate = ` (~+${fmtCR(projectedDelta)}/sem)`;
+        }
+        return `Prox. nivel: +${pct}% ingresos por sponsors${estimate}`;
+      }
+      return `Mejora: ${nextLevelData.effect}`;
+    }
+
+    if (def.id === 'rnd') {
+      const speedPct = Math.round((afterCaps.rndSpeedMultiplier - beforeCaps.rndSpeedMultiplier) * 100);
+      if (!beforeCaps.rndUnlocked && afterCaps.rndUnlocked) return 'Prox. nivel: desbloquea I+D';
+      if (speedPct > 0) {
+        const beforeSpeed = Number(beforeCaps.rndSpeedMultiplier || 1);
+        const afterSpeed = Number(afterCaps.rndSpeedMultiplier || 1);
+        const durationCutPct = Math.round((1 - (beforeSpeed / Math.max(afterSpeed, 1))) * 100);
+        if (durationCutPct > 0) return `Prox. nivel: +${speedPct}% velocidad I+D (~-${durationCutPct}% tiempo por proyecto)`;
+        return `Prox. nivel: +${speedPct}% velocidad de I+D`;
+      }
+      return `Mejora: ${nextLevelData.effect}`;
+    }
+
+    if (def.id === 'wind_tunnel') {
+      if (!beforeCaps.weatherResearchUnlocked && afterCaps.weatherResearchUnlocked) {
+        return 'Prox. nivel: desbloquea investigacion de clima';
+      }
+      return `Mejora: ${nextLevelData.effect}`;
+    }
+
+    if (def.id === 'factory') {
+      const slotsDelta = (afterCaps.factoryParallelSlots || 1) - (beforeCaps.factoryParallelSlots || 1);
+      if (slotsDelta > 0) return `Prox. nivel: +${slotsDelta} cola paralela de I+D (mas progreso simultaneo)`;
+      return `Mejora: ${nextLevelData.effect}`;
+    }
+
+    if (def.id === 'academy') {
+      const speedPct = Math.round((afterCaps.academyTrainingSpeedMultiplier - beforeCaps.academyTrainingSpeedMultiplier) * 100);
+      const slotsDelta = (afterCaps.academyTrainingSlots || 1) - (beforeCaps.academyTrainingSlots || 1);
+      if (slotsDelta > 0 && speedPct > 0) {
+        const beforeSpeed = Number(beforeCaps.academyTrainingSpeedMultiplier || 1);
+        const afterSpeed = Number(afterCaps.academyTrainingSpeedMultiplier || 1);
+        const durationCutPct = Math.round((1 - (beforeSpeed / Math.max(afterSpeed, 1))) * 100);
+        return durationCutPct > 0
+          ? `Prox. nivel: +${slotsDelta} slot y +${speedPct}% entreno (~-${durationCutPct}% tiempo)`
+          : `Prox. nivel: +${slotsDelta} slot y +${speedPct}% entreno`;
+      }
+      if (slotsDelta > 0) return `Prox. nivel: +${slotsDelta} slot de entrenamiento`;
+      if (speedPct > 0) return `Prox. nivel: +${speedPct}% velocidad de entrenamiento`;
+      return `Mejora: ${nextLevelData.effect}`;
+    }
+
+    return `Mejora: ${nextLevelData.effect}`;
+  },
+
   getStaffFocusLabel(staffLabel) {
     const keyOrLabel = String(staffLabel || '');
     const aliasMap = {
@@ -575,6 +665,7 @@ const SCREENS = {
               const currentLevel = hqLevels[def.id] || 0;
               const nextLevelData = def.levels[currentLevel];
               const isUpgrading = c.active && c.buildingId === def.id;
+              const impactText = this.getHqUpgradeImpactText(state, def, currentLevel);
               let contentHtml = '';
               
               if (isUpgrading) {
@@ -611,6 +702,7 @@ const SCREENS = {
                 <div class="building-level">
                   ${Array.from({length:def.maxLevel}).map((_,i) => `<div class="building-level-dot ${i<currentLevel?'filled':''}"></div>`).join('')}
                 </div>
+                <div style="font-size:0.72rem;color:var(--t-secondary);text-align:center;line-height:1.35;min-height:34px;margin-top:6px">${impactText}</div>
                 ${contentHtml}
               </div>`;
             }).join('')}
