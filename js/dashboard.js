@@ -325,6 +325,11 @@ const DASHBOARD = {
     if (el('topbar-credits-val')) el('topbar-credits-val').textContent = GL_UI.fmtCR(state.finances.credits||0);
     if (el('topbar-fans-val')) el('topbar-fans-val').textContent = GL_UI.fmtCR(state.team.fans||0);
     if (el('topbar-tokens-val')) el('topbar-tokens-val').textContent = state.finances.tokens||0;
+    if (el('topbar-notif-dot')) {
+      const notifications = Array.isArray(state.notifications) ? state.notifications : [];
+      const unread = notifications.some((n) => !n.read);
+      el('topbar-notif-dot').style.display = unread ? 'block' : 'none';
+    }
     if (el('topbar-logo')) {
       el('topbar-logo').style.background = `linear-gradient(135deg,${state.team.colors.primary},${state.team.colors.primary}88)`;
       el('topbar-logo').textContent = state.team.logo||'🏎️';

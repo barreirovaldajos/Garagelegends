@@ -2425,6 +2425,14 @@ const SCREENS = {
           };
       const carSummary = (result.playerCars || []).map((c) => `${c.pilotName}:P${c.position}`).join(' · ');
       GL_STATE.addLog(`🏁 Round ${next?.round}: ${carSummary || ('P' + result.position)} · Team ${result.points} pts · +${GL_UI.fmtCR(prize)} CR`, 'good');
+      if (GL_STATE.addNotification) {
+        const roundLabel = next?.round || result.round || state.season.raceIndex || 0;
+        GL_STATE.addNotification({
+          text: (__('topbar_notif_race_report_ready') || 'Race report ready: Round {round}.')
+            .replace('{round}', roundLabel),
+          type: 'good'
+        });
+      }
       if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') {
         GL_DASHBOARD.updateTopbar(GL_STATE.getState());
       }

@@ -147,6 +147,7 @@ const DEFAULT_STATE = {
     }
   },
   randomEvents: [], // pending events
+  notifications: [], // topbar notifications [{text,type,week,ts,read}]
   log: [],          // activity log [{text, type, week}]
   achievements: [], // unlocked achievement ids
   campaign: {
@@ -343,6 +344,7 @@ function loadState() {
       if (!_state.construction) _state.construction = { active: false, buildingId: null, startTime: 0, durationMs: 0, targetLevel: 0 };
       if (!Array.isArray(_state.sponsors)) _state.sponsors = [];
       if (!Array.isArray(_state.contracts)) _state.contracts = [];
+      if (!Array.isArray(_state.notifications)) _state.notifications = [];
       if (!Array.isArray(_state.seasonHistory)) _state.seasonHistory = [];
       if (!_state.campaign) _state.campaign = { phase: 'phase1', activeObjectiveId: 'phase1_survive_prove', history: [] };
       if (!Array.isArray(_state.campaign.history)) _state.campaign.history = [];
@@ -596,6 +598,35 @@ function addRandomEvent(ev) {
   saveState();
 }
 
+function addNotification(notification) {
+  const note = typeof notification === 'string'
+    ? { text: notification }
+    : (notification || {});
+  _state.notifications.unshift({
+    text: String(note.text || ''),
+    type: note.type || 'info',
+    week: Number.isFinite(note.week) ? note.week : _state.season.week,
+    ts: Number.isFinite(note.ts) ? note.ts : Date.now(),
+    read: !!note.read
+  });
+  if (_state.notifications.length > 60) _state.notifications = _state.notifications.slice(0, 60);
+  saveState();
+}
+
+function getNotifications() {
+  return Array.isArray(_state.notifications) ? _state.notifications : [];
+}
+
+function markNotificationsRead() {
+  if (!Array.isArray(_state.notifications)) {
+    _state.notifications = [];
+    saveState();
+    return;
+  }
+  _state.notifications.forEach((n) => { n.read = true; });
+  saveState();
+}
+
 function popRandomEvent() {
   return _state.randomEvents.shift() || null;
 }
@@ -607,7 +638,7 @@ window.GL_STATE = {
   getPilots, getStaff, getFacilities, getSponsors, getStandings,
   getMyStanding, getCar, getHQ, getConstruction, getRaceResults,
   addCredits, spendCredits, addTokens, spendTokens,
-  addLog, addRandomEvent, popRandomEvent, deepClone,
+  addLog, addRandomEvent, popRandomEvent, addNotification, getNotifications, markNotificationsRead, deepClone,
   // Academy/Scouting
   getAcademyQueue: () => _state.academyQueue,
   setAcademyQueue: (q) => { _state.academyQueue = q; saveState(); },

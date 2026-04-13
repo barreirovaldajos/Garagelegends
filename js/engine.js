@@ -2314,6 +2314,16 @@ function updateConstructionQueue() {
     // Log
     const bNames = { wind_tunnel: 'Túnel de Viento', rnd: 'I+D', factory: 'Fábrica', academy: 'Academia', admin: 'Administración' };
     S.addLog(`🏗️ ${bNames[c.buildingId] || c.buildingId} completado (Nivel ${c.targetLevel})`, 'good');
+    if (S.addNotification) {
+      const buildingLabel = bNames[c.buildingId] || c.buildingId;
+      S.addNotification({
+        text: formatTranslatedText('topbar_notif_building_complete', {
+          building: buildingLabel,
+          level: c.targetLevel
+        }, 'Construction finished: {building} (Lv {level}).'),
+        type: 'good'
+      });
+    }
     
     // Clear queue
     c.active = false;

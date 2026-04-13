@@ -23,6 +23,8 @@ const I18N_DATA = {
     topbar_notifications_title: '🔔 Notifications',
     topbar_no_notifications: 'No notifications yet.',
     topbar_week: 'Wk',
+    topbar_notif_building_complete: 'Construction finished: {building} (Lv {level}).',
+    topbar_notif_race_report_ready: 'Race report ready: Round {round}.',
 
     // Profile & Logout
     profile_title: 'Team Profile',
@@ -890,6 +892,8 @@ const I18N_DATA = {
     topbar_notifications_title: '🔔 Notificaciones',
     topbar_no_notifications: 'Sin notificaciones.',
     topbar_week: 'Sem',
+    topbar_notif_building_complete: 'Construccion finalizada: {building} (Nv {level}).',
+    topbar_notif_race_report_ready: 'Reporte de carrera listo: Ronda {round}.',
 
     // Profile & Logout
     profile_title: 'Perfil del Equipo',

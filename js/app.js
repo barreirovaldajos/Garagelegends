@@ -209,6 +209,8 @@ const APP = {
     const topbar = document.getElementById('topbar');
     if (!topbar) return;
     const state = GL_STATE.getState();
+    const notifications = Array.isArray(state.notifications) ? state.notifications : [];
+    const unreadCount = notifications.filter((n) => !n.read).length;
     topbar.innerHTML = `
       <div class="topbar-brand">
         <div class="topbar-logo" id="topbar-logo" style="background:linear-gradient(135deg,${state.team.colors.primary},${state.team.colors.primary}88)">
@@ -236,7 +238,7 @@ const APP = {
         </div>
         <div class="topbar-notif" title="Notifications" onclick="GL_APP.showNotifications()">
           🔔
-          <div class="notif-dot"></div>
+          <div class="notif-dot" id="topbar-notif-dot" style="display:${unreadCount > 0 ? 'block' : 'none'}"></div>
         </div>
         <button class="topbar-lang-btn" onclick="GL_I18N.toggle()" title="Switch language / Cambiar idioma" style="background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer;font-size:0.78rem;color:var(--t-secondary);font-weight:600;transition:all 0.2s">
           ${GL_I18N.getLangLabel()}
@@ -313,19 +315,26 @@ const APP = {
   },
 
   showNotifications() {
-    const log = GL_STATE.getState().log || [];
+    const notes = GL_STATE.getNotifications ? GL_STATE.getNotifications() : [];
     GL_UI.openModal({
       title: __('topbar_notifications_title'),
-      content: log.length ? `<div style="display:flex;flex-direction:column;gap:8px">
-        ${log.slice(0,15).map(l => {
-          const icon = l.type === 'good' ? '✅' : l.type === 'bad' ? '❌' : 'ℹ️';
+      content: notes.length ? `<div style="display:flex;flex-direction:column;gap:8px">
+        ${notes.slice(0,15).map(n => {
+          const icon = n.type === 'good' ? '✅' : n.type === 'bad' ? '❌' : n.type === 'warning' ? '⚠️' : 'ℹ️';
           return `<div style="display:flex;gap:12px;padding:10px;background:var(--c-surface-2);border-radius:8px;font-size:0.82rem">
-            <span>${icon}</span><div style="flex:1;color:var(--t-secondary)">${l.text}</div>
-            <span style="font-size:0.72rem;color:var(--t-tertiary);flex-shrink:0">${__('topbar_week')} ${l.week}</span>
+            <span>${icon}</span><div style="flex:1;color:var(--t-secondary)">${n.text}</div>
+            <span style="font-size:0.72rem;color:var(--t-tertiary);flex-shrink:0">${__('topbar_week')} ${n.week}</span>
           </div>`;
         }).join('')}
       </div>` : `<p style="color:var(--t-secondary)">${__('topbar_no_notifications')}</p>`
     });
+
+    if (GL_STATE.markNotificationsRead) {
+      GL_STATE.markNotificationsRead();
+      if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') {
+        GL_DASHBOARD.updateTopbar(GL_STATE.getState());
+      }
+    }
   },
 
   showProfile() {
