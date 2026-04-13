@@ -1529,7 +1529,10 @@ const SCREENS = {
       : '';
     const recentHistory = history.slice(-10);
     const historyTotals = recentHistory.reduce((acc, h) => {
-      const operatingIncome = Number((h.operatingIncome ?? ((h.income || 0) - (h.prizeIncome || 0))) || 0);
+      const operatingIncomeSource = (typeof h.operatingIncome === 'number')
+        ? h.operatingIncome
+        : ((h.income || 0) - (h.prizeIncome || 0));
+      const operatingIncome = Number(operatingIncomeSource || 0);
       const prizeIncome = Number(h.prizeIncome || 0);
       const expenses = Number(h.expenses || 0);
       const weeklyNet = (operatingIncome + prizeIncome) - expenses;
@@ -1543,7 +1546,10 @@ const SCREENS = {
     let runningNet = 0;
     const historyRowsHtml = recentHistory.length
       ? recentHistory.map((h) => {
-          const operatingIncome = Number((h.operatingIncome ?? ((h.income || 0) - (h.prizeIncome || 0))) || 0);
+          const operatingIncomeSource = (typeof h.operatingIncome === 'number')
+            ? h.operatingIncome
+            : ((h.income || 0) - (h.prizeIncome || 0));
+          const operatingIncome = Number(operatingIncomeSource || 0);
           const prizeIncome = Number(h.prizeIncome || 0);
           const expenses = Number(h.expenses || 0);
           const totalNet = (operatingIncome + prizeIncome) - expenses;
