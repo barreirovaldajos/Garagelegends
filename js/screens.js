@@ -888,8 +888,51 @@ const SCREENS = {
           <button class="btn w-full mt-4 ${canTrain ? 'btn-secondary' : ''}" onclick="GL_ENGINE.trainPilot('${p.id}')" ${canTrain ? '' : 'disabled'}>
             ${canTrain ? '🏋️ ' + (__('pilots_train')||'Train') : '⏳ ' + (__('pilots_trained_today')||'Trained')}
           </button>
+          <button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.dismissPilot('${p.id}')">${__('pilots_dismiss_btn') || 'Despedir piloto'}</button>
         </div>
       </div>`;
+  },
+
+  dismissPilot(id) {
+    const state = GL_STATE.getState();
+    const pilots = state.pilots || [];
+    const pilot = pilots.find((p) => p.id === id);
+    if (!pilot) return;
+    if (pilots.length <= 1) {
+      GL_UI.toast(__('pilots_dismiss_last_blocked') || 'No puedes despedir al ultimo piloto del equipo.', 'warning');
+      return;
+    }
+
+    const severance = Number(pilot.salary || 0);
+    const title = __('pilots_dismiss_confirm_title') || 'Despedir piloto';
+    const msg = (__('pilots_dismiss_confirm_msg') || 'Si despides a {name}, debes pagar un sueldo completo ({amount}).')
+      .replace('{name}', pilot.name || __('pilots_title'))
+      .replace('{amount}', `${GL_UI.fmtCR(severance)} CR`);
+    const okLabel = __('pilots_dismiss_confirm_ok') || 'Despedir y pagar';
+    const cancelLabel = __('btn_cancel') || 'Cancelar';
+
+    GL_UI.confirm(title, msg, okLabel, cancelLabel).then((confirmed) => {
+      if (!confirmed) return;
+      if (!GL_STATE.spendCredits(severance)) {
+        GL_UI.toast(__('pilots_dismiss_insufficient') || 'Saldo insuficiente para pagar la indemnizacion.', 'warning');
+        return;
+      }
+
+      state.pilots = (state.pilots || []).filter((p) => p.id !== id);
+      if (window._raceStrategy && Array.isArray(window._raceStrategy.selectedPilotIds)) {
+        window._raceStrategy.selectedPilotIds = window._raceStrategy.selectedPilotIds.filter((pid) => pid !== id);
+        if (window._raceStrategy.driverConfigs && window._raceStrategy.driverConfigs[id]) {
+          delete window._raceStrategy.driverConfigs[id];
+        }
+      }
+      GL_STATE.addLog(`👋 ${(pilot.name || 'Pilot')} ${__('pilots_dismissed_log') || 'was dismissed'} (${GL_UI.fmtCR(severance)} CR).`, 'warning');
+      GL_STATE.saveState();
+      if (window.GL_DASHBOARD && typeof window.GL_DASHBOARD.updateTopbar === 'function') {
+        window.GL_DASHBOARD.updateTopbar(GL_STATE.getState());
+      }
+      GL_UI.toast((__('pilots_dismissed_toast') || '{name} despedido.').replace('{name}', pilot.name || 'Piloto'), 'info');
+      this.renderPilots();
+    });
   },
 
   // ===== STAFF SCREEN =====
