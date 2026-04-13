@@ -1484,6 +1484,27 @@ const SCREENS = {
           .map((car) => `${car.pilotName || __('nav_team')} P${car.position}`)
           .join(' · ')
       : '';
+    const recentHistory = history.slice(-10);
+    const historyTotals = recentHistory.reduce((acc, h) => {
+      acc.income += Number(h.income || 0);
+      acc.expenses += Number(h.expenses || 0);
+      acc.net += Number(h.net || 0);
+      return acc;
+    }, { income: 0, expenses: 0, net: 0 });
+    let runningNet = 0;
+    const historyRowsHtml = recentHistory.length
+      ? recentHistory.map((h) => {
+          const netVal = Number(h.net || 0);
+          runningNet += netVal;
+          return `<tr>
+            <td>${__('topbar_week')} ${h.week}</td>
+            <td style="color:var(--c-green)">+${GL_UI.fmtCR(h.income || 0)}</td>
+            <td style="color:var(--c-red)">-${GL_UI.fmtCR(h.expenses || 0)}</td>
+            <td style="color:${netVal >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(netVal)}</td>
+            <td style="font-weight:700;color:${runningNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(runningNet)}</td>
+          </tr>`;
+        }).join('')
+      : '';
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -1574,15 +1595,28 @@ const SCREENS = {
       <div class="card">
         <div class="section-eyebrow">${__('finances_history')}</div>
         <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:6px">${__('finances_history_hint')}</div>
-        ${history.length ? `
-          <div style="display:flex;align-items:flex-end;gap:4px;height:80px;margin-top:var(--s-4)">
-            ${history.slice(-12).map(h => {
-              const maxAbs = Math.max(...history.map(x=>Math.abs(x.net)));
-              const pct = maxAbs ? Math.abs(h.net)/maxAbs*100 : 50;
-              return `<div title="${__('topbar_week')} ${h.week}: ${GL_UI.fmtSign(h.net)}" style="flex:1;background:${h.net>=0?'var(--c-green)':'var(--c-red)'};opacity:0.7;border-radius:3px 3px 0 0;height:${Math.max(6,pct)}%;min-height:4px"></div>`;
-            }).join('')}
+        ${recentHistory.length ? `
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:var(--s-4)">
+            <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_income')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(historyTotals.income)}</div></div>
+            <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_expenses')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--c-red)">-${GL_UI.fmtCR(historyTotals.expenses)}</div></div>
+            <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_flow')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:${historyTotals.net >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.net)}</div></div>
           </div>
-          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--t-tertiary);margin-top:4px"><span>${__('finances_weeks_ago')}</span><span>${__('finances_latest')}</span></div>` : `<p style="color:var(--t-tertiary);font-size:0.82rem;margin-top:var(--s-4)">${__('finances_no_history')}</p>`}
+          <div style="overflow:auto;margin-top:12px">
+            <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
+              <thead>
+                <tr style="text-align:left;color:var(--t-secondary);border-bottom:1px solid var(--c-border)">
+                  <th style="padding:8px 6px">${__('topbar_week')}</th>
+                  <th style="padding:8px 6px">${__('finances_income')}</th>
+                  <th style="padding:8px 6px">${__('finances_expenses')}</th>
+                  <th style="padding:8px 6px">${__('finances_total_flow')}</th>
+                  <th style="padding:8px 6px">${__('finances_history') || 'Acum.'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${historyRowsHtml}
+              </tbody>
+            </table>
+          </div>` : `<p style="color:var(--t-tertiary);font-size:0.82rem;margin-top:var(--s-4)">${__('finances_no_history')}</p>`}
       </div>`;
   },
 
