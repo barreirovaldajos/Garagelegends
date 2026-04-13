@@ -27,7 +27,6 @@ const DASHBOARD = {
       this.renderSponsors(state);
       this.renderAlerts(state);
       this.renderCampaign(state);
-      this.renderAdvisorTelemetry(state);
       this.renderRecommendations(state);
       this.updateTopbar(state);
       this.showSeasonSummaryIfPending(state);
@@ -274,6 +273,13 @@ const DASHBOARD = {
         </div>
       </div>
       <div class="dashboard-grid stagger">
+        <div style="grid-column:1/4">
+          <div class="section-header">
+            <span class="section-title">${__('dash_standings')}</span>
+            <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('standings')">${__('dash_full_table')}</button>
+          </div>
+          <div class="card" id="dash-standings"></div>
+        </div>
         <div id="dash-stat-cards" style="display:contents"></div>
         <div style="grid-column:1/3">
           <div class="section-header">
@@ -281,13 +287,6 @@ const DASHBOARD = {
             <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('calendar')">${__('dash_full_calendar')}</button>
           </div>
           <div id="dash-next-event"></div>
-        </div>
-        <div>
-          <div class="section-header">
-            <span class="section-title">${__('dash_standings')}</span>
-            <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('standings')">${__('dash_full_table')}</button>
-          </div>
-          <div class="card" id="dash-standings"></div>
         </div>
         <div class="right-panel">
           <div class="card">
@@ -304,11 +303,6 @@ const DASHBOARD = {
             <div class="section-eyebrow">${__('dash_recs_label')}</div>
             <div class="section-title mb-4" style="font-size:1rem">${__('dash_recs_actions')}</div>
             <div id="dash-recs"></div>
-          </div>
-          <div class="card">
-            <div class="section-eyebrow">${__('dash_advisor_label')}</div>
-            <div class="section-title mb-4" style="font-size:1rem">${__('dash_advisor_title')}</div>
-            <div id="dash-advisor"></div>
           </div>
           <div class="card">
             <div class="section-eyebrow">${__('dash_activity_label')}</div>
@@ -370,20 +364,6 @@ const DASHBOARD = {
     const fi = state.finances;
     const net = (fi.weeklyIncome||0) - (fi.weeklyExpenses||0);
     el.innerHTML = `
-      <div class="stat-card">
-        <div class="stat-card-icon">🏁</div>
-        <div class="stat-card-eyebrow">${__('dash_championship_pos')}</div>
-        <div class="stat-card-value" style="color:var(--c-gold)">P${standing.position||1}</div>
-        <div class="stat-card-label">${standing.points||0} ${__('dash_points_season')}</div>
-        <div class="stat-card-change neutral">${__('division')} ${state.season.division}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon">💰</div>
-        <div class="stat-card-eyebrow">${__('dash_credits')}</div>
-        <div class="stat-card-value">${GL_UI.fmtCR(fi.credits||0)}</div>
-        <div class="stat-card-label">${__('dash_available_budget')}</div>
-        <div class="stat-card-change ${net>=0?'up':'down'}">${GL_UI.fmtSign(net)} ${__('finance_per_week')}</div>
-      </div>
       <div class="stat-card">
         <div class="stat-card-icon">👥</div>
         <div class="stat-card-eyebrow">${__('dash_fans')}</div>
@@ -449,14 +429,31 @@ const DASHBOARD = {
     const el = document.getElementById('dash-standings');
     if (!el) return;
     const standings = state.standings || [];
-    const top5 = standings.slice(0, 6);
-    el.innerHTML = top5.map(s => `
+    const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div == state.season.division) || {}) : {};
+    const divName = divInfo.name || `${__('division')} ${state.season.division}`;
+    const myStanding = GL_STATE.getMyStanding();
+    const promotionSpots = divInfo.promotions || 0;
+    const myPos = myStanding.position || '-';
+    const myPts = myStanding.points || 0;
+    const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
+    el.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--c-border)">
+        <div>
+          <div style="font-size:0.62rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">${__('division')} ${state.season.division}</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${divName}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--c-gold);line-height:1">P${myPos}</div>
+          <div style="font-size:0.75rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'}">${myPts} ${__('points')}${promotionSpots>0?' · '+(inPromoZone?'✔ '+(__('standings_promotion_spots')||'zona ascenso'):__('standings_promotion_spots')||''):''}  </div>
+        </div>
+      </div>
+      ${standings.map(s => `
       <div class="standings-row ${s.id==='player'?'my-team':''}">
         <span class="standings-row-pos">${s.position}</span>
         <span class="standings-row-dot" style="background:${s.color||'#888'}"></span>
         <span class="standings-row-name">${s.name}${s.id==='player'?' <span style="color:var(--c-accent);font-size:0.7rem">' + __('standings_you') + '</span>':''}</span>
         <span class="standings-row-pts">${s.points} ${__('points')}</span>
-      </div>`).join('');
+      </div>`).join('')}`;
   },
 
   renderFinances(state) {
