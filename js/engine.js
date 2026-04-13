@@ -386,7 +386,7 @@ function getSetupEffects(circuit, weather, setup = {}) {
     : (50 - wetBias) / 120;
 
   return {
-    paceMult: 1 + layoutFit + weatherFit,
+    paceMult: clamp(1 + ((layoutFit + weatherFit) * 0.4), 0.92, 1.08),
     riskMult: 1 - (weather === 'wet' ? (wetBias - 50) / 220 : (50 - wetBias) / 280),
     tyreMult: 1 + (Math.abs(aeroBalance - 50) / 260)
   };
@@ -738,6 +738,7 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
         isPlayer: false,
         pilotId: aiProfile.pilot.id,
         pilotName: aiProfile.pilot.name,
+        consistency: getPilotAttr(aiProfile.pilot, 'consistency', 60),
         teamSlot: carSlot,
         base: aiBase,
         score: aiBase + (Math.random() - 0.5) * (12 - (aiProfile.strategy.aiMeta.decisionSkill * 6)),
@@ -755,7 +756,7 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
 // ---- tyre degradation per compound ----
 const TYRE_COMPOUNDS = {
   soft: {
-    dry: { durabilityPct: [0.15, 0.30], paceDeltaMs: -750 },
+    dry: { durabilityPct: [0.15, 0.30], paceDeltaMs: -550 },
     wet: { durabilityPct: [0.10, 0.20], paceDeltaMs: 4200 }
   },
   medium: {
@@ -763,7 +764,7 @@ const TYRE_COMPOUNDS = {
     wet: { durabilityPct: [0.15, 0.25], paceDeltaMs: 5200 }
   },
   hard: {
-    dry: { durabilityPct: [0.50, 0.70], paceDeltaMs: 650 },
+    dry: { durabilityPct: [0.50, 0.70], paceDeltaMs: 500 },
     wet: { durabilityPct: [0.20, 0.30], paceDeltaMs: 6200 }
   },
   intermediate: {
@@ -853,6 +854,91 @@ function formatSignedGapDeltaMs(value) {
   if (!Number.isFinite(value)) return 'n/a';
   const seconds = value / 1000;
   return `${seconds > 0 ? '+' : ''}${seconds.toFixed(1)}s`;
+}
+
+function buildPlayerCrashReport(options = {}) {
+  const {
+    pilotName,
+    lap,
+    totalLaps,
+    weather,
+    strategy,
+    setup,
+    engineFx,
+    lapProfile,
+    staffFx,
+    rt,
+    usefulLife
+  } = options;
+
+  const causes = [];
+  const tips = [];
+  const seenTips = new Set();
+  const pushTip = (text) => {
+    if (!text || seenTips.has(text)) return;
+    seenTips.add(text);
+    tips.push(text);
+  };
+
+  const riskLevel = Number(strategy?.riskLevel || 40);
+  if (riskLevel >= 75) {
+    causes.push(translateText('crash_cause_high_risk', 'High risk setup increased incident exposure.'));
+    pushTip(translateText('crash_tip_reduce_risk', 'Reduce risk level by 10-20 points in similar races.'));
+  } else if (riskLevel >= 60) {
+    causes.push(translateText('crash_cause_medium_risk', 'Risk level was elevated for the race context.'));
+    pushTip(translateText('crash_tip_reduce_risk_small', 'Trim risk level slightly and recover pace through cleaner stints.'));
+  }
+
+  if ((strategy?.engineMode || 'normal') === 'push') {
+    causes.push(translateText('crash_cause_engine_push', 'Engine mode push raised stress during critical laps.'));
+    pushTip(translateText('crash_tip_engine_mode', 'Use normal mode during unstable phases and push only in short windows.'));
+  }
+
+  if (weather === 'wet' && Number(strategy?.setup?.wetBias ?? 50) < 45) {
+    causes.push(translateText('crash_cause_wet_setup', 'Wet setup bias was low for rainy conditions.'));
+    pushTip(translateText('crash_tip_wet_setup', 'Increase wet setup bias when rain is expected or active.'));
+  }
+
+  if (Number(setup?.riskMult || 1) > 1.06) {
+    causes.push(translateText('crash_cause_setup_instability', 'Setup balance increased instability in this race context.'));
+    pushTip(translateText('crash_tip_setup_stability', 'Use a more neutral setup balance to reduce instability.'));
+  }
+
+  if (Number(lapProfile?.riskBias || 1) >= 1.1) {
+    causes.push(translateText('crash_cause_track_risky', 'Track conditions naturally carried higher incident risk.'));
+    pushTip(translateText('crash_tip_track_management', 'On high-risk tracks, avoid stacking aggressive calls at the same time.'));
+  }
+
+  if (Number(staffFx?.incidentRiskMult || 1) > 0.95) {
+    causes.push(translateText('crash_cause_risk_control', 'Risk control from the pit wall was limited under pressure.'));
+    pushTip(translateText('crash_tip_staff_risk', 'Improve technical/race engineering support to stabilize race execution.'));
+  }
+
+  const wearOveruse = Number.isFinite(rt?.wear) && Number.isFinite(usefulLife)
+    ? Number(rt.wear) - Number(usefulLife)
+    : 0;
+  if (wearOveruse > 0.35) {
+    causes.push(translateText('crash_cause_tyre_overuse', 'Tyre life was stretched beyond the safe performance window.'));
+    pushTip(translateText('crash_tip_tyre_window', 'Pit 1-2 laps earlier when tyre drop warnings appear.'));
+  }
+
+  if ((engineFx?.risk || 0) > 0.1 && riskLevel >= 65) {
+    causes.push(translateText('crash_cause_risk_stack', 'Multiple aggressive choices compounded overall race risk.'));
+    pushTip(translateText('crash_tip_avoid_stack', 'Do not combine high risk level and push mode for long stints.'));
+  }
+
+  if (!causes.length) {
+    causes.push(translateText('crash_cause_generic', 'Incident likely came from race variance under pressure conditions.'));
+    pushTip(translateText('crash_tip_generic', 'Use a slightly safer baseline and escalate only after stable pace is confirmed.'));
+  }
+
+  return {
+    pilotName: pilotName || translateText('race_driver', 'Driver'),
+    lap: Number.isFinite(lap) ? lap : null,
+    totalLaps: Number.isFinite(totalLaps) ? totalLaps : null,
+    causes,
+    tips: tips.length ? tips.slice(0, 3) : [translateText('crash_tip_generic', 'Use a slightly safer baseline and escalate only after stable pace is confirmed.')]
+  };
 }
 
 function pickRaceSnapshotLaps(totalLaps) {
@@ -1337,6 +1423,7 @@ function simulateRace(options = {}) {
       name: `${state.team.name || 'Your Team'} · ${leadDriver.pilot.name}`,
       pilotId: leadDriver.pilotId,
       pilotName: leadDriver.pilot.name,
+      consistency: getPilotAttr(leadDriver.pilot, 'consistency', 60),
       teamSlot: leadDriver.slot,
       strategy: cloneData(leadDriver.strategy),
       score: entry.score * (1 + staffFx.paceBonus)
@@ -1366,6 +1453,7 @@ function simulateRace(options = {}) {
       color: state.team.colors.primary,
       pilotId: secondDriver.pilotId,
       pilotName: secondDriver.pilot.name,
+      consistency: getPilotAttr(secondDriver.pilot, 'consistency', 60),
       teamSlot: secondDriver.slot,
       isPlayer: true,
       base,
@@ -1381,6 +1469,7 @@ function simulateRace(options = {}) {
 
   const events = [];
   const lapSnapshots = [];
+  const crashReportsByCarId = {};
   let safetyCarActive = false;
   let weatherChangesDone = 0;
 
@@ -1568,19 +1657,25 @@ function simulateRace(options = {}) {
       const rt = runtimes[entry.id];
       const currentTyre = entry.tyre || s.tyre || 'medium';
       if (rt) {
-        rt.wear += getTyreWearStep(currentTyre, liveWeather) * lapProfile.tyreDegMult * (1 + engineFx.tyre) * setup.tyreMult;
+        const baseWear = getTyreWearStep(currentTyre, liveWeather) * lapProfile.tyreDegMult * (1 + engineFx.tyre) * setup.tyreMult;
+        const aggressionWear = Math.max(0, ((s.aggression || 50) - 50) * 0.003);
+        rt.wear += baseWear + aggressionWear;
       }
 
       const rawPace = clamp(Number(entry.base || entry.score || entry.gridScore || 60), 35, 99);
       const paceMs = rawPace * (entry.isPlayer ? 175 : 160);
       const tyreDeltaMs = getTyrePaceDeltaMs(currentTyre, liveWeather);
-      const aggressionMs = ((s.aggression || 50) - 50) * 22;
-      const engineMs = (engineFx.pace || 0) * 2600;
+      const aggressionMs = ((s.aggression || 50) - 50) * 16;
+      const engineMs = (engineFx.pace || 0) * 2200;
       const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
       const wearOveruse = rt ? Math.max(0, rt.wear - usefulLife) : 0;
-      const wearMs = wearOveruse * 1900;
+      const wearMs = wearOveruse * 1100;
       const lapBaseMs = safetyCarActive ? 110000 : 94500;
-      const noiseMs = (Math.random() - 0.5) * (entry.isPlayer ? 1400 : 2200);
+      const consistency = clamp(Number(entry.consistency || 60), 20, 99);
+      const playerNoiseHalfRange = clamp(500 - (consistency * 3), 120, 520);
+      const aiNoiseHalfRange = clamp(800 - (consistency * 2), 220, 900);
+      const noiseHalfRange = entry.isPlayer ? playerNoiseHalfRange : aiNoiseHalfRange;
+      const noiseMs = (Math.random() - 0.5) * (noiseHalfRange * 2);
       const lapTimeMs = lapBaseMs - paceMs - aggressionMs - engineMs + tyreDeltaMs + wearMs + noiseMs;
       entry.timeMs += Math.max(70000, lapTimeMs);
       entry.laps = lap;
@@ -1655,9 +1750,24 @@ function simulateRace(options = {}) {
       if (!rt) return;
 
       const riskFactor = (s.riskLevel || 40) / 100;
-      if (Math.random() < (0.008 * riskFactor + 0.005) * lapProfile.riskBias * (1 + engineFx.risk) * staffFx.incidentRiskMult * setup.riskMult) {
-        if (Math.random() < 0.3) {
+      if (Math.random() < (0.01 * riskFactor + 0.004) * lapProfile.riskBias * (1 + engineFx.risk) * staffFx.incidentRiskMult * setup.riskMult) {
+        if (Math.random() < 0.2) {
+          const currentTyre = entry.tyre || s.tyre || 'medium';
+          const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
           entry.retired = true;
+          crashReportsByCarId[entry.id] = buildPlayerCrashReport({
+            pilotName: entry.pilotName,
+            lap,
+            totalLaps,
+            weather: liveWeather,
+            strategy: s,
+            setup,
+            engineFx,
+            lapProfile,
+            staffFx,
+            rt,
+            usefulLife
+          });
           events.push({ lap, type: 'incident', text: `💥 ${formatTranslatedText('race_event_player_retire', { pilotName: entry.pilotName }, '<strong>{pilotName} retires!</strong> Mechanical issue. DNF.')}` });
         } else {
           const lostPos = Math.floor(Math.random() * 3) + 1;
@@ -1748,7 +1858,8 @@ function simulateRace(options = {}) {
         tyre: entry.tyre || 'medium',
         pitStopsDone: entry.pitStopsDone || 0,
         pitTimeMs: entry.pitTimeMs || 0,
-        strategy: entry.strategy || leadDriver.strategy
+        strategy: entry.strategy || leadDriver.strategy,
+        crashReport: crashReportsByCarId[entry.id] || null
       };
     })
     .sort((a, b) => a.position - b.position);

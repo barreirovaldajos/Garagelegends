@@ -2329,6 +2329,40 @@ const SCREENS = {
     if (performanceReport && !result.performanceReport) result.performanceReport = performanceReport;
     const adminReport = result.adminReport || (GL_ENGINE.buildRaceAdminReport ? GL_ENGINE.buildRaceAdminReport(result, state) : null);
     if (adminReport && !result.adminReport) result.adminReport = adminReport;
+    const crashReports = playerCars
+      .filter((car) => car && car.isDNF)
+      .map((car) => ({
+        pilotName: car.pilotName,
+        report: car.crashReport || null
+      }));
+    const crashReviewHtml = crashReports.length
+      ? `<div class="card mb-4">
+          <div class="section-eyebrow">${__('postrace_crash_review_title', 'Driver Incident Review')}</div>
+          <div style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
+            ${crashReports.map((entry) => {
+              const report = entry.report || {};
+              const causes = Array.isArray(report.causes) && report.causes.length
+                ? report.causes
+                : [__('crash_cause_generic', 'Incident likely came from race variance under pressure conditions.')];
+              const tips = Array.isArray(report.tips) && report.tips.length
+                ? report.tips
+                : [__('crash_tip_generic', 'Use a slightly safer baseline and escalate only after stable pace is confirmed.')];
+              const lapLabel = Number.isFinite(report.lap)
+                ? `${__('race_lap_short')} ${report.lap}${Number.isFinite(report.totalLaps) ? `/${report.totalLaps}` : ''}`
+                : __('postrace_crash_review_lap_unknown', 'Lap unknown');
+              return `
+                <div style="padding:10px;border:1px solid rgba(255,255,255,0.08);border-radius:10px;background:rgba(255,255,255,0.02)">
+                  <div style="font-weight:700;color:var(--c-red)">${entry.pilotName || __('race_driver', 'Driver')} · DNF</div>
+                  <div style="font-size:0.78rem;color:var(--t-secondary);margin:2px 0 8px 0">${__('postrace_crash_review_probable', 'Probable incident context')}: ${lapLabel}</div>
+                  <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:4px">${__('postrace_crash_review_causes', 'Likely causes')}</div>
+                  <ul style="margin:0 0 10px 18px;padding:0;display:flex;flex-direction:column;gap:4px">${causes.map((line) => `<li>${line}</li>`).join('')}</ul>
+                  <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:4px">${__('postrace_crash_review_tips', 'How to avoid next time')}</div>
+                  <ul style="margin:0 0 0 18px;padding:0;display:flex;flex-direction:column;gap:4px">${tips.map((line) => `<li>${line}</li>`).join('')}</ul>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`
+      : '';
     const strategyRows = (Array.isArray(result.finalGrid) ? result.finalGrid : []).map((car, idx) => {
       const summary = this.formatPitStrategySummary(car.strategy || {});
       return `
@@ -2375,6 +2409,7 @@ const SCREENS = {
           </div>
         </div>
       </div>
+      ${crashReviewHtml}
       <div class="card mb-4">
         <div class="section-eyebrow">${__('postrace_admin_report')}</div>
         <div style="margin-top:10px">${this.renderRaceAdminReport(adminReport, { compact: true, copyAction: 'GL_SCREENS.copyRaceAdminReport()' })}</div>
