@@ -1527,13 +1527,25 @@ const SCREENS = {
           .map((car) => `${car.pilotName || __('nav_team')} P${car.position}`)
           .join(' · ')
       : '';
+    const prizeByWeek = {};
+    (state.raceResults || []).forEach((race) => {
+      const weekKey = Number(race?.round || 0);
+      if (!Number.isFinite(weekKey) || weekKey <= 0) return;
+      prizeByWeek[weekKey] = (prizeByWeek[weekKey] || 0) + Number(race?.prizeMoney || 0);
+    });
+    if (Number.isFinite(lastRaceSettlement?.week)) {
+      const wk = Number(lastRaceSettlement.week);
+      prizeByWeek[wk] = Number(lastRaceSettlement.prizeDelta || lastRaceSettlement.prizeMoney || prizeByWeek[wk] || 0);
+    }
     const recentHistory = history.slice(-10);
     const historyTotals = recentHistory.reduce((acc, h) => {
+      const weekKey = Number(h.week || 0);
+      const hasStoredPrize = Number.isFinite(Number(h.prizeIncome));
+      const prizeIncome = hasStoredPrize ? Number(h.prizeIncome || 0) : Number(prizeByWeek[weekKey] || 0);
       const operatingIncomeSource = (typeof h.operatingIncome === 'number')
         ? h.operatingIncome
-        : ((h.income || 0) - (h.prizeIncome || 0));
+        : ((h.income || 0) - (hasStoredPrize ? Number(h.prizeIncome || 0) : 0));
       const operatingIncome = Number(operatingIncomeSource || 0);
-      const prizeIncome = Number(h.prizeIncome || 0);
       const expenses = Number(h.expenses || 0);
       const weeklyNet = (operatingIncome + prizeIncome) - expenses;
       acc.operatingIncome += operatingIncome;
@@ -1546,11 +1558,13 @@ const SCREENS = {
     let runningNet = 0;
     const historyRowsHtml = recentHistory.length
       ? recentHistory.map((h) => {
+          const weekKey = Number(h.week || 0);
+          const hasStoredPrize = Number.isFinite(Number(h.prizeIncome));
+          const prizeIncome = hasStoredPrize ? Number(h.prizeIncome || 0) : Number(prizeByWeek[weekKey] || 0);
           const operatingIncomeSource = (typeof h.operatingIncome === 'number')
             ? h.operatingIncome
-            : ((h.income || 0) - (h.prizeIncome || 0));
+            : ((h.income || 0) - (hasStoredPrize ? Number(h.prizeIncome || 0) : 0));
           const operatingIncome = Number(operatingIncomeSource || 0);
-          const prizeIncome = Number(h.prizeIncome || 0);
           const expenses = Number(h.expenses || 0);
           const totalNet = (operatingIncome + prizeIncome) - expenses;
           const netVal = totalNet;
