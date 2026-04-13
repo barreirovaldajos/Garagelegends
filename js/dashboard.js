@@ -1693,10 +1693,11 @@ const DASHBOARD = {
   },
 
   startEventPoller() {
-    setInterval(() => {
-      const ev = GL_STATE.popRandomEvent();
-      if (ev) { window._pendingEvent = ev; GL_UI.showRandomEvent(ev); }
-    }, 15000);
+    const state = GL_STATE.getState();
+    if (state && Array.isArray(state.randomEvents) && state.randomEvents.length) {
+      state.randomEvents = [];
+      GL_STATE.saveState();
+    }
   }
 };
 

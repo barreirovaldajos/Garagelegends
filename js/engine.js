@@ -2015,8 +2015,7 @@ function weeklyTick() {
     S.saveState();
   }
 
-  // Trigger random event
-  if (Math.random() < 0.35) generateRandomEvent();
+  // Random events disabled for now.
 
   return playerEconomy;
 }
