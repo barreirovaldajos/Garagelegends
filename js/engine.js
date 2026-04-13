@@ -2,13 +2,25 @@
 function getWeeklyEconomyBreakdown(state) {
   const incomeBreakdown = (window.Economy || globalThis.Economy).calculateTeamIncomeBreakdown(state);
   const expenseBreakdown = (window.Economy || globalThis.Economy).calculateTeamExpenseBreakdown(state);
-  const income = incomeBreakdown.income;
+  const rawSettlement = state?.finances?.lastRaceSettlement && typeof state.finances.lastRaceSettlement === 'object'
+    ? state.finances.lastRaceSettlement
+    : null;
+  const latestHistoryWeek = Array.isArray(state?.finances?.history) && state.finances.history.length
+    ? Number(state.finances.history[state.finances.history.length - 1]?.week)
+    : null;
+  const settlementWeek = Number(rawSettlement?.week);
+  const settlement = rawSettlement && (!Number.isFinite(settlementWeek) || settlementWeek === latestHistoryWeek)
+    ? rawSettlement
+    : null;
+  const prizeIncome = settlement ? Number(settlement.prizeDelta || settlement.prizeMoney || 0) : 0;
+  const income = incomeBreakdown.income + prizeIncome;
   const expenses = expenseBreakdown.expenses;
   return {
     sponsorIncome: incomeBreakdown.sponsorIncome,
     fanRevenue: incomeBreakdown.fanRevenue,
     divisionGrant: incomeBreakdown.divisionGrant,
     bonusIncome: incomeBreakdown.bonusIncome,
+    prizeIncome,
     salaries: expenseBreakdown.salaries,
     hqCost: expenseBreakdown.hqCost,
     contractCost: expenseBreakdown.contractCost,
@@ -2044,8 +2056,29 @@ function applyRaceWeekendEconomy(raceResult) {
     weeklyEconomy
   };
 
+  const prizeIncome = Number(summary.prizeDelta || 0);
+  if (summary.weeklyEconomy && typeof summary.weeklyEconomy === 'object') {
+    const baseIncome = Number(summary.weeklyEconomy.income || 0);
+    const expenses = Number(summary.weeklyEconomy.expenses || 0);
+    summary.weeklyEconomy.prizeIncome = prizeIncome;
+    summary.weeklyEconomy.operatingIncome = baseIncome;
+    summary.weeklyEconomy.income = baseIncome + prizeIncome;
+    summary.weeklyEconomy.net = summary.weeklyEconomy.income - expenses;
+  }
+
   const refreshedState = S.getState();
   if (refreshedState?.finances) {
+    const history = Array.isArray(refreshedState.finances.history) ? refreshedState.finances.history : [];
+    const latestEntry = history.length ? history[history.length - 1] : null;
+    if (latestEntry) {
+      const operatingIncome = Number(latestEntry.operatingIncome ?? latestEntry.income ?? 0);
+      const expenses = Number(latestEntry.expenses || 0);
+      latestEntry.operatingIncome = operatingIncome;
+      latestEntry.prizeIncome = prizeIncome;
+      latestEntry.income = operatingIncome + prizeIncome;
+      latestEntry.net = latestEntry.income - expenses;
+    }
+
     refreshedState.finances.lastRaceSettlement = {
       ts: Date.now(),
       week: Array.isArray(refreshedState.finances.history) && refreshedState.finances.history.length

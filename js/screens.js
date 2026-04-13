@@ -1495,7 +1495,7 @@ const SCREENS = {
     const financeOverview = window.getFinanceOverview
       ? window.getFinanceOverview(state)
       : {
-          breakdown: window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, expenses: 0, net: 0, sponsorIncome: 0, fanRevenue: 0, divisionGrant: 0, salaries: 0, hqCost: 0, contractCost: 0 },
+          breakdown: window.getWeeklyEconomyBreakdown ? window.getWeeklyEconomyBreakdown(state) : { income: 0, expenses: 0, net: 0, sponsorIncome: 0, fanRevenue: 0, divisionGrant: 0, bonusIncome: 0, prizeIncome: 0, salaries: 0, hqCost: 0, contractCost: 0 },
           settlement: fi.lastRaceSettlement && typeof fi.lastRaceSettlement === 'object' ? fi.lastRaceSettlement : null,
           openingCash: Number(fi.credits || 0),
           closingCash: Number(fi.credits || 0),
@@ -1529,20 +1529,31 @@ const SCREENS = {
       : '';
     const recentHistory = history.slice(-10);
     const historyTotals = recentHistory.reduce((acc, h) => {
-      acc.income += Number(h.income || 0);
-      acc.expenses += Number(h.expenses || 0);
-      acc.net += Number(h.net || 0);
+      const operatingIncome = Number(h.operatingIncome ?? ((h.income || 0) - (h.prizeIncome || 0)) || 0);
+      const prizeIncome = Number(h.prizeIncome || 0);
+      const expenses = Number(h.expenses || 0);
+      const weeklyNet = (operatingIncome + prizeIncome) - expenses;
+      acc.operatingIncome += operatingIncome;
+      acc.prizeIncome += prizeIncome;
+      acc.income += operatingIncome + prizeIncome;
+      acc.expenses += expenses;
+      acc.net += weeklyNet;
       return acc;
-    }, { income: 0, expenses: 0, net: 0 });
+    }, { operatingIncome: 0, prizeIncome: 0, income: 0, expenses: 0, net: 0 });
     let runningNet = 0;
     const historyRowsHtml = recentHistory.length
       ? recentHistory.map((h) => {
-          const netVal = Number(h.net || 0);
+          const operatingIncome = Number(h.operatingIncome ?? ((h.income || 0) - (h.prizeIncome || 0)) || 0);
+          const prizeIncome = Number(h.prizeIncome || 0);
+          const expenses = Number(h.expenses || 0);
+          const totalNet = (operatingIncome + prizeIncome) - expenses;
+          const netVal = totalNet;
           runningNet += netVal;
           return `<tr>
             <td>${__('topbar_week')} ${h.week}</td>
-            <td style="color:var(--c-green)">+${GL_UI.fmtCR(h.income || 0)}</td>
-            <td style="color:var(--c-red)">-${GL_UI.fmtCR(h.expenses || 0)}</td>
+            <td style="color:var(--c-green)">+${GL_UI.fmtCR(operatingIncome)}</td>
+            <td style="color:${prizeIncome >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(prizeIncome)}</td>
+            <td style="color:var(--c-red)">-${GL_UI.fmtCR(expenses)}</td>
             <td style="color:${netVal >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(netVal)}</td>
             <td style="font-weight:700;color:${runningNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(runningNet)}</td>
           </tr>`;
@@ -1589,6 +1600,7 @@ const SCREENS = {
           <div class="section-eyebrow">${__('finances_income')}</div>
           <div style="margin-top:var(--s-4)">
             <div class="finance-chart-bar-h"><span class="finance-chart-label">${__('finances_sponsors')}</span><div class="finance-chart-bar-wrap"><div class="finance-chart-bar-fill" style="width:${Math.min(100,(breakdown.sponsorIncome/Math.max(income,1)*100).toFixed(0))}%;background:var(--c-green)"></div></div><span class="finance-chart-val positive">+${GL_UI.fmtCR(breakdown.sponsorIncome)}</span></div>
+            <div class="finance-chart-bar-h"><span class="finance-chart-label">${__('finances_competition_flow')}</span><div class="finance-chart-bar-wrap"><div class="finance-chart-bar-fill" style="width:${Math.min(100,(breakdown.prizeIncome/Math.max(income,1)*100).toFixed(0))}%;background:var(--c-accent)"></div></div><span class="finance-chart-val positive">+${GL_UI.fmtCR(breakdown.prizeIncome || 0)}</span></div>
             <div class="finance-chart-bar-h"><span class="finance-chart-label">${__('finances_division_grant')}</span><div class="finance-chart-bar-wrap"><div class="finance-chart-bar-fill" style="width:${Math.min(100,(breakdown.divisionGrant/Math.max(income,1)*100).toFixed(0))}%;background:var(--c-gold)"></div></div><span class="finance-chart-val positive">+${GL_UI.fmtCR(breakdown.divisionGrant)}</span></div>
             <div class="finance-chart-bar-h"><span class="finance-chart-label">${__('finances_fan_revenue')}</span><div class="finance-chart-bar-wrap"><div class="finance-chart-bar-fill" style="width:${Math.min(100,(breakdown.fanRevenue/Math.max(income,1)*100).toFixed(0))}%;background:var(--c-blue)"></div></div><span class="finance-chart-val positive">+${GL_UI.fmtCR(breakdown.fanRevenue)}</span></div>
           </div>
@@ -1644,12 +1656,14 @@ const SCREENS = {
             <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_expenses')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--c-red)">-${GL_UI.fmtCR(historyTotals.expenses)}</div></div>
             <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_flow')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:${historyTotals.net >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.net)}</div></div>
           </div>
+          <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:8px">${__('finances_competition_flow')}: <strong style="color:${historyTotals.prizeIncome >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.prizeIncome)}</strong></div>
           <div style="overflow:auto;margin-top:12px">
             <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
               <thead>
                 <tr style="text-align:left;color:var(--t-secondary);border-bottom:1px solid var(--c-border)">
                   <th style="padding:8px 6px">${__('topbar_week')}</th>
                   <th style="padding:8px 6px">${__('finances_income')}</th>
+                  <th style="padding:8px 6px">${__('finances_competition_flow')}</th>
                   <th style="padding:8px 6px">${__('finances_expenses')}</th>
                   <th style="padding:8px 6px">${__('finances_total_flow')}</th>
                   <th style="padding:8px 6px">${__('finances_history') || 'Acum.'}</th>
