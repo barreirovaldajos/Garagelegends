@@ -226,6 +226,10 @@ const APP = {
           <span class="topbar-credits-icon">💰</span>
           <span class="topbar-credits-val" id="topbar-credits-val">${GL_UI.fmtCR(state.finances.credits||0)}</span>
         </div>
+        <div class="topbar-fans" title="Fans">
+          <span class="topbar-fans-icon">👥</span>
+          <span class="topbar-fans-val" id="topbar-fans-val">${GL_UI.fmtCR(state.team.fans||0)}</span>
+        </div>
         <div class="topbar-tokens" title="Tokens">
           <span class="topbar-tokens-icon">🪙</span>
           <span class="topbar-tokens-val" id="topbar-tokens-val">${state.finances.tokens||0}</span>

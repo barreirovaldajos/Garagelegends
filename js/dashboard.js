@@ -17,7 +17,6 @@ const DASHBOARD = {
         GL_ENGINE.updateConstructionQueue();
       }
       this.renderSkeleton();
-      this.renderStatCards(state);
       this.renderNextEvent(state);
       this.renderStandings(state);
       this.renderFinances(state);
@@ -283,7 +282,6 @@ const DASHBOARD = {
           </div>
           <div id="dash-circuit-preview"></div>
         </div>
-        <div id="dash-stat-cards" style="display:contents"></div>
         <div class="right-panel">
           <div class="card">
             <div class="section-eyebrow">${__('dash_alerts_label')}</div>
@@ -341,6 +339,7 @@ const DASHBOARD = {
     const el = id => document.getElementById(id);
     if (el('topbar-team-name')) el('topbar-team-name').textContent = state.team.name || 'Your Team';
     if (el('topbar-credits-val')) el('topbar-credits-val').textContent = GL_UI.fmtCR(state.finances.credits||0);
+    if (el('topbar-fans-val')) el('topbar-fans-val').textContent = GL_UI.fmtCR(state.team.fans||0);
     if (el('topbar-tokens-val')) el('topbar-tokens-val').textContent = state.finances.tokens||0;
     if (el('topbar-logo')) {
       el('topbar-logo').style.background = `linear-gradient(135deg,${state.team.colors.primary},${state.team.colors.primary}88)`;
@@ -351,29 +350,6 @@ const DASHBOARD = {
     if (el('sidebar-team-logo')) { el('sidebar-team-logo').textContent = state.team.logo||'🏎️'; el('sidebar-team-logo').style.background = state.team.colors.primary+'22'; }
     if (el('sidebar-team-name')) el('sidebar-team-name').textContent = state.team.name||'Your Team';
     if (el('sidebar-team-div')) el('sidebar-team-div').textContent = `${__('division')} ${state.season.division}`;
-  },
-
-  renderStatCards(state) {
-    const el = document.getElementById('dash-stat-cards');
-    if (!el) return;
-    const standing = GL_STATE.getMyStanding();
-    const fi = state.finances;
-    const net = (fi.weeklyIncome||0) - (fi.weeklyExpenses||0);
-    el.innerHTML = `
-      <div class="stat-card">
-        <div class="stat-card-icon">👥</div>
-        <div class="stat-card-eyebrow">${__('dash_fans')}</div>
-        <div class="stat-card-value">${GL_UI.fmtCR(state.team.fans||0)}</div>
-        <div class="stat-card-label">${__('dash_global_fan')}</div>
-        <div class="stat-card-change up">${__('dash_growing')}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-card-icon">⭐</div>
-        <div class="stat-card-eyebrow">${__('dash_reputation')}</div>
-        <div class="stat-card-value">${state.team.reputation||100}</div>
-        <div class="stat-card-label">${__('dash_team_prestige')}</div>
-        ${GL_UI.progressBar(state.team.reputation||100, 500, 'gold')}
-      </div>`;
   },
 
   renderNextEvent(state) {

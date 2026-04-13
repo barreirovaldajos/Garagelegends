@@ -365,7 +365,6 @@ const OB = {
     state.team.colors.primary = this.data.primaryColor;
     state.team.logo = this.data.logo;
     state.team.engineSupplier = this.data.engineSupplier;
-    state.team.reputation = 100;
     state.team.fans = 250;
     state.meta.created = Date.now();
 

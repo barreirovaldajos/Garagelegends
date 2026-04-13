@@ -53,7 +53,7 @@ const DEFAULT_STATE = {
     name: '', country: '', countryFlag: '',
     colors: { primary: '#e8292a', secondary: '#0a0b0f' },
     logo: '🏎️', philosophy: '', origin: '',
-    reputation: 100, fans: 500,
+    fans: 500,
     engineSupplier: '' // Cosmos, Zenith, AeroV, Titan, Vulcan
   },
   finances: {

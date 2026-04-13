@@ -318,7 +318,6 @@ function generateAITeamState(team, playerState) {
   return {
     team: {
       name: (team && team.name) || 'AI Team',
-      reputation: 110,
       fans: 3000
     },
     sponsors: pseudoSponsors,

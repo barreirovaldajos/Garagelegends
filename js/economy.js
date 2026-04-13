@@ -11,7 +11,6 @@ const Economy = {
     if (typeof state.finances.criticalDeficit !== 'boolean') state.finances.criticalDeficit = false;
     if (typeof state.finances.lastNet !== 'number') state.finances.lastNet = 0;
     if (!state.team) state.team = {};
-    if (typeof state.team.reputation !== 'number') state.team.reputation = 100;
     if (typeof state.team.fans !== 'number') state.team.fans = 0;
   },
 
@@ -79,14 +78,13 @@ const Economy = {
 
   handleDeficitStatus(state, net) {
     if (!state) {
-      return { streak: 0, critical: false, reputationDelta: 0, fansDelta: 0, notes: [] };
+      return { streak: 0, critical: false, fansDelta: 0, notes: [] };
     }
     this.ensureFinanceMeta(state);
 
     const effects = {
       streak: state.finances.deficitStreak,
       critical: false,
-      reputationDelta: 0,
       fansDelta: 0,
       notes: []
     };
@@ -95,11 +93,8 @@ const Economy = {
       state.finances.deficitStreak += 1;
       effects.streak = state.finances.deficitStreak;
 
-      const repLoss = state.finances.deficitStreak >= 3 ? 8 : 3;
       const fanLoss = state.finances.deficitStreak >= 3 ? 120 : 45;
-      state.team.reputation = Math.max(0, (state.team.reputation || 0) - repLoss);
       state.team.fans = Math.max(0, (state.team.fans || 0) - fanLoss);
-      effects.reputationDelta = -repLoss;
       effects.fansDelta = -fanLoss;
 
       if (state.finances.deficitStreak >= 3) {
@@ -119,16 +114,12 @@ const Economy = {
       effects.notes.push('recovery');
     }
     state.finances.criticalDeficit = false;
-
-    const repGain = 1;
-    state.team.reputation = Math.min(500, (state.team.reputation || 0) + repGain);
-    effects.reputationDelta = repGain;
     return effects;
   },
 
   processWeeklyBalance(state) {
     if (!state) {
-      return { income: 0, expenses: 0, net: 0, effects: { streak: 0, critical: false, reputationDelta: 0, fansDelta: 0, notes: [] } };
+      return { income: 0, expenses: 0, net: 0, effects: { streak: 0, critical: false, fansDelta: 0, notes: [] } };
     }
     this.ensureFinanceMeta(state);
     const income = this.calculateTeamIncome(state);
