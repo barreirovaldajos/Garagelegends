@@ -134,7 +134,7 @@ const SCREENS = {
         let estimate = '';
         if (sponsorIncome > 0 && beforeMult > 0 && afterMult > beforeMult) {
           const projectedDelta = sponsorIncome * ((afterMult - beforeMult) / beforeMult);
-          if (projectedDelta > 0) estimate = ` (~+${fmtCR(projectedDelta)}/sem)`;
+          if (projectedDelta > 0) estimate = ` (~+${fmtCR(Math.round(projectedDelta))}/sem)`;
         }
         return `Prox. nivel: +${pct}% ingresos por sponsors${estimate}`;
       }
@@ -1306,7 +1306,10 @@ const SCREENS = {
                 <div class="calendar-result-pts">+${res.points} ${__('points')}</div>
                 <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
               </div>` :
-              isNext ? `<button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>` :
+              isNext ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                ${r.savedStrategy ? `<span style="font-size:0.72rem;color:var(--c-green)">✔ ${__('calendar_strat_ready') || 'Estrategia lista'}</span>` : ''}
+                <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>
+              </div>` :
               `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('calendar_upcoming')}</div>`}
             </div>
           </div>`;
@@ -1731,7 +1734,8 @@ const SCREENS = {
           <div class="screen-subtitle">${c.country} · ${c.laps} ${__('laps')} · ${c.length} · ${next.weather==='wet'?__('prerace_rain_expected'):__('prerace_dry2')}</div>
         </div>
         <div class="screen-actions">
-          <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${window.__('prerace_save_strat') || 'Guardar Estrategia'}</button>
+          ${next.savedStrategy ? `<span style="font-size:0.78rem;color:var(--c-green);display:flex;align-items:center;gap:4px">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</span>` : ''}
+          <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${next.savedStrategy ? (__('prerace_update_strat') || '💾 Actualizar Estrategia') : (window.__('prerace_save_strat') || '💾 Guardar Estrategia')}</button>
           <button class="btn btn-secondary btn-lg" onclick="GL_APP.navigateTo('race')">${__('race_sim_btn') || 'Correr carrera'}</button>
         </div>
       </div>
@@ -2064,7 +2068,7 @@ const SCREENS = {
       });
       GL_STATE.saveState();
       GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
-      GL_APP.navigateTo('dashboard');
+      this.renderPreRace();
     }
   },
 
