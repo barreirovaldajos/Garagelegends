@@ -1693,7 +1693,7 @@ const SCREENS = {
       selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
       driverConfigs: {}
     };
-    const baseStrategy = GL_STATE.deepClone(next.savedStrategy || window._raceStrategy || defaultStrategy);
+    const baseStrategy = GL_STATE.deepClone(window._raceStrategy || next.savedStrategy || defaultStrategy);
     if (!Array.isArray(baseStrategy.interventions) || baseStrategy.interventions.length < 2) {
       baseStrategy.interventions = [{ lapPct: 30, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }];
     }
