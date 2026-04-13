@@ -444,6 +444,27 @@
 .market-pilot-salary-label { font-size: 0.72rem; color: var(--t-secondary); }
 
 /* CALENDAR */
+.calendar-layout { display: grid; grid-template-columns: 320px 1fr; gap: var(--s-4); align-items: start; }
+.calendar-ops-panel { position: sticky; top: calc(var(--topbar-h) + 18px); background: linear-gradient(165deg, rgba(15,20,36,0.96), rgba(14,18,30,0.9)); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--r-xl); padding: var(--s-4); box-shadow: 0 18px 34px rgba(0,0,0,0.32); }
+.calendar-ops-head { margin-bottom: var(--s-3); }
+.calendar-ops-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 800; color: var(--t-primary); }
+.calendar-ops-subtitle { font-size: 0.78rem; color: var(--t-secondary); margin-top: 4px; }
+.calendar-ops-kpis { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-bottom: var(--s-3); }
+.calendar-kpi-card { padding: 10px; border-radius: 10px; border: 1px solid var(--c-border); background: rgba(255,255,255,0.02); }
+.calendar-kpi-label { font-size: 0.68rem; color: var(--t-tertiary); text-transform: uppercase; letter-spacing: 0.05em; }
+.calendar-kpi-value { margin-top: 4px; font-family: var(--font-display); font-size: 1.18rem; font-weight: 800; color: var(--t-primary); }
+.calendar-ops-progress { margin-bottom: var(--s-3); }
+.calendar-ops-progress-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.76rem; color: var(--t-secondary); margin-bottom: 6px; }
+.calendar-insight-card { border-radius: 12px; padding: 12px; border: 1px solid var(--c-border); background: rgba(255,255,255,0.02); margin-bottom: 10px; }
+.calendar-insight-card.high { border-color: rgba(46,204,122,0.35); background: rgba(46,204,122,0.09); }
+.calendar-insight-card.mid { border-color: rgba(245,200,66,0.35); background: rgba(245,200,66,0.08); }
+.calendar-insight-card.low { border-color: rgba(255,111,71,0.35); background: rgba(255,111,71,0.08); }
+.calendar-insight-title { font-size: 0.72rem; color: var(--t-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
+.calendar-insight-score { margin-top: 4px; font-family: var(--font-display); font-size: 1.4rem; font-weight: 900; color: var(--t-primary); }
+.calendar-insight-desc { margin-top: 2px; font-size: 0.78rem; color: var(--t-secondary); }
+.calendar-insight-list { display: grid; gap: 8px; }
+.calendar-insight-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--c-border); background: rgba(255,255,255,0.02); font-size: 0.76rem; color: var(--t-secondary); }
+.calendar-insight-item strong { color: var(--t-primary); }
 .calendar-timeline { display: flex; flex-direction: column; gap: var(--s-3); }
 .calendar-race-item { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-4) var(--s-5); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); transition: all var(--tr-fast); }
 .calendar-race-item:hover { border-color: var(--c-border-hi); }
@@ -458,6 +479,13 @@
 .calendar-info { flex: 1; }
 .calendar-race-name { font-family: var(--font-display); font-weight: 700; font-size: 0.95rem; }
 .calendar-race-meta { font-size: 0.78rem; color: var(--t-secondary); }
+.calendar-race-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.calendar-tag { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; border-radius: 999px; border: 1px solid var(--c-border); background: rgba(255,255,255,0.02); font-size: 0.66rem; color: var(--t-secondary); }
+.calendar-tag.wet { border-color: rgba(58,164,255,0.4); color: #8bc8ff; background: rgba(58,164,255,0.12); }
+.calendar-tag.dry { border-color: rgba(245,200,66,0.45); color: #f5d980; background: rgba(245,200,66,0.12); }
+.calendar-tag.mixed { border-color: rgba(176,188,208,0.32); color: #d0d8e6; }
+.calendar-tag.prize { border-color: rgba(245,200,66,0.4); color: var(--c-gold); }
+.calendar-tag.ready { border-color: rgba(46,204,122,0.4); color: var(--c-green); }
 .calendar-result { flex: 0 0 80px; text-align: center; }
 .calendar-result-pos { font-family: var(--font-display); font-size: 1.3rem; font-weight: 900; }
 .calendar-result-pts { font-size: 0.72rem; color: var(--t-secondary); }
@@ -497,6 +525,8 @@
   .post-race-metrics { justify-content: center; flex-wrap: wrap; }
   .market-pilot-row { flex-wrap: wrap; }
   .market-pilot-attrs { flex-wrap: wrap; }
+  .calendar-layout { grid-template-columns: 1fr; }
+  .calendar-ops-panel { position: static; }
 }
 
 /* ---- MOBILE ---- */
@@ -714,10 +744,13 @@
   .market-pilot-salary { text-align: left; width: 100%; display: flex; justify-content: space-between; align-items: center; padding-top: var(--s-2); border-top: 1px solid var(--c-border); }
 
   /* Calendar */
+  .calendar-layout { grid-template-columns: 1fr; }
+  .calendar-ops-kpis { grid-template-columns: 1fr 1fr; }
   .calendar-race-item { flex-wrap: wrap; gap: var(--s-3); padding: var(--s-3); }
   .calendar-round { flex: 0 0 36px; }
   .calendar-round-num { font-size: 1rem; }
   .calendar-circuit-dot { height: 30px; }
+  .calendar-race-tags { width: 100%; }
 
   /* Standings table */
   .standings-table-full th,

@@ -1314,7 +1314,32 @@ const SCREENS = {
     const cal = state.season.calendar || [];
     const el = document.getElementById('screen-calendar');
     if (!el) return;
-    const pts = GL_STATE.getMyStanding().points || 0;
+    const standings = Array.isArray(state.standings) ? state.standings : [];
+    const myStanding = GL_STATE.getMyStanding();
+    const pts = myStanding.points || 0;
+    const completedRaces = cal.filter((race) => race.status === (window.RACE_STATUS ? RACE_STATUS.COMPLETED : 'completed'));
+    const nextRace = cal.find((race) => race.status === (window.RACE_STATUS ? RACE_STATUS.NEXT : 'next')) || null;
+    const promotionSpots = Number((GL_DATA.DIVISIONS || []).find((d) => Number(d.div) === Number(state.season.division))?.promotions || 0);
+    const promotionCutoff = promotionSpots > 0
+      ? standings.find((entry) => Number(entry.position) === promotionSpots)
+      : null;
+    const pointsToPromotion = promotionCutoff && Number(myStanding.position || 99) > promotionSpots
+      ? Math.max(0, Number(promotionCutoff.points || 0) - Number(myStanding.points || 0) + 1)
+      : 0;
+    const archive = Array.isArray(state.raceResults) ? state.raceResults : [];
+    const totalPrizeMoney = archive.reduce((sum, entry) => sum + Number(entry?.prizeMoney || 0), 0);
+    const recentDone = completedRaces.slice(-3);
+    const recentPoints = recentDone.reduce((sum, race) => sum + Number(race?.result?.points || 0), 0);
+    const avgPoints = recentDone.length ? (recentPoints / recentDone.length) : 0;
+    const bestFinish = completedRaces.length
+      ? completedRaces.reduce((best, race) => Math.min(best, Number(race?.result?.position || 99)), 99)
+      : null;
+    const nextWeather = nextRace ? this.getCalendarWeatherIndicator(nextRace) : null;
+    const readinessScore = !nextRace
+      ? 100
+      : (nextRace.savedStrategy ? 72 : 32) + Math.round((Number(nextWeather?.confidence || 0) / 100) * 24);
+    const readinessTier = readinessScore >= 85 ? 'high' : (readinessScore >= 60 ? 'mid' : 'low');
+    const seasonProgress = cal.length ? Math.round((completedRaces.length / cal.length) * 100) : 0;
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -1326,12 +1351,76 @@ const SCREENS = {
           <span class="badge badge-gold" style="font-size:0.85rem;padding:8px 16px">🏆 ${pts} ${__('points')}</span>
         </div>
       </div>
-      <div class="calendar-timeline">
+      <div class="calendar-layout">
+        <aside class="calendar-ops-panel">
+          <div class="calendar-ops-head">
+            <div class="section-eyebrow">${__('calendar_ops_eyebrow')}</div>
+            <div class="calendar-ops-title">${__('calendar_ops_title')}</div>
+            <div class="calendar-ops-subtitle">${__('calendar_ops_subtitle')}</div>
+          </div>
+          <div class="calendar-ops-kpis">
+            <div class="calendar-kpi-card">
+              <div class="calendar-kpi-label">${__('calendar_kpi_completed')}</div>
+              <div class="calendar-kpi-value">${completedRaces.length}</div>
+            </div>
+            <div class="calendar-kpi-card">
+              <div class="calendar-kpi-label">${__('calendar_kpi_remaining')}</div>
+              <div class="calendar-kpi-value">${Math.max(0, cal.length - completedRaces.length)}</div>
+            </div>
+            <div class="calendar-kpi-card">
+              <div class="calendar-kpi-label">${__('calendar_kpi_avg_points')}</div>
+              <div class="calendar-kpi-value">${avgPoints.toFixed(1)}</div>
+            </div>
+            <div class="calendar-kpi-card">
+              <div class="calendar-kpi-label">${__('calendar_kpi_best_finish')}</div>
+              <div class="calendar-kpi-value">${bestFinish ? `P${bestFinish}` : '—'}</div>
+            </div>
+          </div>
+          <div class="calendar-ops-progress">
+            <div class="calendar-ops-progress-head">
+              <span>${__('calendar_progress')}</span>
+              <strong>${seasonProgress}%</strong>
+            </div>
+            ${GL_UI.progressBar(seasonProgress, 100, 'red')}
+          </div>
+          <div class="calendar-insight-card ${readinessTier}">
+            <div class="calendar-insight-title">${__('calendar_readiness_title')}</div>
+            <div class="calendar-insight-score">${readinessScore}%</div>
+            <div class="calendar-insight-desc">${
+              nextRace
+                ? (nextRace.savedStrategy ? __('calendar_readiness_ready') : __('calendar_readiness_missing'))
+                : __('calendar_readiness_complete')
+            }</div>
+            ${nextRace ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>` : ''}
+          </div>
+          <div class="calendar-insight-list">
+            <div class="calendar-insight-item">
+              <span>${__('calendar_promotion_race')}</span>
+              <strong>${
+                pointsToPromotion > 0
+                  ? `${pointsToPromotion} ${__('points')}`
+                  : __('calendar_promotion_safe')
+              }</strong>
+            </div>
+            <div class="calendar-insight-item">
+              <span>${__('finances_competition_flow')}</span>
+              <strong style="color:var(--c-gold)">+${GL_UI.fmtCR(totalPrizeMoney)}</strong>
+            </div>
+            <div class="calendar-insight-item">
+              <span>${__('calendar_next_weather')}</span>
+              <strong>${nextWeather ? `${nextWeather.icon} ${Math.round(nextWeather.wetAverage)}%` : '—'}</strong>
+            </div>
+          </div>
+        </aside>
+        <div class="calendar-timeline">
         ${cal.map(r => {
           const isDone = r.status === (window.RACE_STATUS ? RACE_STATUS.COMPLETED : 'completed');
           const isNext = r.status === (window.RACE_STATUS ? RACE_STATUS.NEXT : 'next');
           const res = r.result;
           const weatherIndicator = this.getCalendarWeatherIndicator(r);
+          const raceArchive = this.getRaceArchiveRecord(r.round);
+          const racePrize = Number(raceArchive?.prizeMoney || 0);
+          const weatherClass = weatherIndicator.wetAverage >= 66 ? 'wet' : (weatherIndicator.wetAverage <= 34 ? 'dry' : 'mixed');
           return `<div class="calendar-race-item ${isDone?'done':''} ${isNext?'next':''}">
             <div class="calendar-round">
               <div class="calendar-round-label">${__('calendar_round')}</div>
@@ -1341,6 +1430,12 @@ const SCREENS = {
             <div class="calendar-info">
               <div class="calendar-race-name">${r.circuit?.name||'Circuit'}</div>
               <div class="calendar-race-meta">${r.circuit?.country||''} · ${r.circuit?.laps||0} ${__('laps')} · ${r.circuit?.length||''}</div>
+              <div class="calendar-race-tags">
+                <span class="calendar-tag ${weatherClass}">${weatherIndicator.icon} ${Math.round(weatherIndicator.wetAverage)}%</span>
+                <span class="calendar-tag">${__('calendar_confidence')}: ${Math.round(weatherIndicator.confidence)}%</span>
+                ${isDone && racePrize > 0 ? `<span class="calendar-tag prize">+${GL_UI.fmtCR(racePrize)}</span>` : ''}
+                ${isNext && r.savedStrategy ? `<span class="calendar-tag ready">${__('calendar_strat_ready')}</span>` : ''}
+              </div>
             </div>
             <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
@@ -1350,13 +1445,14 @@ const SCREENS = {
                 <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
               </div>` :
               isNext ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-                ${r.savedStrategy ? `<span style="font-size:0.72rem;color:var(--c-green)">✔ ${__('calendar_strat_ready') || 'Estrategia lista'}</span>` : ''}
+                ${r.savedStrategy ? `<span style="font-size:0.72rem;color:var(--c-green)">✔ ${__('calendar_strat_ready')}</span>` : `<span style="font-size:0.72rem;color:var(--c-orange)">${__('calendar_strategy_missing')}</span>`}
                 <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>
               </div>` :
               `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('calendar_upcoming')}</div>`}
             </div>
           </div>`;
         }).join('')}
+        </div>
       </div>`;
   },
 
