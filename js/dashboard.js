@@ -21,9 +21,7 @@ const DASHBOARD = {
       this.renderStandings(state);
       this.renderFinances(state);
       this.renderUpgrades(state);
-      this.renderPilotMorale(state);
       this.renderActivity(state);
-      this.renderSponsors(state);
       this.renderAlerts(state);
       this.renderCampaign(state);
       this.renderRecommendations(state);
@@ -317,20 +315,6 @@ const DASHBOARD = {
             <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('garage')">${__('dash_upgrades_garage')}</button>
           </div>
           <div class="card" id="dash-upgrades"></div>
-        </div>
-        <div>
-          <div class="section-header">
-            <span class="section-title">${__('dash_morale_label')}</span>
-            <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('pilots')">${__('dash_morale_roster')}</button>
-          </div>
-          <div class="card" id="dash-morale"></div>
-        </div>
-        <div>
-          <div class="section-header">
-            <span class="section-title">${__('dash_sponsors_label')}</span>
-            <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('market')">${__('dash_sponsors_market')}</button>
-          </div>
-          <div class="card" style="display:flex;flex-direction:column;gap:var(--s-2)" id="dash-sponsors"></div>
         </div>
       </div>`;
   },

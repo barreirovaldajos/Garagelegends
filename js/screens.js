@@ -1445,6 +1445,7 @@ const SCREENS = {
   renderFinances() {
     const state = GL_STATE.getState();
     const fi = state.finances;
+    const activeSponsors = (state.sponsors || []).filter((sp) => !sp.expired);
     const el = document.getElementById('screen-finances');
     if (!el) return;
     const history = fi.history || [];
@@ -1539,6 +1540,35 @@ const SCREENS = {
           </div>
           <div class="divider"></div>
           <div style="display:flex;justify-content:space-between"><span style="font-weight:700">${__('finances_total_expenses')}</span><span style="font-family:var(--font-display);font-weight:800;color:var(--c-red)">-${GL_UI.fmtCR(expenses)}${__('per_week')}</span></div>
+        </div>
+      </div>
+      <div class="card mb-6">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <div class="section-eyebrow">${__('finances_sponsors')}</div>
+            <div style="font-size:0.8rem;color:var(--t-secondary);margin-top:4px">${activeSponsors.length} ${__('dash_sponsors_label').toLowerCase()}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('market')">${__('dash_sponsors_market')}</button>
+        </div>
+        <div style="margin-top:var(--s-4);display:flex;flex-direction:column;gap:8px">
+          ${activeSponsors.length
+            ? activeSponsors
+                .map((sp) => {
+                  const incomeVal = Number(sp.weeklyValue || sp.income || 0);
+                  const weeksLeft = Number(sp.weeksLeft || sp.duration || 0);
+                  return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)">
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0">
+                      <span style="font-size:1rem">${sp.logo || '💼'}</span>
+                      <div style="min-width:0">
+                        <div style="font-weight:700;color:var(--t-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sp.name || __('finances_sponsors')}</div>
+                        <div style="font-size:0.74rem;color:var(--t-secondary)">${__('market_duration')}: ${weeksLeft} ${__('market_weeks')}</div>
+                      </div>
+                    </div>
+                    <div style="font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(incomeVal)}${__('per_week')}</div>
+                  </div>`;
+                })
+                .join('')
+            : `<div style="font-size:0.82rem;color:var(--t-tertiary)">${__('dash_no_sponsors')}</div>`}
         </div>
       </div>
       <div class="card">
