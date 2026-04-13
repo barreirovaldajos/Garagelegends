@@ -1378,6 +1378,9 @@ const SCREENS = {
           <div class="screen-title">${__('standings_title')} ${state.season.division}</div>
           <div class="screen-subtitle">${divInfo?.name || ''} · ${divInfo?.promotions || 0} ${__('standings_promotion_spots')}</div>
         </div>
+        <div class="screen-actions">
+          <button class="btn btn-secondary" onclick="GL_APP.navigateTo('dashboard')">← ${__('back') || 'Atrás'}</button>
+        </div>
       </div>
       <div class="grid-2 mb-4">
         <div class="card">

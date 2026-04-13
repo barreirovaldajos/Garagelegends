@@ -273,21 +273,17 @@ const DASHBOARD = {
         </div>
       </div>
       <div class="dashboard-grid stagger">
-        <div style="grid-column:1/4">
-          <div class="section-header">
-            <span class="section-title">${__('dash_standings')}</span>
-            <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('standings')">${__('dash_full_table')}</button>
+        <div style="grid-column:1/4;display:grid;grid-template-columns:1fr 280px;gap:var(--s-4);align-items:start">
+          <div>
+            <div class="section-header">
+              <span class="section-title">${__('dash_standings')}</span>
+              <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('standings')">${__('dash_full_table')}</button>
+            </div>
+            <div class="card" id="dash-standings"></div>
           </div>
-          <div class="card" id="dash-standings"></div>
+          <div id="dash-circuit-preview"></div>
         </div>
         <div id="dash-stat-cards" style="display:contents"></div>
-        <div style="grid-column:1/3">
-          <div class="section-header">
-            <span class="section-title">${__('dash_next_event')}</span>
-            <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('calendar')">${__('dash_full_calendar')}</button>
-          </div>
-          <div id="dash-next-event"></div>
-        </div>
         <div class="right-panel">
           <div class="card">
             <div class="section-eyebrow">${__('dash_alerts_label')}</div>
@@ -437,23 +433,45 @@ const DASHBOARD = {
     const myPts = myStanding.points || 0;
     const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
     el.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid var(--c-border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
         <div>
-          <div style="font-size:0.62rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">${__('division')} ${state.season.division}</div>
-          <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${divName}</div>
+          <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">${__('division')} ${state.season.division} · ${divName}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:1.6rem;font-weight:800;color:var(--c-gold);line-height:1">P${myPos}</div>
-          <div style="font-size:0.75rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'}">${myPts} ${__('points')}${promotionSpots>0?' · '+(inPromoZone?'✔ '+(__('standings_promotion_spots')||'zona ascenso'):__('standings_promotion_spots')||''):''}  </div>
+          <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
+          <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
         </div>
       </div>
       ${standings.map(s => `
-      <div class="standings-row ${s.id==='player'?'my-team':''}">
-        <span class="standings-row-pos">${s.position}</span>
-        <span class="standings-row-dot" style="background:${s.color||'#888'}"></span>
-        <span class="standings-row-name">${s.name}${s.id==='player'?' <span style="color:var(--c-accent);font-size:0.7rem">' + __('standings_you') + '</span>':''}</span>
-        <span class="standings-row-pts">${s.points} ${__('points')}</span>
+      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--c-border);font-size:0.78rem ${s.id==='player'?';background:var(--c-surface-2);border-radius:4px;padding:3px 6px':''} ">
+        <span style="width:18px;text-align:right;font-weight:700;color:${s.id==='player'?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</span>
+        <span style="width:8px;height:8px;border-radius:50%;background:${s.color||'#888'};flex-shrink:0;display:inline-block"></span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${s.id==='player'?'var(--t-primary)':'var(--t-secondary)'}">${s.name}</span>
+        <span style="font-weight:${s.id==='player'?'700':'400'};color:${s.id==='player'?'var(--c-gold)':'var(--t-tertiary)'}">${s.points}</span>
       </div>`).join('')}`;
+
+    // Circuit preview panel
+    const previewEl = document.getElementById('dash-circuit-preview');
+    if (!previewEl) return;
+    if (GL_ENGINE && typeof GL_ENGINE.ensureNextRaceAvailable === 'function') GL_ENGINE.ensureNextRaceAvailable();
+    const cal = state.season.calendar || [];
+    const next = cal.find(r => r.status === 'next');
+    if (!next) { previewEl.innerHTML = ''; return; }
+    const c = next.circuit;
+    const hasStrategy = !!next.savedStrategy;
+    previewEl.innerHTML = `
+      <div class="section-header">
+        <span class="section-title">${__('dash_next_event')}</span>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;gap:var(--s-3)">
+        <div style="font-size:0.6rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase">${__('round')} ${next.round}</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${c.name}</div>
+        <div style="font-size:0.75rem;color:var(--t-secondary)">${c.country} · ${c.laps} ${__('laps')} · ${c.length}</div>
+        <div style="font-size:0.75rem;color:var(--t-secondary)">${next.weather === 'wet' ? __('prerace_rain_expected') : __('prerace_dry2')}</div>
+        <svg viewBox="0 0 200 80" style="width:100%;opacity:0.7">${this.circuitSVG(c.layout)}</svg>
+        ${hasStrategy ? `<div style="font-size:0.72rem;color:var(--c-green)">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</div>` : ''}
+        <button class="btn btn-primary btn-sm w-full" style="justify-content:center" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
+      </div>`;
   },
 
   renderFinances(state) {
