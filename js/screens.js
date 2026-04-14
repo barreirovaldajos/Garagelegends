@@ -2285,7 +2285,12 @@ const SCREENS = {
           ${GL_UI.statRow(__('prerace_layout_type'), this.getTrackLayoutLabel(c.layout), '🗺️')}
           ${GL_UI.statRow(__('prerace_total_laps'), c.laps, '🔄')}
           ${GL_UI.statRow(__('prerace_circuit_len'), c.length, '📏')}
-          ${GL_UI.statRow(__('prerace_rain_prob'), `${100 - c.weather}%`, '🌧️')}
+          ${GL_UI.statRow(__('prerace_rain_prob'), `${100 - c.weather}%`, '📊')}
+          ${(() => {
+            const _wins = Array.isArray(fc.windows) ? fc.windows.filter(w => Number.isFinite(w?.wetProb)) : [];
+            const _avg = _wins.length ? Math.round(_wins.reduce((s, w) => s + w.wetProb, 0) / _wins.length) : 0;
+            return GL_UI.statRow(__('prerace_forecast_avg'), `${_avg}% ${__('prerace_forecast_wet')}`, '🌧️');
+          })()}
           ${GL_UI.statRow(__('prerace_weather'), next.weather === 'wet' ? '🌧️ '+__('prerace_wet_adv') : '☀️ '+__('prerace_dry_norm'), '⛅')}
           ${hoursToRace !== null ? GL_UI.statRow(__('prerace_time_to_race'), `${hoursToRace}h`, '⏳') : ''}
           ${GL_UI.statRow(__('prerace_forecast_confidence'), `${fc.confidence}%`, '📡')}
