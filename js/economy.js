@@ -22,7 +22,7 @@ const Economy = {
     const baseSponsorIncome = sponsors.reduce((sum, s) => sum + (s.weeklyValue || s.income || 0), 0);
     const adminLv = (state.hq && state.hq.admin) || 1;
     const division = Number(state?.season?.division) || 8;
-    const divisionGrantTable = { 1: 36000, 2: 34000, 3: 32000, 4: 30000, 5: 28000, 6: 26000, 7: 24000, 8: 22000 };
+    const divisionGrantTable = { 1: 65000, 2: 52000, 3: 42000, 4: 34000, 5: 28000, 6: 23000, 7: 19000, 8: 16000 };
     const sponsorMultiplier = 1
       + (adminLv >= 2 ? 0.1 : 0)
       + (adminLv >= 3 ? 0.05 : 0)

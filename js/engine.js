@@ -2006,8 +2006,13 @@ function simulateRace(options = {}) {
     }
   });
 
-  const prizeMap = [50000,40000,35000,25000,20000,15000,12000,10000,8000,5000,3000,2000,1500,1000,500,300];
-  const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || 200), 0);
+  // Prize money scales with division: lower number = higher tier = bigger prize
+  const _divForPrize = Number(S.getState()?.season?.division) || 8;
+  const _PRIZE_MULT = {1:1.00, 2:0.84, 3:0.67, 4:0.50, 5:0.35, 6:0.22, 7:0.14, 8:0.08};
+  const _pMult = _PRIZE_MULT[_divForPrize] || 0.08;
+  const prizeBase = [50000,40000,35000,25000,20000,15000,12000,10000,8000,5000,3000,2000,1500,1000,500,300];
+  const prizeMap = prizeBase.map(v => Math.round(v * _pMult / 100) * 100);
+  const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || Math.max(100, Math.round(200 * _pMult / 100) * 100)), 0);
 
   return {
     round,
@@ -2197,6 +2202,22 @@ function applyRaceWeekendEconomy(raceResult) {
       latestEntry.net = latestEntry.income - expenses;
     }
 
+    // Division-aware fan gain: higher division = more fans per race (bigger audience)
+    const _fanDiv = Number(refreshedState?.season?.division) || 8;
+    const _FAN_BASE = {1:1200, 2:800, 3:500, 4:320, 5:200, 6:130, 7:80, 8:50};
+    const _FAN_PER_PT = {1:110, 2:84, 3:62, 4:45, 5:32, 6:22, 7:15, 8:10};
+    const _fanPts = Number(raceResult?.points || 0);
+    const _fanCars = Array.isArray(raceResult?.playerCars) ? raceResult.playerCars.filter(c => !c.isDNF) : [];
+    const _fanBestPos = _fanCars.length
+      ? _fanCars.reduce((min, c) => Math.min(min, Number(c.position) || 99), 99)
+      : (Number(raceResult?.position) || 20);
+    const _podiumMult = _fanBestPos === 1 ? 2.2 : _fanBestPos === 2 ? 1.6 : _fanBestPos === 3 ? 1.3 : 1.0;
+    const fansGained = Math.round(((_FAN_BASE[_fanDiv] || 50) + _fanPts * (_FAN_PER_PT[_fanDiv] || 10)) * _podiumMult);
+    if (refreshedState.team) {
+      refreshedState.team.fans = (refreshedState.team.fans || 0) + fansGained;
+    }
+    summary.fansGained = fansGained;
+
     refreshedState.finances.lastRaceSettlement = {
       ts: Date.now(),
       week: Array.isArray(refreshedState.finances.history) && refreshedState.finances.history.length
@@ -2204,6 +2225,7 @@ function applyRaceWeekendEconomy(raceResult) {
         : (refreshedState?.season?.week || 1) - 1,
       round: raceResult?.round || refreshedState?.season?.raceIndex || 0,
       prizeMoney,
+      fansGained,
       creditsBefore,
       creditsAfterPrize,
       creditsAfterWeekly,

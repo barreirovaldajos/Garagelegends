@@ -2763,7 +2763,6 @@ const SCREENS = {
       window._advisorStrategySource = 'manual';
 
       state.car.rnd.points = (state.car.rnd.points || 0) + 5 + Math.floor(Math.random() * 5);
-      state.team.fans += 100 + (result.points || 0) * 50;
       if (archiveRecord && GL_ENGINE.upsertRaceArchiveRecord) {
         GL_ENGINE.upsertRaceArchiveRecord(state, archiveRecord);
       }
@@ -2942,6 +2941,7 @@ const SCREENS = {
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.totalDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.totalDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.totalDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_credit_delta', 'Total credit delta')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val">${GL_UI.fmtCR(result.economySummary?.creditsBefore || 0)}</div><div class="post-race-metric-label">${__('postrace_credits_before', 'Credits before')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val">${GL_UI.fmtCR(result.economySummary?.creditsAfterWeekly || 0)}</div><div class="post-race-metric-label">${__('postrace_credits_after', 'Credits after')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${(result.economySummary?.fansGained || 0).toLocaleString()}</div><div class="post-race-metric-label">${__('postrace_fans_gained')}</div></div>
             <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
           </div>
         </div>
