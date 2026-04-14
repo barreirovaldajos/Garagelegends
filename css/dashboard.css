@@ -326,20 +326,20 @@
   animation: race-rain-drift 1.25s linear infinite;
 }
 .race-track-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
-.race-track-grass { fill: rgba(139, 235, 104, 0.96); }
-.race-track-runoff { fill: none; stroke: #efd8ad; stroke-width: 132; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-grass { fill: rgba(130, 214, 92, 0.96); }
+.race-track-runoff { fill: none; stroke: rgba(255,255,255,0.88); stroke-width: 104; stroke-linecap: round; stroke-linejoin: round; }
 .race-track-island { fill: rgba(120, 228, 92, 0.96); stroke: rgba(255,255,255,0.2); stroke-width: 8; }
-.race-track-road-shadow { fill: none; stroke: rgba(0,0,0,0.16); stroke-width: 106; filter: url(#race-track-shadow); stroke-linecap: round; stroke-linejoin: round; }
-.race-track-road { fill: none; stroke: #f2ddaf; stroke-width: 98; stroke-linecap: round; stroke-linejoin: round; }
-.race-track-road-inner { fill: none; stroke: #5a5b60; stroke-width: 76; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-road-shadow { fill: none; stroke: rgba(0,0,0,0.2); stroke-width: 96; filter: url(#race-track-shadow); stroke-linecap: round; stroke-linejoin: round; }
+.race-track-road { fill: none; stroke: #2a2d34; stroke-width: 90; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-road-inner { fill: none; stroke: #1b1f26; stroke-width: 78; stroke-linecap: round; stroke-linejoin: round; }
 .race-track-curb-outer,
-.race-track-curb-inner { fill: none; stroke-width: 88; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 9 9; opacity: 0.92; }
-.race-track-curb-outer { stroke: #d63637; }
-.race-track-curb-inner { stroke: rgba(255,255,255,0.95); stroke-dashoffset: 9; }
-.race-track-centerline { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 3; stroke-dasharray: 10 12; stroke-linecap: round; }
+.race-track-curb-inner { fill: none; stroke-width: 92; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 14 14; opacity: 0.92; }
+.race-track-curb-outer { stroke: #d53f3f; }
+.race-track-curb-inner { stroke: rgba(255,255,255,0.95); stroke-dashoffset: 14; }
+.race-track-centerline { fill: none; stroke: rgba(255,255,255,0.66); stroke-width: 2.5; stroke-dasharray: 12 14; stroke-linecap: round; }
 .race-track-racing-line { fill: none; stroke: rgba(68, 232, 235, 0.44); stroke-width: 4; stroke-dasharray: 16 12; stroke-linecap: round; animation: race-line-flow 6s linear infinite; }
-.race-track-pitlane-outline { fill: none; stroke: #efd8ad; stroke-width: 34; stroke-linecap: round; stroke-linejoin: round; }
-.race-track-pitlane { fill: none; stroke: #47484c; stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-pitlane-outline { fill: none; stroke: rgba(255,255,255,0.86); stroke-width: 30; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-pitlane { fill: none; stroke: #2f333a; stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
 .race-track-pit-box { fill: rgba(255,255,255,0.12); stroke: rgba(255,255,255,0.34); stroke-width: 1.5; }
 .race-track-finish { stroke: rgba(255,255,255,0.95); stroke-width: 10; stroke-dasharray: 10 8; }
 .race-track-pitlabel { fill: rgba(255,255,255,0.86); font-size: 28px; font-weight: 800; letter-spacing: 0.14em; }
@@ -351,6 +351,9 @@
 .race-track-building-windows rect { fill: rgba(255,255,255,0.52); stroke: none; }
 .race-track-tree-crown { fill: #65bb38; }
 .race-track-tree-trunk { fill: #8c6a3c; }
+.race-track-lake path { fill: #2d9ee8; stroke: rgba(255,255,255,0.62); stroke-width: 3; }
+.race-track-solar rect { fill: #7b3cb4; stroke: rgba(255,255,255,0.3); stroke-width: 2; }
+.race-track-solar path { fill: none; stroke: rgba(255,255,255,0.5); stroke-width: 2; }
 .race-track-cars { position: absolute; inset: 0; z-index: 3; }
 .race-track-hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 4; pointer-events: none; }
 .race-track-chip { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; background: rgba(7, 10, 15, 0.74); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.92); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }

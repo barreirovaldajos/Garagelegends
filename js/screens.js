@@ -307,28 +307,72 @@ const SCREENS = {
 
   getRaceTrackLayoutProfile(layout) {
     const profiles = {
-      'high-speed': { radiusX: 300, radiusY: 205, waveX: 36, waveY: 24, kinkX: 20, kinkY: 12, phase: 0.2 },
-      power: { radiusX: 286, radiusY: 194, waveX: 48, waveY: 18, kinkX: 18, kinkY: 10, phase: 0.45 },
-      technical: { radiusX: 250, radiusY: 218, waveX: 66, waveY: 40, kinkX: 30, kinkY: 26, phase: 0.92 },
-      mixed: { radiusX: 272, radiusY: 206, waveX: 52, waveY: 30, kinkX: 24, kinkY: 16, phase: 0.6 },
-      endurance: { radiusX: 318, radiusY: 188, waveX: 30, waveY: 18, kinkX: 34, kinkY: 10, phase: 0.08 }
+      'high-speed': {
+        points: [[122,108],[352,82],[676,90],[888,146],[926,240],[840,314],[676,300],[550,332],[650,432],[842,496],[726,558],[458,552],[248,508],[192,420],[286,348],[194,238],[96,210]],
+        scaleX: 1.04,
+        scaleY: 0.94
+      },
+      power: {
+        points: [[112,120],[342,90],[662,84],[884,136],[926,232],[846,310],[686,304],[536,336],[622,432],[812,494],[706,552],[454,548],[246,502],[182,414],[278,338],[186,236],[98,214]],
+        scaleX: 1.02,
+        scaleY: 0.98
+      },
+      technical: {
+        points: [[140,122],[332,96],[620,100],[852,154],[898,248],[812,310],[662,294],[560,334],[632,424],[786,492],[692,536],[470,536],[280,500],[220,424],[294,346],[214,250],[120,226]],
+        scaleX: 0.96,
+        scaleY: 1.04
+      },
+      mixed: {
+        points: [[128,112],[352,86],[676,92],[892,152],[930,244],[842,318],[678,302],[548,336],[646,430],[836,496],[722,558],[456,552],[250,506],[190,420],[286,346],[192,238],[100,214]],
+        scaleX: 1,
+        scaleY: 1
+      },
+      endurance: {
+        points: [[108,102],[338,78],[690,84],[914,142],[948,238],[856,322],[692,306],[530,328],[650,438],[876,504],[758,566],[460,560],[224,514],[166,416],[270,340],[172,234],[88,198]],
+        scaleX: 1.08,
+        scaleY: 0.92
+      }
     };
     return profiles[layout] || profiles.mixed;
   },
 
-  getRaceTrackPoint(progress, layout, laneOffset = 0) {
+  getRaceTrackControlPoints(layout) {
     const profile = this.getRaceTrackLayoutProfile(layout);
+    return (profile.points || []).map(([x, y]) => ({
+      x: (x - 500) * Number(profile.scaleX || 1) + 500,
+      y: (y - 310) * Number(profile.scaleY || 1) + 310
+    }));
+  },
+
+  getRaceTrackSplinePoint(points, index, t) {
+    const total = points.length;
+    const p0 = points[(index - 1 + total) % total];
+    const p1 = points[index % total];
+    const p2 = points[(index + 1) % total];
+    const p3 = points[(index + 2) % total];
+    const tt = t * t;
+    const ttt = tt * t;
+    const x = 0.5 * ((2 * p1.x) + (-p0.x + p2.x) * t + ((2 * p0.x) - (5 * p1.x) + (4 * p2.x) - p3.x) * tt + ((-p0.x) + (3 * p1.x) - (3 * p2.x) + p3.x) * ttt);
+    const y = 0.5 * ((2 * p1.y) + (-p0.y + p2.y) * t + ((2 * p0.y) - (5 * p1.y) + (4 * p2.y) - p3.y) * tt + ((-p0.y) + (3 * p1.y) - (3 * p2.y) + p3.y) * ttt);
+    const dx = 0.5 * ((-p0.x + p2.x) + (2 * ((2 * p0.x) - (5 * p1.x) + (4 * p2.x) - p3.x) * t) + (3 * ((-p0.x) + (3 * p1.x) - (3 * p2.x) + p3.x) * tt));
+    const dy = 0.5 * ((-p0.y + p2.y) + (2 * ((2 * p0.y) - (5 * p1.y) + (4 * p2.y) - p3.y) * t) + (3 * ((-p0.y) + (3 * p1.y) - (3 * p2.y) + p3.y) * tt));
+    return { x, y, dx, dy };
+  },
+
+  getRaceTrackPoint(progress, layout, laneOffset = 0) {
+    const points = this.getRaceTrackControlPoints(layout);
+    if (!points.length) return { x: 500, y: 312 };
     const loop = ((Number(progress) % 1) + 1) % 1;
-    const theta = (loop * Math.PI * 2) - (Math.PI / 2);
-    const radiusX = profile.radiusX
-      + (Math.sin(theta * 2 + profile.phase) * profile.waveX)
-      + (Math.cos(theta * 3 - profile.phase) * profile.kinkX);
-    const radiusY = profile.radiusY
-      + (Math.cos(theta * 2 - profile.phase) * profile.waveY)
-      + (Math.sin(theta * 3 + profile.phase) * profile.kinkY);
+    const splineCursor = loop * points.length;
+    const index = Math.floor(splineCursor) % points.length;
+    const t = splineCursor - Math.floor(splineCursor);
+    const splinePoint = this.getRaceTrackSplinePoint(points, index, t);
+    const tangentLen = Math.max(0.001, Math.hypot(splinePoint.dx, splinePoint.dy));
+    const nx = -splinePoint.dy / tangentLen;
+    const ny = splinePoint.dx / tangentLen;
     return {
-      x: 500 + (Math.cos(theta) * (radiusX + laneOffset)),
-      y: 312 + (Math.sin(theta) * (radiusY + (laneOffset * 0.62)))
+      x: splinePoint.x + (nx * laneOffset),
+      y: splinePoint.y + (ny * laneOffset)
     };
   },
 
@@ -376,27 +420,37 @@ const SCREENS = {
       'high-speed': {
         stands: [{ x: 210, y: 26, w: 540, h: 66 }],
         garages: [{ x: 144, y: 500, w: 560, h: 54 }, { x: 22, y: 516, w: 126, h: 42 }],
-        buildings: [{ x: 38, y: 118, w: 72, h: 56 }, { x: 728, y: 510, w: 126, h: 34 }]
+        buildings: [{ x: 38, y: 118, w: 72, h: 56 }, { x: 728, y: 510, w: 126, h: 34 }],
+        lakes: [{ x: 38, y: 454, w: 128, h: 96 }],
+        panels: [{ x: 782, y: 116, w: 120, h: 56 }]
       },
       power: {
         stands: [{ x: 182, y: 34, w: 590, h: 58 }],
         garages: [{ x: 154, y: 492, w: 580, h: 58 }],
-        buildings: [{ x: 72, y: 440, w: 96, h: 46 }, { x: 772, y: 120, w: 104, h: 40 }]
+        buildings: [{ x: 72, y: 440, w: 96, h: 46 }, { x: 772, y: 120, w: 104, h: 40 }],
+        lakes: [{ x: 46, y: 446, w: 120, h: 88 }],
+        panels: [{ x: 764, y: 112, w: 124, h: 58 }]
       },
       technical: {
         stands: [{ x: 192, y: 28, w: 520, h: 62 }],
         garages: [{ x: 188, y: 486, w: 520, h: 52 }],
-        buildings: [{ x: 84, y: 194, w: 88, h: 42 }, { x: 756, y: 448, w: 116, h: 38 }]
+        buildings: [{ x: 84, y: 194, w: 88, h: 42 }, { x: 756, y: 448, w: 116, h: 38 }],
+        lakes: [{ x: 54, y: 456, w: 112, h: 84 }],
+        panels: [{ x: 734, y: 108, w: 126, h: 52 }]
       },
       mixed: {
         stands: [{ x: 220, y: 22, w: 520, h: 70 }],
         garages: [{ x: 154, y: 500, w: 560, h: 52 }],
-        buildings: [{ x: 44, y: 118, w: 96, h: 54 }, { x: 746, y: 500, w: 124, h: 36 }]
+        buildings: [{ x: 44, y: 118, w: 96, h: 54 }, { x: 746, y: 500, w: 124, h: 36 }],
+        lakes: [{ x: 30, y: 446, w: 138, h: 102 }],
+        panels: [{ x: 742, y: 102, w: 132, h: 58 }, { x: 686, y: 486, w: 140, h: 58 }]
       },
       endurance: {
         stands: [{ x: 170, y: 18, w: 620, h: 66 }],
         garages: [{ x: 112, y: 504, w: 640, h: 48 }],
-        buildings: [{ x: 58, y: 130, w: 88, h: 44 }, { x: 786, y: 450, w: 110, h: 44 }]
+        buildings: [{ x: 58, y: 130, w: 88, h: 44 }, { x: 786, y: 450, w: 110, h: 44 }],
+        lakes: [{ x: 28, y: 448, w: 146, h: 106 }],
+        panels: [{ x: 768, y: 102, w: 136, h: 62 }]
       }
     };
     const selected = scenery[layout] || scenery.mixed;
@@ -413,7 +467,9 @@ const SCREENS = {
     const stands = selected.stands.map((item) => `<g class="race-track-stand"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="8"></rect><path class="race-track-stand-grid" d="M ${item.x} ${item.y + 18} H ${item.x + item.w} M ${item.x} ${item.y + 40} H ${item.x + item.w}"></path></g>`).join('');
     const garages = selected.garages.map((item) => `<g class="race-track-garage"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="8"></rect><path class="race-track-garage-detail" d="M ${item.x + 20} ${item.y + item.h - 12} H ${item.x + item.w - 20}"></path></g>`).join('');
     const buildings = selected.buildings.map((item) => `<g class="race-track-building"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="6"></rect><g class="race-track-building-windows"><rect x="${item.x + 12}" y="${item.y + 12}" width="10" height="8" rx="2"></rect><rect x="${item.x + 30}" y="${item.y + 12}" width="10" height="8" rx="2"></rect><rect x="${item.x + 48}" y="${item.y + 12}" width="10" height="8" rx="2"></rect></g></g>`).join('');
-    return `${stands}${garages}${buildings}${treeNodes}`;
+    const lakes = (selected.lakes || []).map((item) => `<g class="race-track-lake"><path d="M ${item.x + 10} ${item.y + item.h * 0.4} C ${item.x - 4} ${item.y + item.h * 0.75}, ${item.x + item.w * 0.2} ${item.y + item.h}, ${item.x + item.w * 0.5} ${item.y + item.h * 0.92} C ${item.x + item.w * 0.9} ${item.y + item.h * 0.84}, ${item.x + item.w + 8} ${item.y + item.h * 0.5}, ${item.x + item.w * 0.82} ${item.y + item.h * 0.16} C ${item.x + item.w * 0.62} ${item.y - 4}, ${item.x + item.w * 0.24} ${item.y + 6}, ${item.x + 10} ${item.y + item.h * 0.4} Z"></path></g>`).join('');
+    const panels = (selected.panels || []).map((item) => `<g class="race-track-solar"><rect x="${item.x}" y="${item.y}" width="${item.w}" height="${item.h}" rx="6"></rect><path d="M ${item.x + 8} ${item.y + 16} H ${item.x + item.w - 8} M ${item.x + 8} ${item.y + 28} H ${item.x + item.w - 8} M ${item.x + 8} ${item.y + 40} H ${item.x + item.w - 8}"></path></g>`).join('');
+    return `${lakes}${stands}${garages}${buildings}${panels}${treeNodes}`;
   },
 
   getRaceCarSvgMarkup() {
@@ -476,9 +532,8 @@ const SCREENS = {
         <div class="race-track-hud">
           <span class="race-track-chip" id="race-track-chip-layout">${this.getTrackLayoutLabel(layout)}</span>
           <span class="race-track-chip" id="race-track-chip-weather">${weather === 'wet' ? '🌧️' : '☀️'} ${weatherLabel}</span>
-          <span class="race-track-chip" id="race-track-chip-lap">L1</span>
           <span class="race-track-chip" id="race-track-chip-pit">PIT 0</span>
-          <span class="race-track-chip" id="race-track-chip-player">${__('standings_you')} P—</span>
+          <span class="race-track-chip" id="race-track-chip-player">${__('standings_you')} P—/P—</span>
         </div>
       </div>`;
   },
@@ -558,11 +613,9 @@ const SCREENS = {
       trackStage.classList.toggle('dry-weather', weather !== 'wet');
     }
 
-    const lapChip = document.getElementById('race-track-chip-lap');
     const weatherChip = document.getElementById('race-track-chip-weather');
     const pitChip = document.getElementById('race-track-chip-pit');
     const playerChip = document.getElementById('race-track-chip-player');
-    if (lapChip) lapChip.textContent = `L${currentLap}/${totalLaps}`;
     if (weatherChip) weatherChip.textContent = `${weather === 'wet' ? '🌧️' : '☀️'} ${this.getWeatherLabel(weather)}`;
 
     const intraLapProgress = (progress * totalLaps) % 1;
@@ -571,8 +624,21 @@ const SCREENS = {
     const cars = (Array.isArray(liveOrder) ? liveOrder : []).slice(0, 20);
     const activePitCars = cars.filter((car) => !!car?.pit).length;
     if (pitChip) pitChip.textContent = `PIT ${activePitCars}`;
-    const playerCar = cars.find((car) => car?.isPlayer);
-    if (playerChip) playerChip.textContent = `${__('standings_you')} ${playerCar ? `P${Math.max(1, Math.round(playerCar.displayPos || playerCar.pos || 1))}` : 'P—'}`;
+    const teamCars = cars
+      .filter((car) => car?.isPlayer)
+      .sort((a, b) => Number(a?.displayPos || a?.pos || 99) - Number(b?.displayPos || b?.pos || 99));
+    if (playerChip) {
+      if (teamCars.length >= 2) {
+        const p1 = Math.max(1, Math.round(teamCars[0].displayPos || teamCars[0].pos || 1));
+        const p2 = Math.max(1, Math.round(teamCars[1].displayPos || teamCars[1].pos || 2));
+        playerChip.textContent = `${__('standings_you')} P${p1}/P${p2}`;
+      } else if (teamCars.length === 1) {
+        const p = Math.max(1, Math.round(teamCars[0].displayPos || teamCars[0].pos || 1));
+        playerChip.textContent = `${__('standings_you')} P${p}`;
+      } else {
+        playerChip.textContent = `${__('standings_you')} P—`;
+      }
+    }
 
     if (!this._raceVisualState || typeof this._raceVisualState !== 'object') {
       this._raceVisualState = {};
@@ -2772,9 +2838,21 @@ const SCREENS = {
     const el = document.getElementById('screen-postrace');
     if (!el) return;
     if (!result) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('postrace_no_result')}</p></div>`; return; }
-    const playerCars = Array.isArray(result.playerCars) ? result.playerCars : [];
+    const playerCars = (Array.isArray(result.playerCars) ? result.playerCars : [])
+      .slice()
+      .sort((a, b) => {
+        const posA = a?.isDNF ? 999 : Number(a?.position || 999);
+        const posB = b?.isDNF ? 999 : Number(b?.position || 999);
+        return posA - posB;
+      });
     const playerEventPilotNames = this.getPlayerEventPilotNames(playerCars);
     const leadCar = playerCars[0] || { position: result.position, isDNF: result.isDNF, pilotName: 'Driver', points: result.points };
+    const teamResultSummary = (playerCars.length ? playerCars : [leadCar])
+      .map((car) => `${car.pilotName || __('race_driver', 'Driver')} ${car.isDNF ? 'DNF' : `P${car.position}`}`)
+      .join(' · ');
+    const teamResultHeadline = (playerCars.length ? playerCars : [leadCar])
+      .map((car) => `<span class="badge ${car.isDNF ? 'badge-red' : 'badge-blue'}" style="font-size:0.74rem;padding:6px 10px">${car.pilotName || __('race_driver', 'Driver')}: ${car.isDNF ? 'DNF' : `P${car.position}`}</span>`)
+      .join(' ');
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
     const performanceReport = result.performanceReport || (GL_ENGINE.buildRacePerformanceReport ? GL_ENGINE.buildRacePerformanceReport(result, state) : null);
@@ -2848,8 +2926,8 @@ const SCREENS = {
           <div class="post-race-pos-label">${leadCar.isDNF ? __('postrace_dnf') : leadCar.position === 1 ? '🏆 '+__('postrace_winner') : leadCar.position <= 3 ? '🥇 '+__('postrace_podium') : __('postrace_classified')}</div>
         </div>
         <div class="post-race-info">
-          <div class="post-race-title">${leadCar.isDNF ? __('postrace_mech_fail') : leadCar.position === 1 ? __('postrace_victory') : leadCar.position <= 3 ? __('postrace_podium_fin') : `P${leadCar.position} ${__('postrace_finish')}`}</div>
-            <div style="color:var(--t-secondary)">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)}</div>
+          <div class="post-race-title">${leadCar.isDNF ? __('postrace_mech_fail') : leadCar.position === 1 ? __('postrace_victory') : leadCar.position <= 3 ? __('postrace_podium_fin') : `${__('race_team_cars')}: ${teamResultSummary}`}</div>
+            <div style="color:var(--t-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)} ${teamResultHeadline}</div>
           <div class="post-race-metrics">
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
