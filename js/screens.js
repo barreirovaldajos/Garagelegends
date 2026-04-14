@@ -2039,21 +2039,31 @@ const SCREENS = {
   },
 
   marketSponsorList() {
-    const myIds = GL_STATE.getState().sponsors.map(s=>s.id);
+    const state = GL_STATE.getState();
+    const _spDiv = Number(state?.season?.division) || 8;
+    const _SP_MULT = {1:13.0, 2:9.0, 3:6.5, 4:4.5, 5:3.2, 6:2.2, 7:1.5, 8:1.0};
+    const _spMult = _SP_MULT[_spDiv] || 1.0;
+    const myIds = state.sponsors.map(s=>s.id);
     const available = GL_DATA.SPONSOR_POOL.filter(s=>!myIds.includes(s.id));
-    return available.map(sp => `
+    if (!available.length) return `<p style="color:var(--t-secondary);font-size:0.9rem">${__('market_no_sponsors') || 'No hay patrocinadores disponibles.'}</p>`;
+    return available.map(sp => {
+      const scaledIncome = Math.round(sp.income * _spMult / 100) * 100;
+      const scaledBonus = Math.round(sp.demandBonus * _spMult / 100) * 100;
+      return `
       <div class="market-pilot-row">
         <div class="market-pilot-avatar" style="font-size:2rem;background:${sp.bg||'#111'}">${sp.logo}</div>
         <div class="market-pilot-info">
           <div class="market-pilot-name" style="color:${sp.color}">${sp.name}</div>
           <div class="market-pilot-meta">${__('market_duration')}: ${sp.duration} ${__('market_weeks')} · ${__('market_req')}: ${sp.demand}</div>
+          <div style="font-size:0.74rem;color:var(--c-gold);margin-top:3px">${__('market_demand_bonus') || 'Bonus objetivo'}: +${GL_UI.fmtCR(scaledBonus)}</div>
         </div>
         <div class="market-pilot-salary">
-          <div class="market-pilot-salary-val">+${GL_UI.fmtCR(sp.income)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
+          <div class="market-pilot-salary-val">+${GL_UI.fmtCR(scaledIncome)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
           <div class="market-pilot-salary-label">${__('market_sponsor_income')}</div>
           <button class="btn btn-primary btn-sm" style="margin-top:var(--s-2)" onclick="GL_SCREENS.signSponsor('${sp.id}')">${__('market_sign_deal')}</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   },
 
   signPilot(id) {
@@ -2078,10 +2088,21 @@ const SCREENS = {
   signSponsor(id) {
     const sp = GL_DATA.SPONSOR_POOL.find(x=>x.id===id);
     if (!sp) return;
-    GL_STATE.getState().sponsors.push({ ...GL_STATE.deepClone(sp), weeksLeft: sp.duration });
-    GL_STATE.addLog(`💼 ${sp.name} sponsor deal signed!`, 'good');
+    const state = GL_STATE.getState();
+    const _spDiv = Number(state?.season?.division) || 8;
+    const _SP_MULT = {1:13.0, 2:9.0, 3:6.5, 4:4.5, 5:3.2, 6:2.2, 7:1.5, 8:1.0};
+    const _spMult = _SP_MULT[_spDiv] || 1.0;
+    const scaledIncome = Math.round(sp.income * _spMult / 100) * 100;
+    const scaledBonus = Math.round(sp.demandBonus * _spMult / 100) * 100;
+    state.sponsors.push({
+      ...GL_STATE.deepClone(sp),
+      weeklyValue: scaledIncome,
+      demandBonus: scaledBonus,
+      weeksLeft: sp.duration
+    });
+    GL_STATE.addLog(`💼 ${sp.name} sponsor deal signed! +${GL_UI.fmtCR(scaledIncome)}/wk`, 'good');
     GL_STATE.saveState();
-    GL_UI.toast(`${sp.name} deal signed!`, 'success');
+    GL_UI.toast(`${sp.name} deal signed! +${GL_UI.fmtCR(scaledIncome)}/wk`, 'success');
     this.renderMarket();
     GL_DASHBOARD.refresh();
   },
