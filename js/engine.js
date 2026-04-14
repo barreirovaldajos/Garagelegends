@@ -867,6 +867,41 @@ function formatSignedGapDeltaMs(value) {
   return `${seconds > 0 ? '+' : ''}${seconds.toFixed(1)}s`;
 }
 
+function getCrashPressureContext(entry, positions = []) {
+  const active = (Array.isArray(positions) ? positions : [])
+    .filter((car) => !car?.retired && car?.id !== entry?.id)
+    .sort((a, b) => Number(a?.timeMs || 0) - Number(b?.timeMs || 0));
+  const selfTime = Number(entry?.timeMs || 0);
+  const ahead = active
+    .filter((car) => Number(car?.timeMs || Number.POSITIVE_INFINITY) <= selfTime)
+    .slice(-1)[0] || null;
+  const behind = active.find((car) => Number(car?.timeMs || Number.POSITIVE_INFINITY) > selfTime) || null;
+  const aheadGapMs = ahead ? Math.max(0, selfTime - Number(ahead.timeMs || selfTime)) : null;
+  const behindGapMs = behind ? Math.max(0, Number(behind.timeMs || selfTime) - selfTime) : null;
+  const teammateAhead = !!ahead && !!ahead.isPlayer;
+  const teammateBehind = !!behind && !!behind.isPlayer;
+  const rivalAhead = !!ahead && !ahead.isPlayer;
+  const rivalBehind = !!behind && !behind.isPlayer;
+  const rivalPressure = (rivalAhead && Number.isFinite(aheadGapMs) && aheadGapMs <= 900)
+    || (rivalBehind && Number.isFinite(behindGapMs) && behindGapMs <= 900);
+  const teammateBubble = (teammateAhead && Number.isFinite(aheadGapMs) && aheadGapMs <= 1200)
+    || (teammateBehind && Number.isFinite(behindGapMs) && behindGapMs <= 1200);
+
+  const currentPos = Number.isFinite(entry?.pos) ? Number(entry.pos) : null;
+  return {
+    currentPos,
+    teammateAhead,
+    teammateBehind,
+    rivalAhead,
+    rivalBehind,
+    aheadGapMs,
+    behindGapMs,
+    rivalPressure,
+    teammateBubble,
+    inCleanAir: !rivalPressure
+  };
+}
+
 function buildPlayerCrashReport(options = {}) {
   const {
     pilotName,
@@ -879,7 +914,8 @@ function buildPlayerCrashReport(options = {}) {
     lapProfile,
     staffFx,
     rt,
-    usefulLife
+    usefulLife,
+    pressureContext
   } = options;
 
   const causes = [];
@@ -925,12 +961,25 @@ function buildPlayerCrashReport(options = {}) {
     pushTip(translateText('crash_tip_staff_risk', 'Improve technical/race engineering support to stabilize race execution.'));
   }
 
+  const pressure = pressureContext && typeof pressureContext === 'object' ? pressureContext : {};
+  const hasLowExternalPressure = !!pressure.inCleanAir && !!pressure.teammateBubble && Number(pressure.currentPos || 99) <= 2;
+  if (hasLowExternalPressure) {
+    causes.push(translateText('crash_cause_low_external_pressure', 'There was no direct rival pressure at this moment; the incident likely came from setup/risk variance.'));
+    pushTip(formatTranslatedText('crash_tip_hold_team_pace', {
+      position: Number(pressure.currentPos || 1)
+    }, 'When running in the top positions with your teammate nearby, hold team pace and avoid forced pushes.'));
+  } else if (!!pressure.rivalPressure) {
+    pushTip(translateText('crash_tip_avoid_dirty_air', 'In close rival battles, lower aggression one step and avoid unstable dirty-air entries.'));
+  }
+
   const wearOveruse = Number.isFinite(rt?.wear) && Number.isFinite(usefulLife)
     ? Number(rt.wear) - Number(usefulLife)
     : 0;
   if (wearOveruse > 0.35) {
     causes.push(translateText('crash_cause_tyre_overuse', 'Tyre life was stretched beyond the safe performance window.'));
     pushTip(translateText('crash_tip_tyre_window', 'Pit 1-2 laps earlier when tyre drop warnings appear.'));
+    const bringForward = wearOveruse > 0.9 ? 3 : 2;
+    pushTip(formatTranslatedText('crash_tip_dynamic_pit', { laps: bringForward }, 'Bring your next pit stop forward by about {laps} laps in this context.'));
   }
 
   if ((engineFx?.risk || 0) > 0.1 && riskLevel >= 65) {
@@ -938,9 +987,26 @@ function buildPlayerCrashReport(options = {}) {
     pushTip(translateText('crash_tip_avoid_stack', 'Do not combine high risk level and push mode for long stints.'));
   }
 
+  if (riskLevel >= 55) {
+    const targetRisk = clamp(riskLevel >= 70 ? riskLevel - 15 : riskLevel - 8, 42, 62);
+    pushTip(formatTranslatedText('crash_tip_target_risk', {
+      targetRisk
+    }, 'For this setup, target risk around {targetRisk} instead of over-pushing.'));
+  }
+
+  if ((strategy?.engineMode || 'normal') === 'push' && Number.isFinite(totalLaps)) {
+    const finalWindow = Math.max(5, Math.round(totalLaps * 0.2));
+    const pushLapStart = Math.max(1, totalLaps - finalWindow + 1);
+    pushTip(formatTranslatedText('crash_tip_push_window', {
+      pushLapStart,
+      finalWindow
+    }, 'Keep engine mode normal and switch to push only from lap {pushLapStart} (last {finalWindow} laps).'));
+  }
+
   if (!causes.length) {
     causes.push(translateText('crash_cause_generic', 'Incident likely came from race variance under pressure conditions.'));
     pushTip(translateText('crash_tip_generic', 'Use a slightly safer baseline and escalate only after stable pace is confirmed.'));
+    pushTip(formatTranslatedText('crash_tip_target_risk', { targetRisk: 50 }, 'For this setup, target risk around {targetRisk} instead of over-pushing.'));
   }
 
   return {
@@ -948,7 +1014,7 @@ function buildPlayerCrashReport(options = {}) {
     lap: Number.isFinite(lap) ? lap : null,
     totalLaps: Number.isFinite(totalLaps) ? totalLaps : null,
     causes,
-    tips: tips.length ? tips.slice(0, 3) : [translateText('crash_tip_generic', 'Use a slightly safer baseline and escalate only after stable pace is confirmed.')]
+    tips: tips.length ? tips.slice(0, 4) : [translateText('crash_tip_generic', 'Use a slightly safer baseline and escalate only after stable pace is confirmed.')]
   };
 }
 
@@ -1765,6 +1831,7 @@ function simulateRace(options = {}) {
         if (Math.random() < 0.2) {
           const currentTyre = entry.tyre || s.tyre || 'medium';
           const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
+          const pressureContext = getCrashPressureContext(entry, positions);
           entry.retired = true;
           crashReportsByCarId[entry.id] = buildPlayerCrashReport({
             pilotName: entry.pilotName,
@@ -1777,7 +1844,8 @@ function simulateRace(options = {}) {
             lapProfile,
             staffFx,
             rt,
-            usefulLife
+            usefulLife,
+            pressureContext
           });
           events.push({ lap, type: 'incident', text: `💥 ${formatTranslatedText('race_event_player_retire', { pilotName: entry.pilotName }, '<strong>{pilotName} retires!</strong> Mechanical issue. DNF.')}` });
         } else {
