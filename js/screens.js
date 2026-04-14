@@ -306,29 +306,30 @@ const SCREENS = {
   },
 
   getRaceTrackLayoutProfile(layout) {
+    const baseShape = [[170,130],[360,110],[620,112],[820,132],[900,190],[886,270],[820,330],[742,374],[804,446],[880,520],[760,560],[560,542],[400,524],[300,560],[220,520],[188,446],[240,364],[314,306],[258,248],[176,210]];
     const profiles = {
       'high-speed': {
-        points: [[122,108],[352,82],[676,90],[888,146],[926,240],[840,314],[676,300],[550,332],[650,432],[842,496],[726,558],[458,552],[248,508],[192,420],[286,348],[194,238],[96,210]],
+        points: baseShape,
         scaleX: 1.04,
         scaleY: 0.94
       },
       power: {
-        points: [[112,120],[342,90],[662,84],[884,136],[926,232],[846,310],[686,304],[536,336],[622,432],[812,494],[706,552],[454,548],[246,502],[182,414],[278,338],[186,236],[98,214]],
+        points: baseShape,
         scaleX: 1.02,
         scaleY: 0.98
       },
       technical: {
-        points: [[140,122],[332,96],[620,100],[852,154],[898,248],[812,310],[662,294],[560,334],[632,424],[786,492],[692,536],[470,536],[280,500],[220,424],[294,346],[214,250],[120,226]],
+        points: baseShape,
         scaleX: 0.96,
         scaleY: 1.04
       },
       mixed: {
-        points: [[128,112],[352,86],[676,92],[892,152],[930,244],[842,318],[678,302],[548,336],[646,430],[836,496],[722,558],[456,552],[250,506],[190,420],[286,346],[192,238],[100,214]],
+        points: baseShape,
         scaleX: 1,
         scaleY: 1
       },
       endurance: {
-        points: [[108,102],[338,78],[690,84],[914,142],[948,238],[856,322],[692,306],[530,328],[650,438],[876,504],[758,566],[460,560],[224,514],[166,416],[270,340],[172,234],[88,198]],
+        points: baseShape,
         scaleX: 1.08,
         scaleY: 0.92
       }
@@ -379,11 +380,11 @@ const SCREENS = {
   getRacePitLanePoint(progress, layout) {
     const local = Math.max(0, Math.min(1, Number(progress) || 0));
     const profileMap = {
-      'high-speed': { entryProgress: 0.885, exitProgress: 0.035, entryDx: 40, entryDy: -44, exitDx: 44, exitDy: -50, c1Dx: 136, c1Dy: -94, c2Dx: -62, c2Dy: -92 },
-      power: { entryProgress: 0.89, exitProgress: 0.03, entryDx: 38, entryDy: -44, exitDx: 42, exitDy: -46, c1Dx: 128, c1Dy: -86, c2Dx: -58, c2Dy: -84 },
-      technical: { entryProgress: 0.88, exitProgress: 0.04, entryDx: 34, entryDy: -40, exitDx: 36, exitDy: -44, c1Dx: 112, c1Dy: -74, c2Dx: -50, c2Dy: -76 },
-      mixed: { entryProgress: 0.885, exitProgress: 0.032, entryDx: 36, entryDy: -42, exitDx: 40, exitDy: -46, c1Dx: 122, c1Dy: -82, c2Dx: -56, c2Dy: -80 },
-      endurance: { entryProgress: 0.89, exitProgress: 0.03, entryDx: 42, entryDy: -48, exitDx: 48, exitDy: -54, c1Dx: 146, c1Dy: -102, c2Dx: -68, c2Dy: -96 }
+      'high-speed': { entryProgress: 0.205, exitProgress: 0.03, entryDx: -8, entryDy: -36, exitDx: -10, exitDy: -34, c1Dx: -200, c1Dy: -44, c2Dx: 210, c2Dy: -42 },
+      power: { entryProgress: 0.21, exitProgress: 0.03, entryDx: -8, entryDy: -34, exitDx: -10, exitDy: -32, c1Dx: -188, c1Dy: -42, c2Dx: 202, c2Dy: -40 },
+      technical: { entryProgress: 0.20, exitProgress: 0.032, entryDx: -8, entryDy: -32, exitDx: -10, exitDy: -30, c1Dx: -176, c1Dy: -36, c2Dx: 188, c2Dy: -36 },
+      mixed: { entryProgress: 0.205, exitProgress: 0.03, entryDx: -8, entryDy: -34, exitDx: -10, exitDy: -32, c1Dx: -184, c1Dy: -40, c2Dx: 196, c2Dy: -38 },
+      endurance: { entryProgress: 0.215, exitProgress: 0.028, entryDx: -8, entryDy: -36, exitDx: -10, exitDy: -34, c1Dx: -212, c1Dy: -46, c2Dx: 222, c2Dy: -44 }
     };
     const profile = profileMap[layout] || profileMap.mixed;
     const entryBase = this.getRaceTrackPoint(profile.entryProgress, layout, 10);
@@ -521,7 +522,6 @@ const SCREENS = {
           <path class="race-track-road-inner" d="${roadPath}" />
           <path class="race-track-curb-inner" d="${roadPath}" />
           <path class="race-track-centerline" d="${centerPath}" />
-          <path class="race-track-racing-line" d="${centerPath}" />
           <path class="race-track-pitlane" d="${pitPath}" />
           <path class="race-track-pitlane-outline" d="${pitPath}" />
           <g class="race-track-pit-boxes">${pitBoxes}</g>
