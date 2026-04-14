@@ -2895,6 +2895,18 @@ const SCREENS = {
     const teamResultHeadline = (playerCars.length ? playerCars : [leadCar])
       .map((car) => `<span class="badge ${car.isDNF ? 'badge-red' : 'badge-blue'}" style="font-size:0.74rem;padding:6px 10px">${car.pilotName || __('race_driver', 'Driver')}: ${car.isDNF ? 'DNF' : `P${car.position}`}</span>`)
       .join(' ');
+    const heroTeamResults = (playerCars.length ? playerCars : [leadCar])
+      .slice(0, 2)
+      .map((car) => {
+        const driverName = car.pilotName || __('race_driver', 'Driver');
+        const posText = car.isDNF ? 'DNF' : `P${car.position}`;
+        const ptsText = `${Number(car.points || 0)} pts`;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)">
+          <span style="font-size:0.78rem;color:var(--t-secondary)">${driverName}</span>
+          <strong style="font-size:0.8rem;color:var(--t-primary)">${posText} · ${ptsText}</strong>
+        </div>`;
+      })
+      .join('');
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
     const performanceReport = result.performanceReport || (GL_ENGINE.buildRacePerformanceReport ? GL_ENGINE.buildRacePerformanceReport(result, state) : null);
@@ -2968,8 +2980,9 @@ const SCREENS = {
           <div class="post-race-pos-label">${leadCar.isDNF ? __('postrace_dnf') : leadCar.position === 1 ? '🏆 '+__('postrace_winner') : leadCar.position <= 3 ? '🥇 '+__('postrace_podium') : __('postrace_classified')}</div>
         </div>
         <div class="post-race-info">
-          <div class="post-race-title">${leadCar.isDNF ? __('postrace_mech_fail') : leadCar.position === 1 ? __('postrace_victory') : leadCar.position <= 3 ? __('postrace_podium_fin') : `${__('race_team_cars')}: ${teamResultSummary}`}</div>
+          <div class="post-race-title">${__('race_team_cars')}: ${teamResultSummary}</div>
             <div style="color:var(--t-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)} ${teamResultHeadline}</div>
+          <div style="display:grid;gap:6px;margin-top:10px">${heroTeamResults}</div>
           <div class="post-race-metrics">
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
