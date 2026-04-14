@@ -62,7 +62,8 @@ const DEFAULT_STATE = {
     weeklyIncome: 0,
     weeklyExpenses: 0,
     history: [],   // [{week, income, expenses, net}]
-    lastRaceSettlement: null
+    lastRaceSettlement: null,
+    cashflowAdjustments: [] // [{week, amount, reason, ts}]
   },
   season: {
     year: 1,
@@ -336,6 +337,7 @@ function loadState() {
       if (typeof _state.finances.criticalDeficit !== 'boolean') _state.finances.criticalDeficit = false;
       if (typeof _state.finances.lastNet !== 'number') _state.finances.lastNet = 0;
       if (typeof _state.finances.lastRaceSettlement === 'undefined') _state.finances.lastRaceSettlement = null;
+      if (!Array.isArray(_state.finances.cashflowAdjustments)) _state.finances.cashflowAdjustments = [];
       if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'onboarding', lastSummary: null, lastSummaryPending: false };
       if (typeof _state.season.lastSummaryPending !== 'boolean') _state.season.lastSummaryPending = false;
       if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
@@ -576,6 +578,23 @@ function spendCredits(amount) {
   saveState();
   return true;
 }
+
+function addCashflowAdjustment(amount, reason = 'manual', meta = {}) {
+  const safeAmount = Number(amount || 0);
+  if (!safeAmount) return;
+  if (!Array.isArray(_state.finances.cashflowAdjustments)) _state.finances.cashflowAdjustments = [];
+  _state.finances.cashflowAdjustments.unshift({
+    week: Number.isFinite(meta.week) ? Number(meta.week) : Number(_state.season.week || 1),
+    amount: safeAmount,
+    reason: String(reason || 'manual'),
+    ts: Number.isFinite(meta.ts) ? Number(meta.ts) : Date.now(),
+    note: typeof meta.note === 'string' ? meta.note : ''
+  });
+  if (_state.finances.cashflowAdjustments.length > 120) {
+    _state.finances.cashflowAdjustments = _state.finances.cashflowAdjustments.slice(0, 120);
+  }
+  saveState();
+}
 function addTokens(n) {
   _state.finances.tokens = (_state.finances.tokens || 0) + n;
   saveState();
@@ -638,6 +657,7 @@ window.GL_STATE = {
   getPilots, getStaff, getFacilities, getSponsors, getStandings,
   getMyStanding, getCar, getHQ, getConstruction, getRaceResults,
   addCredits, spendCredits, addTokens, spendTokens,
+  addCashflowAdjustment,
   addLog, addRandomEvent, popRandomEvent, addNotification, getNotifications, markNotificationsRead, deepClone,
   // Academy/Scouting
   getAcademyQueue: () => _state.academyQueue,

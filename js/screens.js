@@ -917,6 +917,12 @@ const SCREENS = {
         GL_UI.toast(__('pilots_dismiss_insufficient') || 'Saldo insuficiente para pagar la indemnizacion.', 'warning');
         return;
       }
+      if (typeof GL_STATE.addCashflowAdjustment === 'function') {
+        GL_STATE.addCashflowAdjustment(-Math.abs(severance), 'pilot_severance', {
+          week: Number(state?.season?.week || 1),
+          note: pilot.name || ''
+        });
+      }
 
       state.pilots = (state.pilots || []).filter((p) => p.id !== id);
       if (window._raceStrategy && Array.isArray(window._raceStrategy.selectedPilotIds)) {
@@ -1605,6 +1611,18 @@ const SCREENS = {
           reasonKey: 'finances_health_reason_positive_total'
         };
     const breakdown = financeOverview.breakdown;
+    const cashflowAdjustments = Array.isArray(fi.cashflowAdjustments) ? fi.cashflowAdjustments : [];
+    const adjustmentByWeek = cashflowAdjustments.reduce((acc, entry) => {
+      const weekKey = Number(entry?.week || 0);
+      if (!Number.isFinite(weekKey) || weekKey <= 0) return acc;
+      acc[weekKey] = (acc[weekKey] || 0) + Number(entry?.amount || 0);
+      return acc;
+    }, {});
+    const currentWeekAdjustment = Number(adjustmentByWeek[Number(state?.season?.week || 0)] || 0);
+    const operatingNetWithAdjustments = Number(financeOverview.operatingNet || 0) + currentWeekAdjustment;
+    const totalNetWithAdjustments = operatingNetWithAdjustments + Number(financeOverview.competitionNet || 0);
+    const closingCashWithAdjustments = Number(fi.credits || 0);
+    const openingCashWithAdjustments = closingCashWithAdjustments - totalNetWithAdjustments;
     const income = breakdown.income;
     const expenses = breakdown.expenses;
     const lastRaceSettlement = financeOverview.settlement;
@@ -1638,37 +1656,41 @@ const SCREENS = {
       const weekKey = Number(h.week || 0);
       const hasStoredPrize = Number.isFinite(Number(h.prizeIncome));
       const prizeIncome = hasStoredPrize ? Number(h.prizeIncome || 0) : Number(prizeByWeek[weekKey] || 0);
+      const oneOffAdjustment = Number(adjustmentByWeek[weekKey] || 0);
       const operatingIncomeSource = (typeof h.operatingIncome === 'number')
         ? h.operatingIncome
         : ((h.income || 0) - (hasStoredPrize ? Number(h.prizeIncome || 0) : 0));
       const operatingIncome = Number(operatingIncomeSource || 0);
       const expenses = Number(h.expenses || 0);
-      const weeklyNet = (operatingIncome + prizeIncome) - expenses;
+      const weeklyNet = (operatingIncome + prizeIncome + oneOffAdjustment) - expenses;
       acc.operatingIncome += operatingIncome;
       acc.prizeIncome += prizeIncome;
+      acc.oneOff += oneOffAdjustment;
       acc.income += operatingIncome + prizeIncome;
       acc.expenses += expenses;
       acc.net += weeklyNet;
       return acc;
-    }, { operatingIncome: 0, prizeIncome: 0, income: 0, expenses: 0, net: 0 });
+    }, { operatingIncome: 0, prizeIncome: 0, oneOff: 0, income: 0, expenses: 0, net: 0 });
     let runningNet = 0;
     const historyRowsHtml = recentHistory.length
       ? recentHistory.map((h) => {
           const weekKey = Number(h.week || 0);
           const hasStoredPrize = Number.isFinite(Number(h.prizeIncome));
           const prizeIncome = hasStoredPrize ? Number(h.prizeIncome || 0) : Number(prizeByWeek[weekKey] || 0);
+          const oneOffAdjustment = Number(adjustmentByWeek[weekKey] || 0);
           const operatingIncomeSource = (typeof h.operatingIncome === 'number')
             ? h.operatingIncome
             : ((h.income || 0) - (hasStoredPrize ? Number(h.prizeIncome || 0) : 0));
           const operatingIncome = Number(operatingIncomeSource || 0);
           const expenses = Number(h.expenses || 0);
-          const totalNet = (operatingIncome + prizeIncome) - expenses;
+          const totalNet = (operatingIncome + prizeIncome + oneOffAdjustment) - expenses;
           const netVal = totalNet;
           runningNet += netVal;
           return `<tr>
             <td>${__('topbar_week')} ${h.week}</td>
             <td style="color:var(--c-green)">+${GL_UI.fmtCR(operatingIncome)}</td>
             <td style="color:${prizeIncome >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(prizeIncome)}</td>
+            <td style="color:${oneOffAdjustment >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(oneOffAdjustment)}</td>
             <td style="color:var(--c-red)">-${GL_UI.fmtCR(expenses)}</td>
             <td style="color:${netVal >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(netVal)}</td>
             <td style="font-weight:700;color:${runningNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(runningNet)}</td>
@@ -1689,7 +1711,7 @@ const SCREENS = {
         <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
           <div style="font-size:0.9rem;color:var(--t-secondary)">${__('finances_health_label')}: <strong style="color:${healthColor}">${healthLabel}</strong></div>
           <div style="font-size:0.82rem;color:var(--t-secondary)">${__('dash_finance_deficit_streak_label')}: <strong>${deficitStreak}</strong> ${__('dash_finance_deficit_streak_weeks')}</div>
-          <div style="font-size:0.82rem;color:${financeOverview.totalNet>=0?'var(--c-green)':'var(--c-red)'}">${__('finances_total_flow')}: <strong>${GL_UI.fmtSign(financeOverview.totalNet)}</strong></div>
+          <div style="font-size:0.82rem;color:${totalNetWithAdjustments>=0?'var(--c-green)':'var(--c-red)'}">${__('finances_total_flow')}: <strong>${GL_UI.fmtSign(totalNetWithAdjustments)}</strong></div>
         </div>
         <div style="margin-top:10px;font-size:0.82rem;color:var(--t-secondary)">${__(financeOverview.reasonKey)}</div>
       </div>
@@ -1703,11 +1725,12 @@ const SCREENS = {
           <div style="font-size:0.76rem;color:var(--t-secondary);text-align:right">${settlementDate || ''}${settlementPlayerSummary ? `<br>${settlementPlayerSummary}` : ''}</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:var(--s-4)">
-          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(financeOverview.openingCash)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_opening_cash')}</div></div>
-          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${financeOverview.operatingNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(financeOverview.operatingNet)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_operating_flow')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(openingCashWithAdjustments)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_opening_cash')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${operatingNetWithAdjustments >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(operatingNetWithAdjustments)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_operating_flow')}</div></div>
           <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${financeOverview.competitionNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(financeOverview.competitionNet)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_competition_flow')}</div></div>
-          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${financeOverview.totalNet >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(financeOverview.totalNet)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_total_flow')}</div></div>
-          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(financeOverview.closingCash)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_closing_cash')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${currentWeekAdjustment >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(currentWeekAdjustment)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_oneoff_flow')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:${totalNetWithAdjustments >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(totalNetWithAdjustments)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_total_flow')}</div></div>
+          <div style="padding:14px;border:1px solid var(--c-border);border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))"><div style="font-family:var(--font-display);font-size:1.15rem;font-weight:800;color:var(--t-primary)">${GL_UI.fmtCR(closingCashWithAdjustments)}</div><div style="font-size:0.72rem;color:var(--t-secondary);margin-top:4px">${__('finances_closing_cash')}</div></div>
         </div>
         ${lastRaceSettlement ? `<div style="margin-top:10px;font-size:0.78rem;color:var(--t-secondary)">${__('finances_race_settlement_hint')}</div>` : `<p style="color:var(--t-tertiary);font-size:0.82rem;margin-top:var(--s-4)">${__('finances_no_race_settlement')}</p>`}
       </div>
@@ -1772,7 +1795,7 @@ const SCREENS = {
             <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_expenses')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:var(--c-red)">-${GL_UI.fmtCR(historyTotals.expenses)}</div></div>
             <div style="padding:10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-secondary)">${__('finances_total_flow')}</div><div style="font-family:var(--font-display);font-size:1rem;font-weight:800;color:${historyTotals.net >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.net)}</div></div>
           </div>
-          <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:8px">${__('finances_competition_flow')}: <strong style="color:${historyTotals.prizeIncome >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.prizeIncome)}</strong></div>
+          <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:8px">${__('finances_competition_flow')}: <strong style="color:${historyTotals.prizeIncome >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.prizeIncome)}</strong> · ${__('finances_oneoff_flow')}: <strong style="color:${historyTotals.oneOff >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${GL_UI.fmtSign(historyTotals.oneOff)}</strong></div>
           <div style="overflow:auto;margin-top:12px">
             <table style="width:100%;border-collapse:collapse;font-size:0.78rem">
               <thead>
@@ -1780,6 +1803,7 @@ const SCREENS = {
                   <th style="padding:8px 6px">${__('topbar_week')}</th>
                   <th style="padding:8px 6px">${__('finances_income')}</th>
                   <th style="padding:8px 6px">${__('finances_competition_flow')}</th>
+                  <th style="padding:8px 6px">${__('finances_oneoff_flow')}</th>
                   <th style="padding:8px 6px">${__('finances_expenses')}</th>
                   <th style="padding:8px 6px">${__('finances_total_flow')}</th>
                   <th style="padding:8px 6px">${__('finances_history') || 'Acum.'}</th>
