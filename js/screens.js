@@ -334,12 +334,28 @@ const SCREENS = {
 
   getRacePitLanePoint(progress, layout) {
     const local = Math.max(0, Math.min(1, Number(progress) || 0));
-    const entry = this.getRaceTrackPoint(0.88, layout, 10);
-    const exit = this.getRaceTrackPoint(0.04, layout, 6);
-    const blend = 1 - local;
+    const profileMap = {
+      'high-speed': { entryProgress: 0.885, exitProgress: 0.035, entryDx: 40, entryDy: -44, exitDx: 44, exitDy: -50, c1Dx: 136, c1Dy: -94, c2Dx: -62, c2Dy: -92 },
+      power: { entryProgress: 0.89, exitProgress: 0.03, entryDx: 38, entryDy: -44, exitDx: 42, exitDy: -46, c1Dx: 128, c1Dy: -86, c2Dx: -58, c2Dy: -84 },
+      technical: { entryProgress: 0.88, exitProgress: 0.04, entryDx: 34, entryDy: -40, exitDx: 36, exitDy: -44, c1Dx: 112, c1Dy: -74, c2Dx: -50, c2Dy: -76 },
+      mixed: { entryProgress: 0.885, exitProgress: 0.032, entryDx: 36, entryDy: -42, exitDx: 40, exitDy: -46, c1Dx: 122, c1Dy: -82, c2Dx: -56, c2Dy: -80 },
+      endurance: { entryProgress: 0.89, exitProgress: 0.03, entryDx: 42, entryDy: -48, exitDx: 48, exitDy: -54, c1Dx: 146, c1Dy: -102, c2Dx: -68, c2Dy: -96 }
+    };
+    const profile = profileMap[layout] || profileMap.mixed;
+    const entryBase = this.getRaceTrackPoint(profile.entryProgress, layout, 10);
+    const exitBase = this.getRaceTrackPoint(profile.exitProgress, layout, 8);
+    const p0 = { x: entryBase.x + profile.entryDx, y: entryBase.y + profile.entryDy };
+    const p3 = { x: exitBase.x + profile.exitDx, y: exitBase.y + profile.exitDy };
+    const p1 = { x: p0.x + profile.c1Dx, y: p0.y + profile.c1Dy };
+    const p2 = { x: p3.x + profile.c2Dx, y: p3.y + profile.c2Dy };
+    const inv = 1 - local;
+    const inv2 = inv * inv;
+    const inv3 = inv2 * inv;
+    const t2 = local * local;
+    const t3 = t2 * local;
     return {
-      x: (entry.x * blend) + (exit.x * local) + 36,
-      y: (entry.y * blend) + (exit.y * local) - 48
+      x: (inv3 * p0.x) + (3 * inv2 * local * p1.x) + (3 * inv * t2 * p2.x) + (t3 * p3.x),
+      y: (inv3 * p0.y) + (3 * inv2 * local * p1.y) + (3 * inv * t2 * p2.y) + (t3 * p3.y)
     };
   },
 
@@ -423,9 +439,16 @@ const SCREENS = {
     const centerPath = this.getRacePathData(layout, -1, 220, false);
     const pitPath = this.getRacePathData(layout, 0, 90, true);
     const innerIslandPath = this.getRacePathData(layout, -108, 220, false);
+    const pitBoxes = Array.from({ length: 7 }).map((_, idx) => {
+      const t = 0.16 + (idx * 0.1);
+      const box = this.getRacePitLanePoint(t, layout);
+      const ahead = this.getRacePitLanePoint(Math.min(1, t + 0.03), layout);
+      const angle = Math.atan2(ahead.y - box.y, ahead.x - box.x) * (180 / Math.PI);
+      return `<rect class="race-track-pit-box" x="${(box.x - 14).toFixed(1)}" y="${(box.y - 6).toFixed(1)}" width="28" height="12" rx="3" transform="rotate(${angle.toFixed(1)} ${box.x.toFixed(1)} ${box.y.toFixed(1)})"></rect>`;
+    }).join('');
     const weatherLabel = this.getWeatherLabel(weather);
     return `
-      <div class="race-track-stage" id="race-track-stage">
+      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="race-track-stage">
         <svg class="race-track-svg" viewBox="0 0 1000 620" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
           <defs>
             <filter id="race-track-shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -442,8 +465,10 @@ const SCREENS = {
           <path class="race-track-road-inner" d="${roadPath}" />
           <path class="race-track-curb-inner" d="${roadPath}" />
           <path class="race-track-centerline" d="${centerPath}" />
+          <path class="race-track-racing-line" d="${centerPath}" />
           <path class="race-track-pitlane" d="${pitPath}" />
           <path class="race-track-pitlane-outline" d="${pitPath}" />
+          <g class="race-track-pit-boxes">${pitBoxes}</g>
           <line class="race-track-finish" x1="820" y1="89" x2="820" y2="173" />
           <text class="race-track-pitlabel" x="784" y="72">PIT</text>
         </svg>
@@ -452,6 +477,8 @@ const SCREENS = {
           <span class="race-track-chip" id="race-track-chip-layout">${this.getTrackLayoutLabel(layout)}</span>
           <span class="race-track-chip" id="race-track-chip-weather">${weather === 'wet' ? '🌧️' : '☀️'} ${weatherLabel}</span>
           <span class="race-track-chip" id="race-track-chip-lap">L1</span>
+          <span class="race-track-chip" id="race-track-chip-pit">PIT 0</span>
+          <span class="race-track-chip" id="race-track-chip-player">${__('standings_you')} P—</span>
         </div>
       </div>`;
   },
@@ -525,42 +552,99 @@ const SCREENS = {
     const carsLayer = document.getElementById('race-track-cars');
     if (!carsLayer) return;
 
+    const trackStage = document.getElementById('race-track-stage');
+    if (trackStage) {
+      trackStage.classList.toggle('wet-weather', weather === 'wet');
+      trackStage.classList.toggle('dry-weather', weather !== 'wet');
+    }
+
     const lapChip = document.getElementById('race-track-chip-lap');
     const weatherChip = document.getElementById('race-track-chip-weather');
+    const pitChip = document.getElementById('race-track-chip-pit');
+    const playerChip = document.getElementById('race-track-chip-player');
     if (lapChip) lapChip.textContent = `L${currentLap}/${totalLaps}`;
     if (weatherChip) weatherChip.textContent = `${weather === 'wet' ? '🌧️' : '☀️'} ${this.getWeatherLabel(weather)}`;
 
     const intraLapProgress = (progress * totalLaps) % 1;
     const layout = circuit?.layout || 'mixed';
-    const estimatedLeaderLapMs = 92000;
+    const estimatedLeaderLapMs = Math.max(76000, Number((circuit?.laps || 60) * 1450));
+    const cars = (Array.isArray(liveOrder) ? liveOrder : []).slice(0, 20);
+    const activePitCars = cars.filter((car) => !!car?.pit).length;
+    if (pitChip) pitChip.textContent = `PIT ${activePitCars}`;
+    const playerCar = cars.find((car) => car?.isPlayer);
+    if (playerChip) playerChip.textContent = `${__('standings_you')} ${playerCar ? `P${Math.max(1, Math.round(playerCar.displayPos || playerCar.pos || 1))}` : 'P—'}`;
 
-    carsLayer.innerHTML = (Array.isArray(liveOrder) ? liveOrder : []).slice(0, 20).map((car, idx) => {
+    if (!this._raceVisualState || typeof this._raceVisualState !== 'object') {
+      this._raceVisualState = {};
+    }
+    const visualState = this._raceVisualState;
+    const seenIds = new Set();
+
+    carsLayer.innerHTML = cars.map((car, idx) => {
+      const carId = String(car.id || `car-${idx}`);
+      seenIds.add(carId);
+      const stateEntry = visualState[carId] || { x: null, y: null, pitProgress: 0, onPitLane: false };
+
       let point;
+      let aheadPoint;
       if (car.retired) {
-        point = { x: 110 + ((idx % 5) * 42), y: 530 + (Math.floor(idx / 5) * 26) };
-      } else if (car.pit) {
-        const pitProgress = Math.max(0.08, Math.min(0.94, 0.12 + (((car.pitLossMs || 0) / 24000) * 0.7) + ((idx % 4) * 0.06)));
-        point = this.getRacePitLanePoint(pitProgress, layout);
+        const retiredPoint = { x: 120 + ((idx % 5) * 40), y: 524 + (Math.floor(idx / 5) * 24) };
+        point = retiredPoint;
+        aheadPoint = { x: retiredPoint.x + 8, y: retiredPoint.y };
       } else {
-        const gapFraction = Number.isFinite(car.gapMs) ? (car.gapMs / estimatedLeaderLapMs) : (idx * 0.016);
+        const gapFraction = Number.isFinite(car.gapMs) ? (car.gapMs / estimatedLeaderLapMs) : (idx * 0.014);
         const trackProgress = intraLapProgress - gapFraction;
-        const laneOffset = ((idx % 3) - 1) * 4;
-        point = this.getRaceTrackPoint(trackProgress, layout, laneOffset);
+        const laneOffset = ((idx % 3) - 1) * 3.1;
+        const trackPoint = this.getRaceTrackPoint(trackProgress, layout, laneOffset);
+        const trackAheadPoint = this.getRaceTrackPoint(trackProgress + 0.008, layout, laneOffset);
+
+        if (car.pit) {
+          const pitGain = 0.09 + Math.min(0.06, Number(car.pitLossMs || 0) / 56000);
+          stateEntry.pitProgress = Math.min(1, (stateEntry.pitProgress || 0) + pitGain);
+          stateEntry.onPitLane = true;
+        } else if (stateEntry.onPitLane && (stateEntry.pitProgress || 0) < 1) {
+          stateEntry.pitProgress = Math.min(1, (stateEntry.pitProgress || 0) + 0.16);
+          if (stateEntry.pitProgress >= 0.999) {
+            stateEntry.onPitLane = false;
+            stateEntry.pitProgress = 0;
+          }
+        } else {
+          stateEntry.onPitLane = false;
+          stateEntry.pitProgress = 0;
+        }
+
+        if (stateEntry.onPitLane) {
+          point = this.getRacePitLanePoint(stateEntry.pitProgress, layout);
+          aheadPoint = this.getRacePitLanePoint(Math.min(1, stateEntry.pitProgress + 0.025), layout);
+        } else {
+          const prevX = Number.isFinite(stateEntry.x) ? stateEntry.x : trackPoint.x;
+          const prevY = Number.isFinite(stateEntry.y) ? stateEntry.y : trackPoint.y;
+          point = {
+            x: (prevX * 0.72) + (trackPoint.x * 0.28),
+            y: (prevY * 0.72) + (trackPoint.y * 0.28)
+          };
+          aheadPoint = trackAheadPoint;
+        }
       }
 
-      const aheadPoint = car.pit
-        ? this.getRacePitLanePoint(Math.min(1, Math.max(0, 0.16 + (((car.pitLossMs || 0) / 26000) * 0.72))), layout)
-        : this.getRaceTrackPoint(((intraLapProgress + 0.004) - ((Number.isFinite(car.gapMs) ? car.gapMs : (idx * 1500)) / estimatedLeaderLapMs)), layout, ((idx % 3) - 1) * 4);
+      stateEntry.x = point.x;
+      stateEntry.y = point.y;
+      visualState[carId] = stateEntry;
+
       const angle = (Math.atan2(aheadPoint.y - point.y, aheadPoint.x - point.x) * (180 / Math.PI)) + 90;
       const tyreMeta = this.getTyreMeta(car.tyre);
       const label = car.isPlayer || idx < 3 ? `<span class="race-car-label">P${Math.max(1, Math.round(car.displayPos || car.pos || (idx + 1)))}</span>` : '';
       return `
-        <div class="race-car-marker ${car.isPlayer ? 'player' : ''} ${car.pit ? 'pit' : ''} ${car.retired ? 'retired' : ''}" title="${car.name || car.pilotName || 'Car'}"
+        <div class="race-car-marker ${car.isPlayer ? 'player' : ''} ${stateEntry.onPitLane ? 'pit' : ''} ${car.retired ? 'retired' : ''}" title="${car.name || car.pilotName || 'Car'}"
              style="left:${(point.x / 10).toFixed(2)}%;top:${(point.y / 6.2).toFixed(2)}%;--car-angle:${angle.toFixed(1)}deg;--car-color:${car.color || '#888'};--tyre-color:${tyreMeta.color}">
           ${this.getRaceCarSvgMarkup()}
           ${label}
         </div>`;
     }).join('');
+
+    Object.keys(visualState).forEach((id) => {
+      if (!seenIds.has(id)) delete visualState[id];
+    });
   },
 
   getDriverStrategyDefaults(sharedStrategy, currentConfig = {}) {

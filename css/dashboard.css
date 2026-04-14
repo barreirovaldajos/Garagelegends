@@ -316,6 +316,15 @@
   radial-gradient(circle at 16% 18%, rgba(255,255,255,0.14), transparent 18%),
   radial-gradient(circle at 84% 74%, rgba(255,255,255,0.12), transparent 14%),
   radial-gradient(circle at 62% 22%, rgba(255,255,255,0.08), transparent 16%); opacity: 0.8; }
+.race-track-stage::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; }
+.race-track-stage.wet-weather { background:
+  linear-gradient(180deg, rgba(105,142,176,0.36), rgba(59,88,112,0.24)),
+  linear-gradient(135deg, #74b65f, #5ca84a); }
+.race-track-stage.wet-weather::after {
+  opacity: 0.46;
+  background: repeating-linear-gradient(112deg, rgba(255,255,255,0.16) 0 2px, transparent 2px 18px);
+  animation: race-rain-drift 1.25s linear infinite;
+}
 .race-track-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
 .race-track-grass { fill: rgba(139, 235, 104, 0.96); }
 .race-track-runoff { fill: none; stroke: #efd8ad; stroke-width: 132; stroke-linecap: round; stroke-linejoin: round; }
@@ -328,8 +337,10 @@
 .race-track-curb-outer { stroke: #d63637; }
 .race-track-curb-inner { stroke: rgba(255,255,255,0.95); stroke-dashoffset: 9; }
 .race-track-centerline { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 3; stroke-dasharray: 10 12; stroke-linecap: round; }
+.race-track-racing-line { fill: none; stroke: rgba(68, 232, 235, 0.44); stroke-width: 4; stroke-dasharray: 16 12; stroke-linecap: round; animation: race-line-flow 6s linear infinite; }
 .race-track-pitlane-outline { fill: none; stroke: #efd8ad; stroke-width: 34; stroke-linecap: round; stroke-linejoin: round; }
 .race-track-pitlane { fill: none; stroke: #47484c; stroke-width: 22; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-pit-box { fill: rgba(255,255,255,0.12); stroke: rgba(255,255,255,0.34); stroke-width: 1.5; }
 .race-track-finish { stroke: rgba(255,255,255,0.95); stroke-width: 10; stroke-dasharray: 10 8; }
 .race-track-pitlabel { fill: rgba(255,255,255,0.86); font-size: 28px; font-weight: 800; letter-spacing: 0.14em; }
 .race-track-stand rect { fill: #efe4c9; stroke: rgba(126, 108, 74, 0.28); stroke-width: 2; }
@@ -343,7 +354,7 @@
 .race-track-cars { position: absolute; inset: 0; z-index: 3; }
 .race-track-hud { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 4; pointer-events: none; }
 .race-track-chip { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; background: rgba(7, 10, 15, 0.74); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.92); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
-.race-car-marker { position: absolute; width: 28px; height: 50px; transform: translate(-50%, -50%) rotate(var(--car-angle)); transform-origin: 50% 50%; z-index: 3; filter: drop-shadow(0 5px 8px rgba(0,0,0,0.28)); }
+.race-car-marker { position: absolute; width: 18px; height: 34px; transform: translate(-50%, -50%) rotate(var(--car-angle)); transform-origin: 50% 50%; z-index: 3; filter: drop-shadow(0 5px 8px rgba(0,0,0,0.28)); }
 .race-car-svg { width: 100%; height: 100%; overflow: visible; }
 .race-car-body,
 .race-car-wing,
@@ -351,11 +362,11 @@
 .race-car-stripe { fill: rgba(255,255,255,0.78); }
 .race-car-cockpit { fill: rgba(16, 25, 34, 0.92); }
 .race-car-wheel { fill: #1e2128; }
-.race-car-marker.player { width: 32px; height: 56px; z-index: 5; }
+.race-car-marker.player { width: 22px; height: 40px; z-index: 5; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.32)); }
 .race-car-marker.player .race-car-body,
 .race-car-marker.player .race-car-wing,
 .race-car-marker.player .race-car-nose { stroke: rgba(255,255,255,0.42); stroke-width: 2; }
-.race-car-marker.pit { opacity: 0.92; }
+.race-car-marker.pit { opacity: 0.9; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.25)); }
 .race-car-marker.retired { opacity: 0.45; filter: grayscale(0.35); }
 .race-car-label { position: absolute; left: 50%; top: -15px; transform: translateX(-50%) rotate(calc(var(--car-angle) * -1)); padding: 2px 5px; border-radius: 999px; background: rgba(5, 7, 11, 0.8); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-size: 0.58rem; font-weight: 700; white-space: nowrap; }
 .race-event-log { position: relative; z-index: 2; max-height: 220px; overflow-y: auto; }
@@ -383,6 +394,16 @@
 .race-pos-name { flex: 1; font-weight: 500; }
 .race-pos-gap { color: var(--t-tertiary); font-size: 0.75rem; flex: 0 0 60px; text-align: right; }
 .race-pos-tire { font-size: 0.8rem; }
+
+@keyframes race-line-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -280; }
+}
+
+@keyframes race-rain-drift {
+  from { transform: translateX(-24px); }
+  to { transform: translateX(24px); }
+}
 
 /* PRE-RACE */
 .prerace-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-5); }
@@ -717,8 +738,8 @@
   .race-lap-counter { font-size: 0.9rem; }
   .race-track-stage { min-height: 230px; }
   .race-track-chip { font-size: 0.64rem; padding: 5px 8px; }
-  .race-car-marker { width: 22px; height: 40px; }
-  .race-car-marker.player { width: 26px; height: 46px; }
+  .race-car-marker { width: 15px; height: 28px; }
+  .race-car-marker.player { width: 18px; height: 32px; }
   .race-car-label { display: none; }
   .race-event-log { max-height: 180px; }
 
