@@ -1547,7 +1547,14 @@ const SCREENS = {
                 ? (nextRace.savedStrategy ? __('calendar_readiness_ready') : __('calendar_readiness_missing'))
                 : __('calendar_readiness_complete')
             }</div>
-            ${nextRace ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>` : ''}
+            ${nextRace
+              ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>`
+              : (() => {
+                  const cal2 = (typeof GL_STATE !== 'undefined' ? GL_STATE.getState() : null)?.season?.calendar || [];
+                  const seasonOver = cal2.length > 0 && cal2.every(r => r.status === 'completed');
+                  return seasonOver ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_DASHBOARD.advanceToNextSeason()">${__('season_end_btn')}</button>` : '';
+                })()
+            }
           </div>
           <div class="calendar-insight-list">
             <div class="calendar-insight-item">

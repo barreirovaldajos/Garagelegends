@@ -137,6 +137,50 @@ function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function getDivisionCatalogFromData() {
+  const catalog = Array.isArray(D?.DIVISIONS) ? D.DIVISIONS : [];
+  return catalog
+    .map((entry) => ({
+      div: Number(entry?.div),
+      teams: Number(entry?.teams),
+      promotions: Number(entry?.promotions),
+      relegations: Number(entry?.relegations)
+    }))
+    .filter((entry) => Number.isFinite(entry.div) && entry.div >= 1)
+    .sort((a, b) => a.div - b.div);
+}
+
+function getDivisionBoundsFromData() {
+  const catalog = getDivisionCatalogFromData();
+  if (!catalog.length) return { minDivision: 1, maxDivision: 8 };
+  return {
+    minDivision: catalog[0].div,
+    maxDivision: catalog[catalog.length - 1].div
+  };
+}
+
+function getDivisionConfigSafe(divNum) {
+  const fallback = { teams: 10, promotions: 2, relegations: 2 };
+  if (DivisionsApi && typeof DivisionsApi.getDivisionConfig === 'function') {
+    return DivisionsApi.getDivisionConfig(divNum) || fallback;
+  }
+
+  const catalog = getDivisionCatalogFromData();
+  const bounds = getDivisionBoundsFromData();
+  const numericDiv = Number(divNum);
+  const targetDiv = Number.isFinite(numericDiv)
+    ? Math.max(bounds.minDivision, Math.min(bounds.maxDivision, Math.round(numericDiv)))
+    : bounds.maxDivision;
+  const match = catalog.find((entry) => entry.div === targetDiv);
+  if (!match) return fallback;
+
+  return {
+    teams: Number.isFinite(match.teams) && match.teams > 0 ? match.teams : fallback.teams,
+    promotions: Number.isFinite(match.promotions) ? Math.max(0, match.promotions) : fallback.promotions,
+    relegations: Number.isFinite(match.relegations) ? Math.max(0, match.relegations) : fallback.relegations
+  };
+}
+
 const AI_TEAM_COLOR_POOL = ['#00A6FB', '#2EC4B6', '#8AC926', '#6A4C93', '#FF9F1C', '#06D6A0', '#FFD166', '#D65DB1', '#3A86FF', '#43AA8B'];
 const AI_TEAM_ALT_COLOR_POOL = ['#118AB2', '#7B2CBF', '#90BE6D', '#F9C74F', '#4CC9F0', '#F8961E', '#577590', '#B8DE6F', '#4D96FF', '#C77DFF'];
 
@@ -732,7 +776,9 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}) {
     tyre: 'medium', wear: 0, gaps: 0
   }];
 
-  const aiTeams = getVisualAiTeams().slice(0, 9);
+  const division = Number(state?.season?.division) || 8;
+  const teamSlots = Math.max(2, Number(getDivisionConfigSafe(division)?.teams) || 10);
+  const aiTeams = getVisualAiTeams().slice(0, Math.max(1, teamSlots - 1));
   aiTeams.forEach((t) => {
     for (let carSlot = 1; carSlot <= 2; carSlot++) {
       const aiProfile = buildAiDriverProfile(t, carSlot, weather, circuit, profile, car);
@@ -2040,9 +2086,13 @@ function weeklyTick() {
   let playerEconomy = { income: 0, expenses: 0, net: 0 };
 
   // Procesar economía semanal para todos los equipos de la división
+  const division = Number(state?.season?.division) || 8;
+  const teamSlots = Math.max(2, Number(getDivisionConfigSafe(division)?.teams) || 10);
   const divisionTeams = [
     { id: 'player', state },
-    ...((window.GL_DATA && window.GL_DATA.AI_TEAMS) ? window.GL_DATA.AI_TEAMS.slice(0, 9).map(t => ({ id: t.id, state: generateAITeamState(t, state) })) : [])
+    ...((window.GL_DATA && window.GL_DATA.AI_TEAMS)
+      ? window.GL_DATA.AI_TEAMS.slice(0, Math.max(1, teamSlots - 1)).map(t => ({ id: t.id, state: generateAITeamState(t, state) }))
+      : [])
   ];
   divisionTeams.forEach(team => {
     const { income, expenses, net, effects } = EconomyApi.processWeeklyBalance(team.state);
@@ -2174,19 +2224,21 @@ function applyRaceWeekendEconomy(raceResult) {
 }
 
 function getDivisionTransition(state, finalPosition) {
-  const currentDivision = Number(state?.season?.division) || 8;
-  const config = (DivisionsApi && DivisionsApi.getDivisionConfig)
-    ? DivisionsApi.getDivisionConfig(currentDivision)
-    : { teams: 10, promotions: 2, relegations: 2 };
+  const bounds = getDivisionBoundsFromData();
+  const currentDivisionRaw = Number(state?.season?.division);
+  const currentDivision = Number.isFinite(currentDivisionRaw)
+    ? Math.max(bounds.minDivision, Math.min(bounds.maxDivision, Math.round(currentDivisionRaw)))
+    : bounds.maxDivision;
+  const config = getDivisionConfigSafe(currentDivision);
   const teams = Number(config?.teams) || 10;
   const promotions = Number(config?.promotions) || 2;
   const relegations = Number(config?.relegations) || 2;
   const relegationStart = Math.max(1, (teams - relegations) + 1);
 
-  if (finalPosition <= promotions && currentDivision > 1) {
+  if (finalPosition <= promotions && currentDivision > bounds.minDivision) {
     return { result: 'promoted', nextDivision: currentDivision - 1 };
   }
-  if (finalPosition >= relegationStart && currentDivision < 10) {
+  if (finalPosition >= relegationStart && currentDivision < bounds.maxDivision) {
     return { result: 'relegated', nextDivision: currentDivision + 1 };
   }
   return { result: 'stable', nextDivision: currentDivision };
@@ -2528,7 +2580,8 @@ function applyEventChoice(event, choiceIndex) {
 
 // ---- build initial AI standings ----
 function buildInitialStandings(division) {
-  const teams = getVisualAiTeams().slice(0, 9);
+  const teamSlots = Math.max(2, Number(getDivisionConfigSafe(division)?.teams) || 10);
+  const teams = getVisualAiTeams().slice(0, Math.max(1, teamSlots - 1));
   const standings = teams.map((t, i) => ({
     id: t.id, name: t.name, color: t.color, flag: t.flag,
     points: 0, wins: 0, position: i + 2, bestResult: 0
@@ -2645,6 +2698,9 @@ function ensureNextRaceAvailable() {
   const state = S.getState();
   if (!state || !state.season || !Array.isArray(state.season.calendar)) return null;
   const cal = state.season.calendar;
+  const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS)
+    ? window.RACE_STATUS
+    : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
   let changed = false;
 
   const getSeasonWetRaceTarget = (raceCount) => {
@@ -2704,8 +2760,18 @@ function ensureNextRaceAvailable() {
 
   cal.forEach((r) => {
     if (!r || !r.status) return;
-    if (r.status === 'done' || r.status === 'finished') {
-      r.status = 'completed';
+    if (r.status === 'done' || r.status === 'finished' || r.status === 'completed') {
+      r.status = RACE_STATUS_ENUM.COMPLETED;
+      changed = true;
+      return;
+    }
+    if (r.status === 'next') {
+      r.status = RACE_STATUS_ENUM.NEXT;
+      changed = true;
+      return;
+    }
+    if (r.status === 'pending' || r.status === 'upcoming') {
+      r.status = RACE_STATUS_ENUM.UPCOMING;
       changed = true;
     }
   });
@@ -2714,18 +2780,30 @@ function ensureNextRaceAvailable() {
     changed = true;
   }
 
-  let next = cal.find((r) => r && r.status === 'next');
+  let next = cal.find((r) => r && r.status === RACE_STATUS_ENUM.NEXT);
   if (next) {
     if (changed) S.saveState();
     return next;
   }
 
-  const upcoming = cal.find((r) => r && (r.status === 'upcoming' || r.status === 'pending'));
+  const upcoming = cal.find((r) => r && r.status === RACE_STATUS_ENUM.UPCOMING);
   if (upcoming) {
-    upcoming.status = 'next';
+    upcoming.status = RACE_STATUS_ENUM.NEXT;
     changed = true;
     S.saveState();
     return upcoming;
+  }
+
+  // Savegames can get stuck with all races completed but season not rolled over.
+  const completedCount = cal.filter((r) => r && r.status === RACE_STATUS_ENUM.COMPLETED).length;
+  const totalRaces = Number(state?.season?.totalRaces) || cal.length;
+  const needsSeasonRollover = state.season.phase === 'season' && cal.length > 0 && completedCount >= totalRaces;
+  const weekOutOfRange = Number(state.season.week) > totalRaces;
+  if (needsSeasonRollover || weekOutOfRange) {
+    endSeason();
+    const refreshed = S.getState();
+    const refreshedCal = Array.isArray(refreshed?.season?.calendar) ? refreshed.season.calendar : [];
+    return refreshedCal.find((r) => r && r.status === RACE_STATUS_ENUM.NEXT) || null;
   }
 
   return null;
@@ -3362,6 +3440,7 @@ window.GL_ENGINE = {
   shiftTimeToMs,
   ensureNextRaceAvailable,
   generateRandomEvent, applyEventChoice,
-  buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot
+  buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot,
+  endSeason
 };
 

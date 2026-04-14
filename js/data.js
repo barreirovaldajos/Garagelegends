@@ -261,15 +261,17 @@ const RANDOM_EVENT_TEMPLATES = [
 const POINTS_TABLE = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1, 0, 0, 0, 0, 0, 0];
 
 // ---- DIVISION STRUCTURE ----
+// Regla base: cada división tiene 10 equipos (20 pilotos).
+// La pirámide crece hacia abajo con múltiples ligas paralelas por nivel.
 const DIVISIONS = [
-  { div:8, name:'Division 8 – Amateur Circuit',  teams:10, promotions:2, relegations:0 },
-  { div:7, name:'Division 7 – Regional Series',  teams:12, promotions:2, relegations:3 },
-  { div:6, name:'Division 6 – National Trophy',  teams:12, promotions:2, relegations:3 },
-  { div:5, name:'Division 5 – Continental Cup',  teams:14, promotions:2, relegations:3 },
-  { div:4, name:'Division 4 – Pro Series',       teams:14, promotions:2, relegations:3 },
-  { div:3, name:'Division 3 – Championship',     teams:16, promotions:2, relegations:3 },
-  { div:2, name:'Division 2 – Premier League',   teams:16, promotions:2, relegations:3 },
-  { div:1, name:'Division 1 – Elite Series',     teams:20, promotions:0, relegations:3 },
+  { div:8, name:'Division 8 – Amateur Circuit',  teams:10, promotions:2, relegations:0, parallelDivisions:16 },
+  { div:7, name:'Division 7 – Regional Series',  teams:10, promotions:2, relegations:2, parallelDivisions:12 },
+  { div:6, name:'Division 6 – National Trophy',  teams:10, promotions:2, relegations:2, parallelDivisions:8 },
+  { div:5, name:'Division 5 – Continental Cup',  teams:10, promotions:2, relegations:2, parallelDivisions:6 },
+  { div:4, name:'Division 4 – Pro Series',       teams:10, promotions:3, relegations:3, parallelDivisions:4 },
+  { div:3, name:'Division 3 – Championship',     teams:10, promotions:3, relegations:3, parallelDivisions:3 },
+  { div:2, name:'Division 2 – Premier League',   teams:10, promotions:4, relegations:4, parallelDivisions:2 },
+  { div:1, name:'Division 1 – Elite Series',     teams:10, promotions:0, relegations:4, parallelDivisions:1 },
 ];
 
 window.GL_DATA = {

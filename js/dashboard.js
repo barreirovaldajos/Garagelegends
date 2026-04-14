@@ -349,7 +349,21 @@ const DASHBOARD = {
     }
     const cal = state.season.calendar || [];
     const next = cal.find(r => r.status === 'next');
-    if (!next) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('no_race_complete')}</p></div>`; return; }
+    if (!next) {
+      const allCompleted = cal.length > 0 && cal.every(r => r.status === 'completed');
+      if (allCompleted) {
+        el.innerHTML = `
+          <div class="card" style="text-align:center;padding:24px 16px;display:flex;flex-direction:column;align-items:center;gap:12px">
+            <div style="font-size:2rem">🏁</div>
+            <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${__('season_end_title')}</div>
+            <div style="font-size:0.82rem;color:var(--t-secondary);max-width:240px;line-height:1.5">${__('season_end_desc')}</div>
+            <button class="btn btn-primary" style="margin-top:4px" onclick="GL_DASHBOARD.advanceToNextSeason()">${__('season_end_btn')}</button>
+          </div>`;
+        return;
+      }
+      el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('no_race_complete')}</p></div>`;
+      return;
+    }
     const c = next.circuit;
     
     const nextRaceObj = GL_ENGINE.getNextRaceDate();
@@ -1686,6 +1700,13 @@ const DASHBOARD = {
     if (state && Array.isArray(state.randomEvents) && state.randomEvents.length) {
       state.randomEvents = [];
       GL_STATE.saveState();
+    }
+  },
+
+  advanceToNextSeason() {
+    if (typeof GL_ENGINE !== 'undefined' && GL_ENGINE.endSeason) {
+      GL_ENGINE.endSeason();
+      DASHBOARD.refresh();
     }
   }
 };

@@ -366,6 +366,9 @@ const I18N_DATA = {
   staff_role_medic_physio: 'Medic / Physio',
 
     // Calendar
+    season_end_title: 'Season Over',
+    season_end_desc: 'All races completed. Ready to advance to the next season?',
+    season_end_btn: 'Next Season →',
     calendar_eyebrow: 'Race Calendar',
     calendar_title: 'Race Calendar',
     calendar_round: 'Rd',
@@ -1312,6 +1315,9 @@ const I18N_DATA = {
   staff_role_medic_physio: 'Medico / Fisio',
 
     // Calendar
+    season_end_title: 'Temporada terminada',
+    season_end_desc: 'Todas las carreras completadas. ¿Listo para avanzar a la siguiente temporada?',
+    season_end_btn: 'Próxima temporada →',
     calendar_eyebrow: 'Calendario de Carreras',
     calendar_title: 'Calendario de Carreras',
     calendar_round: 'Rd',
