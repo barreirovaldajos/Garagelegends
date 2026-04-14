@@ -1118,6 +1118,7 @@ const SCREENS = {
             <div style="text-align:right;flex-shrink:0">
               <div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(s.salary)}</div>
               <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('staff_week')}</div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="GL_SCREENS.dismissStaff('${s.id}')">${__('staff_dismiss_btn') || 'Despedir personal'}</button>
             </div>
           </div>`).join('')}
         <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;border-style:dashed;min-height:100px;cursor:pointer" onclick="GL_SCREENS.showHireStaff()">
@@ -1153,6 +1154,44 @@ const SCREENS = {
     overlay?.remove();
     GL_UI.toast(`${s.name} ${__('staff_hired')}`, 'success');
     this.renderStaff();
+  },
+
+  dismissStaff(id) {
+    const state = GL_STATE.getState();
+    const staff = state.staff || [];
+    const member = staff.find((s) => s.id === id);
+    if (!member) return;
+
+    const severance = Number(member.salary || 0);
+    const title = __('staff_dismiss_confirm_title') || 'Despedir personal';
+    const msg = (__('staff_dismiss_confirm_msg') || 'Si despides a {name}, debes pagar un sueldo completo ({amount}).')
+      .replace('{name}', member.name || __('staff_title'))
+      .replace('{amount}', `${GL_UI.fmtCR(severance)} CR`);
+    const okLabel = __('staff_dismiss_confirm_ok') || 'Despedir y pagar';
+    const cancelLabel = __('btn_cancel') || 'Cancelar';
+
+    GL_UI.confirm(title, msg, okLabel, cancelLabel).then((confirmed) => {
+      if (!confirmed) return;
+      if (!GL_STATE.spendCredits(severance)) {
+        GL_UI.toast(__('staff_dismiss_insufficient') || 'Saldo insuficiente para pagar la indemnizacion.', 'warning');
+        return;
+      }
+      if (typeof GL_STATE.addCashflowAdjustment === 'function') {
+        GL_STATE.addCashflowAdjustment(-Math.abs(severance), 'staff_severance', {
+          week: Number(state?.season?.week || 1),
+          note: member.name || ''
+        });
+      }
+
+      state.staff = staff.filter((s) => s.id !== id);
+      GL_STATE.addLog(`👋 ${(member.name || 'Staff')} ${__('staff_dismissed_log') || 'was dismissed'} (${GL_UI.fmtCR(severance)} CR).`, 'warning');
+      GL_STATE.saveState();
+      if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') {
+        GL_DASHBOARD.updateTopbar(GL_STATE.getState());
+      }
+      GL_UI.toast((__('staff_dismissed_toast') || '{name} despedido.').replace('{name}', member.name || 'Personal'), 'info');
+      this.renderStaff();
+    });
   },
 
   // ===== CAR DEV SCREEN =====
