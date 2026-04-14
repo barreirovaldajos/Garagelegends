@@ -3001,6 +3001,30 @@ const SCREENS = {
           </div>
         </div>`;
     }).join('');
+    const podiumCars = (Array.isArray(result.finalGrid) ? result.finalGrid : [])
+      .slice(0, 3)
+      .map((car, idx) => {
+        const pos = idx + 1;
+        const trophy = pos === 1 ? '🏆' : (pos === 2 ? '🥈' : '🥉');
+        const tierClass = pos === 1 ? 'gold' : (pos === 2 ? 'silver' : 'bronze');
+        const pts = Number(GL_DATA.POINTS_TABLE[idx] || 0);
+        return { car, pos, trophy, tierClass, pts };
+      });
+    const podiumOrder = [2, 1, 3];
+    const podiumHtml = podiumOrder
+      .map((pos) => podiumCars.find((entry) => entry.pos === pos))
+      .filter(Boolean)
+      .map((entry) => {
+        const carName = entry.car?.name || __('race_driver', 'Driver');
+        return `<div class="postrace-podium-slot ${entry.tierClass} ${entry.car?.isPlayer ? 'my-team' : ''}">
+          <div class="postrace-podium-trophy">${entry.trophy}</div>
+          <div class="postrace-podium-pos">P${entry.pos}</div>
+          <div class="postrace-podium-name">${entry.car?.isPlayer ? `<strong>${carName}</strong>` : carName}</div>
+          <div class="postrace-podium-pts">${entry.pts} pts</div>
+          <div class="postrace-podium-base"></div>
+        </div>`;
+      })
+      .join('');
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -3035,12 +3059,22 @@ const SCREENS = {
         </div>
       </div>
       ${crashReviewHtml}
-      <div class="card mb-4">
-        <div class="section-eyebrow">${__('postrace_admin_report')}</div>
+      <div class="card mb-4 postrace-podium-card">
+        <div class="postrace-podium-title">🏁 ${__('postrace_class')}</div>
+        <div class="postrace-podium-wrap">${podiumHtml || `<div style="color:var(--t-secondary)">No podium data</div>`}</div>
+      </div>
+      <div class="card mb-4 postrace-report-card">
+        <div class="postrace-report-head">
+          <div class="postrace-report-title">🧾 ${__('postrace_admin_report')}</div>
+          <span class="badge badge-blue">Ops</span>
+        </div>
         <div style="margin-top:10px">${this.renderRaceAdminReport(adminReport, { compact: true, copyAction: 'GL_SCREENS.copyRaceAdminReport()' })}</div>
       </div>
-      <div class="card mb-4">
-        <div class="section-eyebrow">${__('postrace_performance_report')}</div>
+      <div class="card mb-4 postrace-report-card">
+        <div class="postrace-report-head">
+          <div class="postrace-report-title">📈 ${__('postrace_performance_report')}</div>
+          <span class="badge badge-green">Pace</span>
+        </div>
         <div style="margin-top:10px">${this.renderRacePerformanceReport(performanceReport, { compact: true })}</div>
       </div>
       <div class="grid-2">
@@ -3060,9 +3094,9 @@ const SCREENS = {
           <div class="section-eyebrow">${__('postrace_class')}</div>
           <div class="race-grid-list">
             ${result.finalGrid.slice(0,10).map((car, i) => `
-              <div class="race-pos-row ${car.isPlayer?'my-car':''}">
+              <div class="race-pos-row ${car.isPlayer?'my-car':''} ${i===0?'podium-gold':(i===1?'podium-silver':(i===2?'podium-bronze':''))}">
                 <span class="race-pos-num">${i+1}</span>
-                <span class="race-pos-name">${car.isPlayer?'<strong style="color:var(--c-accent)">'+car.name+'</strong>':car.name}</span>
+                <span class="race-pos-name">${i===0?'🏆 ':i===1?'🥈 ':i===2?'🥉 ':''}${car.isPlayer?'<strong style="color:var(--c-accent)">'+car.name+'</strong>':car.name}</span>
                 <span style="font-size:0.78rem;color:var(--c-gold)">${GL_DATA.POINTS_TABLE[i]||0} pts</span>
               </div>`).join('')}
           </div>

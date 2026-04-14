@@ -442,6 +442,68 @@
 .post-race-metric { text-align: center; }
 .post-race-metric-val { font-family: var(--font-display); font-size: 1.4rem; font-weight: 800; }
 .post-race-metric-label { font-size: 0.72rem; color: var(--t-secondary); }
+.postrace-podium-card {
+  background:
+    radial-gradient(110% 120% at 50% -20%, rgba(245,200,66,0.16), transparent 62%),
+    linear-gradient(165deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+}
+.postrace-podium-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.postrace-podium-wrap {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+.postrace-podium-slot {
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-surface-2);
+  padding: 10px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.postrace-podium-slot.my-team { box-shadow: 0 0 0 1px rgba(232,41,42,0.28) inset; }
+.postrace-podium-slot.gold { transform: translateY(-8px); border-color: rgba(245,200,66,0.6); }
+.postrace-podium-slot.silver { transform: translateY(0px); border-color: rgba(201,210,224,0.5); }
+.postrace-podium-slot.bronze { transform: translateY(6px); border-color: rgba(205,124,50,0.55); }
+.postrace-podium-trophy { font-size: 1.25rem; }
+.postrace-podium-pos { font-family: var(--font-display); font-weight: 900; letter-spacing: 0.03em; }
+.postrace-podium-name { font-size: 0.8rem; color: var(--t-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.postrace-podium-pts { font-size: 0.7rem; color: var(--t-secondary); }
+.postrace-podium-base {
+  margin-top: 6px;
+  border-radius: 8px;
+  height: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.2), rgba(255,255,255,0.06));
+}
+.postrace-podium-slot.gold .postrace-podium-base { height: 26px; }
+.postrace-podium-slot.silver .postrace-podium-base { height: 20px; }
+.postrace-podium-slot.bronze .postrace-podium-base { height: 16px; }
+.postrace-report-card {
+  background: linear-gradient(175deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+  border-color: rgba(255,255,255,0.12);
+}
+.postrace-report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.postrace-report-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+.race-pos-row.podium-gold { border-left-color: rgba(245,200,66,0.95); background: linear-gradient(90deg, rgba(245,200,66,0.18), transparent 58%), var(--c-surface-2); }
+.race-pos-row.podium-silver { border-left-color: rgba(197,205,220,0.95); background: linear-gradient(90deg, rgba(197,205,220,0.16), transparent 58%), var(--c-surface-2); }
+.race-pos-row.podium-bronze { border-left-color: rgba(205,124,50,0.9); background: linear-gradient(90deg, rgba(205,124,50,0.16), transparent 58%), var(--c-surface-2); }
 
 /* STANDINGS TABLE */
 .standings-table-full { width: 100%; border-collapse: collapse; }
