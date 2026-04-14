@@ -2700,25 +2700,35 @@ const SCREENS = {
       if (!gl) return;
 
       gl.innerHTML = live.slice(0, 20).map((car, idx) => {
-        const gap = idx === 0
+        const gapToLeader = idx === 0
           ? __('race_leader')
           : (Number.isFinite(car.gapMs)
               ? `+${(car.gapMs / 1000).toFixed(1)}s`
               : `+${(idx * 0.9).toFixed(1)}s`);
+        const aheadCar = idx > 0 ? live[idx - 1] : null;
+        const intervalMs = (aheadCar && Number.isFinite(car.gapMs) && Number.isFinite(aheadCar.gapMs))
+          ? (car.gapMs - aheadCar.gapMs)
+          : null;
+        const intervalStr = (idx > 0 && intervalMs !== null)
+          ? `▲${(Math.max(0, intervalMs) / 1000).toFixed(1)}s`
+          : '';
         const dotColor = car.color || '#888';
         const tyreMeta = this.getTyreMeta(car.tyre);
         const status = car.retired
           ? 'DNF'
           : car.pit
             ? `BOX ${Number.isFinite(car.pitLossMs) && car.pitLossMs > 0 ? `· -${(car.pitLossMs / 1000).toFixed(1)}s` : ''}`
-            : gap;
+            : gapToLeader;
         return `
           <div class="race-pos-row ${car.isPlayer?'my-car':''}" style="--team-color:${dotColor}">
             <span class="race-pos-num">${car.pos || (idx + 1)}</span>
             <span class="race-pos-teamdot" style="background:${dotColor}"></span>
             <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
             <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>
-            <span class="race-pos-gap">${status}</span>
+            <span class="race-pos-gap" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1">
+              <span>${status}</span>
+              ${intervalStr && !car.retired && !car.pit ? `<span style="font-size:0.68rem;color:var(--t-secondary);font-weight:500">${intervalStr}</span>` : ''}
+            </span>
           </div>`;
       }).join('');
     };
