@@ -583,6 +583,11 @@ const SCREENS = {
           </defs>
           <rect class="race-track-grass" x="0" y="0" width="1000" height="620" rx="18" />
           ${this.getRaceTrackSceneryMarkup(layout)}
+          <g class="race-track-retired-zone">
+            <rect class="race-track-retired-bay" x="8" y="498" width="100" height="96" rx="7" />
+            <text class="race-track-retired-label" x="58" y="514" text-anchor="middle">DNF</text>
+            <line x1="8" y1="522" x2="108" y2="522" stroke="rgba(200,55,55,0.22)" stroke-width="1"/>
+          </g>
           <path class="race-track-runoff" d="${roadPath}" />
           <path class="race-track-island" d="${innerIslandPath}" />
           ${curbOuterMarkup}
@@ -712,6 +717,9 @@ const SCREENS = {
     if (!this._raceVisualState || typeof this._raceVisualState !== 'object') {
       this._raceVisualState = {};
     }
+    if (!this._retiredSlotMap || typeof this._retiredSlotMap !== 'object') {
+      this._retiredSlotMap = {};
+    }
     const visualState = this._raceVisualState;
     const seenIds = new Set();
 
@@ -723,9 +731,18 @@ const SCREENS = {
       let point;
       let aheadPoint;
       if (car.retired) {
-        const retiredPoint = { x: 120 + ((idx % 5) * 40), y: 524 + (Math.floor(idx / 5) * 24) };
-        point = retiredPoint;
-        aheadPoint = { x: retiredPoint.x + 8, y: retiredPoint.y };
+        // Assign a permanent slot in the DNF bay (bottom-left, off all track layouts)
+        if (this._retiredSlotMap[carId] === undefined) {
+          const usedSlots = new Set(Object.values(this._retiredSlotMap));
+          let slot = 0;
+          while (usedSlots.has(slot)) slot++;
+          this._retiredSlotMap[carId] = slot;
+        }
+        const slot = this._retiredSlotMap[carId];
+        point = { x: 16 + ((slot % 4) * 22), y: 528 + (Math.floor(slot / 4) * 20) };
+        aheadPoint = { x: point.x + 1, y: point.y };
+        stateEntry.onPitLane = false;
+        stateEntry.pitProgress = 0;
       } else {
         const gapFraction = Number.isFinite(car.gapMs) ? (car.gapMs / estimatedLeaderLapMs) : (idx * 0.014);
         const trackProgress = intraLapProgress - gapFraction;
@@ -779,6 +796,9 @@ const SCREENS = {
 
     Object.keys(visualState).forEach((id) => {
       if (!seenIds.has(id)) delete visualState[id];
+    });
+    Object.keys(this._retiredSlotMap).forEach((id) => {
+      if (!seenIds.has(id)) delete this._retiredSlotMap[id];
     });
   },
 
