@@ -214,15 +214,21 @@ function handleEventChoice(evId, choiceIdx, overlay) {
 
 // ---- Circuit SVG path by layout type ----
 function circuitSVG(layout) {
+  const s = 'fill="none" stroke="rgba(232,41,42,0.55)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"';
+  const sf = '<rect x="92" y="13" width="8" height="12" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5" stroke-dasharray="2 2"/>';
   const layouts = {
-    'high-speed':  `<ellipse cx="100" cy="40" rx="85" ry="30" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6" stroke-dasharray="4,2"/>
-                    <rect x="80" y="20" width="40" height="2" fill="var(--c-accent)" rx="1"/>`,
-    'technical':   `<path d="M20,60 Q40,20 80,30 Q120,40 140,20 Q160,10 180,40 Q190,60 160,65 Q120,70 80,65 Q40,70 20,60" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6"/>`,
-    'power':       `<path d="M30,40 L90,15 L170,15 L170,65 L90,65 L90,40 L30,40" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6" stroke-linejoin="round"/>`,
-    'mixed':       `<path d="M20,55 Q30,25 60,30 L100,30 Q130,30 140,50 Q150,70 130,65 L80,65 Q50,65 40,55" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6"/>`,
-    'endurance':   `<path d="M100,10 Q160,10 175,40 Q190,70 150,72 Q110,74 80,65 Q30,55 25,40 Q20,10 100,10" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="5"/>`
+    // Flowing arcs, few direction changes — Spa/Suzuka inspired
+    'high-speed': `<path ${s} d="M22,36 L64,18 L122,18 L162,36 L178,52 L174,66 L155,72 L134,68 L140,60 L166,70 L148,75 L110,72 L68,72 L34,68 L16,55 L18,42 Z"/>${sf}`,
+    // Long straights, tight chicane — Monza inspired
+    power: `<path ${s} d="M22,38 L98,18 L162,38 L172,52 L170,62 L160,68 L152,64 L160,55 L170,65 L154,74 L98,72 L56,72 L24,65 L14,52 L16,44 Z"/>${sf}`,
+    // Tight corners, direction changes — Monaco/Hungaroring inspired
+    technical: `<path ${s} d="M28,40 L60,22 L102,22 L138,28 L152,40 L148,52 L136,58 L122,56 L126,66 L146,60 L156,68 L140,76 L98,76 L62,74 L40,68 L26,58 L22,48 Z"/>${sf}`,
+    // Balanced mix of fast and slow sections
+    mixed: `<path ${s} d="M24,38 L70,18 L128,18 L164,38 L172,56 L164,66 L148,70 L140,62 L158,68 L152,74 L108,74 L66,72 L36,66 L18,54 L20,44 Z"/>${sf}`,
+    // Long lap, variety — Le Mans/Nürburgring inspired
+    endurance: `<path ${s} d="M22,38 L72,16 L130,16 L168,38 L174,54 L168,64 L156,70 L140,68 L134,74 L148,76 L112,78 L76,76 L52,72 L38,66 L24,58 L16,46 Z"/>${sf}`
   };
-  return `<svg viewBox="0 0 200 80" style="width:100%;height:100%;opacity:0.8">${layouts[layout] || layouts['mixed']}</svg>`;
+  return `<svg viewBox="0 0 200 90" style="width:100%;height:100%;opacity:0.85">${layouts[layout] || layouts['mixed']}</svg>`;
 }
 
 window.GL_UI = {

@@ -340,8 +340,8 @@
 .race-track-pitlane-outline { fill: none; stroke: rgba(242,244,247,0.86); stroke-width: 18; stroke-linecap: round; stroke-linejoin: round; }
 .race-track-pitlane { fill: none; stroke: #30353d; stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
 .race-track-pit-box { fill: rgba(255,255,255,0.12); stroke: rgba(255,255,255,0.34); stroke-width: 1.5; }
-.race-track-finish { stroke: rgba(255,255,255,0.95); stroke-width: 10; stroke-dasharray: 10 8; }
-.race-track-pitlabel { fill: rgba(255,255,255,0.86); font-size: 28px; font-weight: 800; letter-spacing: 0.14em; }
+.race-track-sf-label { fill: rgba(255,255,255,0.92); font-size: 20px; font-weight: 800; letter-spacing: 0.1em; }
+.race-track-pitlabel { fill: rgba(255,255,255,0.86); font-size: 24px; font-weight: 800; letter-spacing: 0.14em; }
 .race-track-stand rect { fill: #efe4c9; stroke: rgba(126, 108, 74, 0.28); stroke-width: 2; }
 .race-track-stand-grid { fill: none; stroke: rgba(139, 121, 88, 0.28); stroke-width: 2; stroke-dasharray: 18 10; }
 .race-track-garage rect,
