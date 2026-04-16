@@ -320,22 +320,23 @@
 }
 .race-track-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
 .race-track-grass { fill: #3d6b18; }
-.race-track-runoff { fill: none; stroke: #a8a296; stroke-width: 96; stroke-linecap: round; stroke-linejoin: round; }
-.race-track-island { fill: #3d6b18; stroke: rgba(80,120,40,0.4); stroke-width: 6; }
+/* Runoff matches grass — eliminates the harsh outer border line */
+.race-track-runoff { fill: none; stroke: #3d6b18; stroke-width: 96; stroke-linecap: round; stroke-linejoin: round; }
+.race-track-island { fill: #3d6b18; stroke: none; }
 .race-track-road-shadow { fill: none; stroke: rgba(0,0,0,0.28); stroke-width: 92; filter: url(#race-track-shadow); stroke-linecap: round; stroke-linejoin: round; }
 .race-track-road { fill: none; stroke: #23272e; stroke-width: 84; stroke-linecap: round; stroke-linejoin: round; }
-.race-track-road-inner { fill: none; stroke: #191d24; stroke-width: 68; stroke-linecap: round; stroke-linejoin: round; }
-/* butt linecap is critical: round linecap creates large semicircles (43px radius) at each corner segment endpoint */
-.race-track-curb-outer,
-.race-track-curb-inner { fill: none; stroke-width: 90; stroke-linecap: butt; stroke-linejoin: round; stroke-dasharray: 10 10; opacity: 0.88; }
-.race-track-curb-outer { stroke: #c83030; }
-.race-track-curb-inner { stroke: rgba(255,255,255,0.9); stroke-dashoffset: 10; }
-.race-track-centerline { fill: none; stroke: rgba(255,255,255,0.5); stroke-width: 2; stroke-dasharray: 14 16; stroke-linecap: round; }
-.race-track-pitlane-outline { fill: none; stroke: rgba(230,234,240,0.92); stroke-width: 26; stroke-linecap: round; stroke-linejoin: round; }
-.race-track-pitlane { fill: none; stroke: #1c2028; stroke-width: 18; stroke-linecap: round; stroke-linejoin: round; }
-.race-track-pit-box { fill: rgba(255,255,255,0.08); stroke: rgba(255,255,255,0.4); stroke-width: 1.5; }
+.race-track-road-inner { fill: none; stroke: #1a1e26; stroke-width: 72; stroke-linecap: round; stroke-linejoin: round; }
+/* Curbs drawn at road edge (offset ±42) as thin stripes — no crossing the centerline */
+.race-track-curb-red { fill: none; stroke: #cc2424; stroke-width: 10; stroke-linecap: butt; stroke-linejoin: round; stroke-dasharray: 9 9; opacity: 0.9; }
+.race-track-curb-white { fill: none; stroke: rgba(255,255,255,0.88); stroke-width: 10; stroke-linecap: butt; stroke-linejoin: round; stroke-dasharray: 9 9; stroke-dashoffset: 9; opacity: 0.9; }
+.race-track-centerline { fill: none; stroke: rgba(255,255,255,0.44); stroke-width: 2; stroke-dasharray: 14 18; stroke-linecap: round; }
+/* Pit lane: same asphalt color family as main road, butt linecap for clean ends on the straight */
+.race-track-pitlane-outline { fill: none; stroke: #959087; stroke-width: 26; stroke-linecap: butt; stroke-linejoin: round; }
+.race-track-pitlane { fill: none; stroke: #2a2e38; stroke-width: 18; stroke-linecap: butt; stroke-linejoin: round; }
+.race-track-pit-box { fill: rgba(255,255,255,0.07); stroke: rgba(255,255,255,0.38); stroke-width: 1.5; }
+/* DNF bay */
 .race-track-retired-bay { fill: rgba(10,14,20,0.88); stroke: rgba(200,55,55,0.5); stroke-width: 2; }
-.race-track-retired-label { fill: rgba(200,55,55,0.9); font-size: 13px; font-weight: 800; letter-spacing: 0.16em; }
+.race-track-retired-label { fill: rgba(200,55,55,0.9); font-size: 12px; font-weight: 800; letter-spacing: 0.16em; }
 .race-track-sf-label { fill: rgba(255,255,255,0.92); font-size: 20px; font-weight: 800; letter-spacing: 0.1em; }
 .race-track-pitlabel { fill: rgba(255,255,255,0.86); font-size: 24px; font-weight: 800; letter-spacing: 0.14em; }
 .race-track-stand rect { fill: #efe4c9; stroke: rgba(126, 108, 74, 0.28); stroke-width: 2; }

@@ -305,35 +305,41 @@ const SCREENS = {
     return { icon, tooltip, wetAverage, confidence };
   },
 
-  getRaceTrackLayoutProfile(layout) {
-    const profiles = {
-      // Spa/Suzuka-inspired: wide flowing arcs, few tight corners, long sweeping sectors
-      'high-speed': {
-        points: [[170,138],[430,110],[710,110],[862,138],[948,202],[938,318],[878,385],[800,418],[820,495],[878,552],[740,575],[545,558],[345,558],[188,518],[125,412],[128,292],[154,212]],
-        scaleX: 1, scaleY: 1
-      },
-      // Monza/Baku-inspired: very long straights, chicane complex, minimal corners
-      power: {
-        points: [[170,142],[500,114],[822,142],[908,198],[906,298],[856,354],[812,382],[856,414],[906,470],[864,536],[700,570],[488,558],[288,552],[158,514],[122,412],[124,290],[150,212]],
-        scaleX: 1, scaleY: 1
-      },
-      // Monaco/Hungaroring-inspired: tight corners, chicanes, lots of direction changes
-      technical: {
-        points: [[190,142],[348,120],[530,118],[722,136],[812,178],[792,240],[724,282],[658,300],[668,360],[722,406],[758,462],[738,518],[630,555],[488,558],[354,545],[260,518],[204,464],[184,398],[210,340],[246,305],[208,256],[180,210]],
-        scaleX: 1, scaleY: 1
-      },
-      // Balanced: mix of fast and technical sections
-      mixed: {
-        points: [[170,130],[358,110],[618,110],[818,130],[900,190],[886,272],[820,330],[744,374],[806,448],[882,522],[762,562],[562,544],[400,526],[298,562],[220,522],[186,448],[240,366],[314,308],[258,250],[174,212]],
-        scaleX: 1, scaleY: 1
-      },
-      // Le Mans/Nürburgring-inspired: long lap with variety, long back straight
-      endurance: {
-        points: [[170,138],[378,110],[608,110],[808,130],[900,188],[892,266],[836,326],[760,374],[776,448],[835,506],[896,550],[818,572],[652,572],[510,558],[366,550],[232,570],[168,534],[136,450],[156,364],[222,306],[186,252],[170,212]],
-        scaleX: 1, scaleY: 1
-      }
+  getRaceTrackLayoutProfile(key) {
+    const circuits = {
+      // c1: Silverstone — high-speed, wide sweeping arcs, Maggotts/Becketts complex
+      c1: { points: [[182,138],[410,106],[692,106],[870,132],[946,196],[932,310],[872,382],[810,420],[838,496],[896,554],[738,572],[540,554],[342,554],[182,518],[118,415],[122,295],[150,212]], scaleX:1,scaleY:1 },
+      // c2: Circuit de la Sarthe — endurance, very long straights, tight chicane sectors
+      c2: { points: [[182,132],[500,100],[840,132],[910,195],[905,290],[848,352],[796,380],[820,445],[892,515],[905,565],[720,575],[508,562],[295,562],[165,540],[118,460],[125,365],[155,275],[168,210]], scaleX:1,scaleY:1 },
+      // c3: Monza — power, two long parallel straights, tight chicane complex, Parabolica
+      c3: { points: [[185,138],[395,108],[645,108],[848,138],[922,200],[910,312],[848,380],[820,416],[848,488],[914,550],[750,572],[545,556],[346,558],[185,524],[118,450],[122,348],[142,268],[165,210]], scaleX:1,scaleY:1 },
+      // c4: Spa-Francorchamps — mixed, Raidillon sweep, long Kemmel straight, Bus Stop
+      c4: { points: [[185,142],[345,112],[580,112],[800,142],[905,202],[892,308],[840,368],[780,405],[815,475],[888,548],[758,575],[550,562],[358,565],[202,545],[128,468],[132,372],[158,272],[172,212]], scaleX:1,scaleY:1 },
+      // c5: Barcelona — technical, many corners, tight final sector, slow hairpin
+      c5: { points: [[198,140],[358,118],[545,116],[728,135],[812,180],[795,248],[728,285],[668,308],[680,368],[728,415],[762,468],[745,524],[635,558],[490,558],[356,545],[262,520],[208,468],[188,402],[212,342],[248,308],[210,260],[183,212]], scaleX:1,scaleY:1 },
+      // c6: Suzuka — technical, sweeping S-curves, 130R, Degner curves, Spoon
+      c6: { points: [[205,145],[420,112],[658,112],[845,145],[922,205],[905,318],[848,385],[790,422],[820,498],[892,558],[730,578],[525,560],[328,558],[188,525],[122,420],[128,305],[160,220]], scaleX:1,scaleY:1 },
+      // c7: Interlagos — mixed, compact, counterclockwise flow, Senna S, curva do sol
+      c7: { points: [[202,138],[372,110],[582,110],[778,132],[860,188],[845,268],[788,318],[728,358],[770,420],[848,492],[852,550],[718,570],[555,555],[395,528],[298,558],[220,526],[188,455],[200,375],[240,328],[210,272],[188,215]], scaleX:1,scaleY:1 },
+      // c8: Hockenheimring — power, two long straights, three hairpins, stadium complex
+      c8: { points: [[188,138],[500,108],[825,138],[902,200],[900,312],[850,375],[812,402],[850,440],[902,505],[858,562],[688,575],[488,558],[282,560],[158,530],[118,450],[122,350],[145,272],[170,212]], scaleX:1,scaleY:1 },
+      // c9: Brands Hatch — technical, compact bowl, Paddock Hill, Druids hairpin
+      c9: { points: [[215,148],[420,118],[625,118],[802,150],[882,210],[870,315],[815,378],[760,412],[792,475],[862,540],[730,570],[528,558],[342,560],[195,532],[128,458],[130,360],[154,270],[180,212]], scaleX:1,scaleY:1 },
+      // c10: Portimão — mixed, flowing, sweeping cambered bends, blind crests
+      c10: { points: [[180,130],[360,108],[622,108],[820,132],[905,192],[888,275],[822,332],[748,374],[812,450],[885,525],[764,565],[562,548],[400,528],[298,565],[222,525],[188,450],[242,370],[318,310],[260,254],[176,212]], scaleX:1,scaleY:1 },
+      // c11: Mugello — power, long front straight, fast flowing Arrabbiata, tight Casanova
+      c11: { points: [[178,138],[395,108],[665,108],[865,138],[942,200],[932,308],[875,378],[812,420],[835,500],[895,558],[735,578],[538,560],[342,558],[182,522],[118,420],[122,300],[148,215]], scaleX:1,scaleY:1 },
+      // c12: Red Bull Ring — high-speed, compact, three main straights, few corners
+      c12: { points: [[212,145],[458,112],[725,112],[878,168],[902,245],[860,315],[812,360],[845,432],[905,505],[848,562],[660,575],[462,555],[278,558],[162,532],[118,450],[122,348],[154,265],[184,212]], scaleX:1,scaleY:1 }
     };
-    return profiles[layout] || profiles.mixed;
+    const layoutFallbacks = {
+      'high-speed': circuits.c1,
+      power: circuits.c3,
+      technical: circuits.c5,
+      mixed: circuits.c10,
+      endurance: circuits.c2
+    };
+    return circuits[key] || layoutFallbacks[key] || layoutFallbacks.mixed;
   },
 
   getRaceTrackControlPoints(layout) {
@@ -429,16 +435,28 @@ const SCREENS = {
     return pts.join(' ');
   },
 
-  // Returns corner zones (progress ranges) where curb markings should appear for each layout
-  getLayoutCurbZones(layout) {
+  // Returns corner zones (progress ranges) where curb markings should appear
+  getLayoutCurbZones(key) {
     const zones = {
-      'high-speed': [{ from: 0.18, to: 0.32 }, { from: 0.50, to: 0.60 }, { from: 0.71, to: 0.79 }, { from: 0.83, to: 0.90 }],
-      power:        [{ from: 0.20, to: 0.30 }, { from: 0.32, to: 0.48 }, { from: 0.50, to: 0.58 }, { from: 0.76, to: 0.88 }],
-      technical:    [{ from: 0.14, to: 0.28 }, { from: 0.32, to: 0.46 }, { from: 0.62, to: 0.74 }, { from: 0.78, to: 0.91 }],
-      mixed:        [{ from: 0.20, to: 0.30 }, { from: 0.40, to: 0.52 }, { from: 0.65, to: 0.75 }, { from: 0.77, to: 0.88 }],
-      endurance:    [{ from: 0.14, to: 0.24 }, { from: 0.29, to: 0.42 }, { from: 0.45, to: 0.52 }, { from: 0.64, to: 0.77 }, { from: 0.79, to: 0.87 }]
+      c1:  [{ from:0.19,to:0.31 },{ from:0.50,to:0.60 },{ from:0.72,to:0.80 },{ from:0.84,to:0.91 }],
+      c2:  [{ from:0.14,to:0.24 },{ from:0.30,to:0.42 },{ from:0.46,to:0.53 },{ from:0.65,to:0.77 },{ from:0.80,to:0.88 }],
+      c3:  [{ from:0.19,to:0.29 },{ from:0.32,to:0.46 },{ from:0.50,to:0.58 },{ from:0.77,to:0.88 }],
+      c4:  [{ from:0.18,to:0.28 },{ from:0.42,to:0.52 },{ from:0.62,to:0.72 },{ from:0.78,to:0.88 }],
+      c5:  [{ from:0.14,to:0.26 },{ from:0.30,to:0.44 },{ from:0.62,to:0.74 },{ from:0.78,to:0.91 }],
+      c6:  [{ from:0.18,to:0.30 },{ from:0.50,to:0.62 },{ from:0.73,to:0.82 },{ from:0.84,to:0.91 }],
+      c7:  [{ from:0.20,to:0.30 },{ from:0.40,to:0.50 },{ from:0.65,to:0.75 },{ from:0.78,to:0.88 }],
+      c8:  [{ from:0.20,to:0.30 },{ from:0.32,to:0.46 },{ from:0.50,to:0.58 },{ from:0.76,to:0.88 }],
+      c9:  [{ from:0.16,to:0.28 },{ from:0.36,to:0.50 },{ from:0.64,to:0.76 },{ from:0.80,to:0.91 }],
+      c10: [{ from:0.20,to:0.30 },{ from:0.40,to:0.52 },{ from:0.65,to:0.75 },{ from:0.77,to:0.88 }],
+      c11: [{ from:0.18,to:0.30 },{ from:0.46,to:0.56 },{ from:0.68,to:0.78 },{ from:0.82,to:0.90 }],
+      c12: [{ from:0.20,to:0.32 },{ from:0.48,to:0.60 },{ from:0.70,to:0.80 },{ from:0.84,to:0.92 }],
+      'high-speed': [{ from:0.18,to:0.32 },{ from:0.50,to:0.60 },{ from:0.71,to:0.79 },{ from:0.83,to:0.90 }],
+      power:        [{ from:0.20,to:0.30 },{ from:0.32,to:0.48 },{ from:0.50,to:0.58 },{ from:0.76,to:0.88 }],
+      technical:    [{ from:0.14,to:0.28 },{ from:0.32,to:0.46 },{ from:0.62,to:0.74 },{ from:0.78,to:0.91 }],
+      mixed:        [{ from:0.20,to:0.30 },{ from:0.40,to:0.52 },{ from:0.65,to:0.75 },{ from:0.77,to:0.88 }],
+      endurance:    [{ from:0.14,to:0.24 },{ from:0.29,to:0.42 },{ from:0.45,to:0.52 },{ from:0.64,to:0.77 },{ from:0.79,to:0.87 }]
     };
-    return zones[layout] || zones.mixed;
+    return zones[key] || zones.mixed;
   },
 
   getRaceTrackSceneryMarkup(layout) {
@@ -517,26 +535,19 @@ const SCREENS = {
 
   getRaceTrackStageMarkup(circuit, weather) {
     const layout = circuit?.layout || 'mixed';
+    const trackKey = circuit?.id || layout;
 
-    // Track paths
-    const islandOffset = { 'high-speed': -112, technical: -90, power: -118, mixed: -108, endurance: -105 }[layout] || -108;
-    const roadPath = this.getRacePathData(layout, 0, 220, false);
-    const centerPath = this.getRacePathData(layout, -1, 220, false);
-    const innerIslandPath = this.getRacePathData(layout, islandOffset, 220, false);
+    // Track paths — keyed by circuit ID so each circuit has its own shape
+    const islandOffsets = { 'high-speed':-112, power:-118, technical:-90, mixed:-108, endurance:-105, c1:-112, c2:-105, c3:-118, c4:-108, c5:-90, c6:-112, c7:-108, c8:-118, c9:-90, c10:-108, c11:-118, c12:-112 };
+    const islandOffset = islandOffsets[trackKey] || -108;
+    const roadPath = this.getRacePathData(trackKey, 0, 220, false);
+    const centerPath = this.getRacePathData(trackKey, -1, 220, false);
+    const innerIslandPath = this.getRacePathData(trackKey, islandOffset, 220, false);
 
-    // Pit lane — straight horizontal road anchored to main-straight geometry
-    const geo = this.getPitLaneGeometry(layout);
-    const { pitY, pitEntryX, pitExitX, entryPt, exitPt } = geo;
-    const pitFullPath = [
-      `M ${entryPt.x.toFixed(1)} ${entryPt.y.toFixed(1)}`,
-      `C ${(entryPt.x + 10).toFixed(1)} ${(entryPt.y - 20).toFixed(1)},`,
-      `${(pitEntryX + 6).toFixed(1)} ${(pitY + 22).toFixed(1)},`,
-      `${pitEntryX.toFixed(1)} ${pitY.toFixed(1)}`,
-      `L ${pitExitX.toFixed(1)} ${pitY.toFixed(1)}`,
-      `C ${(pitExitX - 6).toFixed(1)} ${(pitY + 22).toFixed(1)},`,
-      `${(exitPt.x - 10).toFixed(1)} ${(exitPt.y - 20).toFixed(1)},`,
-      `${exitPt.x.toFixed(1)} ${exitPt.y.toFixed(1)}`
-    ].join(' ');
+    // Pit lane — straight horizontal road only; no connector curves that cross the main road
+    const geo = this.getPitLaneGeometry(trackKey);
+    const { pitY, pitEntryX, pitExitX } = geo;
+    const pitStraightPath = `M ${pitEntryX.toFixed(1)} ${pitY.toFixed(1)} L ${pitExitX.toFixed(1)} ${pitY.toFixed(1)}`;
 
     // Pit boxes — perpendicular slots above the pit lane, evenly spaced
     const pitBoxCount = 10;
@@ -547,15 +558,18 @@ const SCREENS = {
       return `<rect class="race-track-pit-box" x="${(bx - bw / 2).toFixed(1)}" y="${(pitY - 28).toFixed(1)}" width="${bw.toFixed(1)}" height="27" rx="3" />`;
     }).join('');
 
-    // Selective corner curbs
-    const curbZones = this.getLayoutCurbZones(layout);
-    const curbOuterMarkup = curbZones.map((z) => `<path class="race-track-curb-outer" d="${this.getRacePathSegmentData(layout, z.from, z.to)}" />`).join('');
-    const curbInnerMarkup = curbZones.map((z) => `<path class="race-track-curb-inner" d="${this.getRacePathSegmentData(layout, z.from, z.to)}" />`).join('');
+    // Selective corner curbs — thin stripes at road edges (±44 offset), red+white overlaid for classic alternating pattern
+    const curbZones = this.getLayoutCurbZones(trackKey);
+    const curbMarkup = curbZones.map((z) => {
+      const outerPath = this.getRacePathSegmentData(trackKey, z.from, z.to, 44);
+      const innerPath = this.getRacePathSegmentData(trackKey, z.from, z.to, -44);
+      return `<path class="race-track-curb-red" d="${outerPath}" /><path class="race-track-curb-white" d="${outerPath}" /><path class="race-track-curb-red" d="${innerPath}" /><path class="race-track-curb-white" d="${innerPath}" />`;
+    }).join('');
 
     // Start / Finish line — checkerboard stripe perpendicular to track direction
     const sfProgress = 0.09;
-    const sfPt = this.getRaceTrackPoint(sfProgress, layout, 0);
-    const sfAhead = this.getRaceTrackPoint(sfProgress + 0.004, layout, 0);
+    const sfPt = this.getRaceTrackPoint(sfProgress, trackKey, 0);
+    const sfAhead = this.getRaceTrackPoint(sfProgress + 0.004, trackKey, 0);
     const sfAngle = Math.atan2(sfAhead.y - sfPt.y, sfAhead.x - sfPt.x) * (180 / Math.PI);
     const sfMarkup = `
       <rect fill="url(#race-track-sf-pattern)"
@@ -584,20 +598,19 @@ const SCREENS = {
           <rect class="race-track-grass" x="0" y="0" width="1000" height="620" rx="18" />
           ${this.getRaceTrackSceneryMarkup(layout)}
           <g class="race-track-retired-zone">
-            <rect class="race-track-retired-bay" x="8" y="498" width="100" height="96" rx="7" />
-            <text class="race-track-retired-label" x="58" y="514" text-anchor="middle">DNF</text>
-            <line x1="8" y1="522" x2="108" y2="522" stroke="rgba(200,55,55,0.22)" stroke-width="1"/>
+            <rect class="race-track-retired-bay" x="8" y="488" width="128" height="128" rx="7" />
+            <text class="race-track-retired-label" x="72" y="506" text-anchor="middle">DNF</text>
+            <line x1="8" y1="515" x2="136" y2="515" stroke="rgba(200,55,55,0.22)" stroke-width="1"/>
           </g>
           <path class="race-track-runoff" d="${roadPath}" />
           <path class="race-track-island" d="${innerIslandPath}" />
-          ${curbOuterMarkup}
           <path class="race-track-road-shadow" d="${roadPath}" />
           <path class="race-track-road" d="${roadPath}" />
           <path class="race-track-road-inner" d="${roadPath}" />
-          ${curbInnerMarkup}
+          ${curbMarkup}
           <path class="race-track-centerline" d="${centerPath}" />
-          <path class="race-track-pitlane-outline" d="${pitFullPath}" />
-          <path class="race-track-pitlane" d="${pitFullPath}" />
+          <path class="race-track-pitlane-outline" d="${pitStraightPath}" />
+          <path class="race-track-pitlane" d="${pitStraightPath}" />
           <g class="race-track-pit-boxes">${pitBoxes}</g>
           ${sfMarkup}
           <text class="race-track-pitlabel" x="${(Math.min(pitEntryX, pitExitX) + 10).toFixed(1)}" y="${(pitY - 32).toFixed(1)}">PIT</text>
@@ -694,6 +707,7 @@ const SCREENS = {
 
     const intraLapProgress = (progress * totalLaps) % 1;
     const layout = circuit?.layout || 'mixed';
+    const trackKey = circuit?.id || layout;
     const estimatedLeaderLapMs = Math.max(76000, Number((circuit?.laps || 60) * 1450));
     const cars = (Array.isArray(liveOrder) ? liveOrder : []).slice(0, 20);
     const activePitCars = cars.filter((car) => !!car?.pit).length;
@@ -739,7 +753,7 @@ const SCREENS = {
           this._retiredSlotMap[carId] = slot;
         }
         const slot = this._retiredSlotMap[carId];
-        point = { x: 16 + ((slot % 4) * 22), y: 528 + (Math.floor(slot / 4) * 20) };
+        point = { x: 18 + ((slot % 5) * 22), y: 524 + (Math.floor(slot / 5) * 18) };
         aheadPoint = { x: point.x + 1, y: point.y };
         stateEntry.onPitLane = false;
         stateEntry.pitProgress = 0;
@@ -747,8 +761,8 @@ const SCREENS = {
         const gapFraction = Number.isFinite(car.gapMs) ? (car.gapMs / estimatedLeaderLapMs) : (idx * 0.014);
         const trackProgress = intraLapProgress - gapFraction;
         const laneOffset = ((idx % 3) - 1) * 3.1;
-        const trackPoint = this.getRaceTrackPoint(trackProgress, layout, laneOffset);
-        const trackAheadPoint = this.getRaceTrackPoint(trackProgress + 0.008, layout, laneOffset);
+        const trackPoint = this.getRaceTrackPoint(trackProgress, trackKey, laneOffset);
+        const trackAheadPoint = this.getRaceTrackPoint(trackProgress + 0.008, trackKey, laneOffset);
 
         if (car.pit) {
           const pitGain = 0.09 + Math.min(0.06, Number(car.pitLossMs || 0) / 56000);
@@ -766,8 +780,8 @@ const SCREENS = {
         }
 
         if (stateEntry.onPitLane) {
-          point = this.getRacePitLanePoint(stateEntry.pitProgress, layout);
-          aheadPoint = this.getRacePitLanePoint(Math.min(1, stateEntry.pitProgress + 0.025), layout);
+          point = this.getRacePitLanePoint(stateEntry.pitProgress, trackKey);
+          aheadPoint = this.getRacePitLanePoint(Math.min(1, stateEntry.pitProgress + 0.025), trackKey);
         } else {
           const prevX = Number.isFinite(stateEntry.x) ? stateEntry.x : trackPoint.x;
           const prevY = Number.isFinite(stateEntry.y) ? stateEntry.y : trackPoint.y;
