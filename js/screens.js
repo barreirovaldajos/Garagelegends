@@ -2170,24 +2170,34 @@ const SCREENS = {
     const _spDiv = Number(state?.season?.division) || 8;
     const _SP_MULT = {1:13.0, 2:9.0, 3:6.5, 4:4.5, 5:3.2, 6:2.2, 7:1.5, 8:1.0};
     const _spMult = _SP_MULT[_spDiv] || 1.0;
-    const myIds = state.sponsors.filter(s => !s.expired).map(s=>s.id);
-    const available = GL_DATA.SPONSOR_POOL.filter(s=>!myIds.includes(s.id));
-    if (!available.length) return `<p style="color:var(--t-secondary);font-size:0.9rem">${__('market_no_sponsors') || 'No hay patrocinadores disponibles.'}</p>`;
-    return available.map(sp => {
+    const activeSponsorIds = state.sponsors.filter(s => !s.expired).map(s => s.id);
+    const activeCount = activeSponsorIds.length;
+    const MAX_SPONSORS = 3;
+    const fans = Number(state?.team?.fans || 0);
+    const slotsFullMsg = activeCount >= MAX_SPONSORS
+      ? `<div style="background:rgba(232,41,42,0.1);border:1px solid rgba(232,41,42,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:var(--c-accent)">⚠️ Tienes ${MAX_SPONSORS} patrocinadores activos (máximo). Rescinde uno para firmar otro.</div>`
+      : `<div style="font-size:0.78rem;color:var(--t-tertiary);margin-bottom:10px">Slots de patrocinadores: <strong>${activeCount}/${MAX_SPONSORS}</strong></div>`;
+    const available = GL_DATA.SPONSOR_POOL.filter(s => !activeSponsorIds.includes(s.id));
+    if (!available.length) return `${slotsFullMsg}<p style="color:var(--t-secondary);font-size:0.9rem">No hay patrocinadores disponibles.</p>`;
+    return slotsFullMsg + available.map(sp => {
       const scaledIncome = Math.round(sp.income * _spMult / 100) * 100;
       const scaledBonus = Math.round(sp.demandBonus * _spMult / 100) * 100;
+      const locked = fans < (sp.minFans || 0);
+      const lockReason = locked ? `Requiere ${sp.minFans.toLocaleString()} fans (tienes ${fans.toLocaleString()})` : '';
+      const slotsFull = activeCount >= MAX_SPONSORS;
+      const canSign = !locked && !slotsFull;
       return `
-      <div class="market-pilot-row">
-        <div class="market-pilot-avatar" style="font-size:2rem;background:${sp.bg||'#111'}">${sp.logo}</div>
+      <div class="market-pilot-row" style="${locked ? 'opacity:0.55' : ''}">
+        <div class="market-pilot-avatar" style="font-size:2rem;background:${sp.bg||'#111'}">${locked ? '🔒' : sp.logo}</div>
         <div class="market-pilot-info">
-          <div class="market-pilot-name" style="color:${sp.color}">${sp.name}</div>
-          <div class="market-pilot-meta">${__('market_duration')}: ${sp.duration} ${__('market_weeks')} · ${__('market_req')}: ${sp.demand}</div>
-          <div style="font-size:0.74rem;color:var(--c-gold);margin-top:3px">${__('market_demand_bonus') || 'Bonus objetivo'}: +${GL_UI.fmtCR(scaledBonus)}</div>
+          <div class="market-pilot-name" style="color:${locked ? 'var(--t-tertiary)' : sp.color}">${sp.name}</div>
+          <div class="market-pilot-meta">${sp.duration} semanas · ${sp.demand}</div>
+          <div style="font-size:0.74rem;color:var(--c-gold);margin-top:3px">🎯 Bonus si cumples: +${GL_UI.fmtCR(scaledBonus)}</div>
+          ${locked ? `<div style="font-size:0.72rem;color:var(--c-accent);margin-top:3px">🔒 ${lockReason}</div>` : ''}
         </div>
         <div class="market-pilot-salary">
-          <div class="market-pilot-salary-val">+${GL_UI.fmtCR(scaledIncome)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
-          <div class="market-pilot-salary-label">${__('market_sponsor_income')}</div>
-          <button class="btn btn-primary btn-sm" style="margin-top:var(--s-2)" onclick="GL_SCREENS.signSponsor('${sp.id}')">${__('market_sign_deal')}</button>
+          <div class="market-pilot-salary-val">+${GL_UI.fmtCR(scaledIncome)}<span style="font-size:0.7rem">/sem</span></div>
+          <button class="btn btn-primary btn-sm" style="margin-top:var(--s-2)" ${canSign ? `onclick="GL_SCREENS.signSponsor('${sp.id}')"` : 'disabled'}>Firmar Acuerdo</button>
         </div>
       </div>`;
     }).join('');
@@ -2216,6 +2226,10 @@ const SCREENS = {
     const sp = GL_DATA.SPONSOR_POOL.find(x=>x.id===id);
     if (!sp) return;
     const state = GL_STATE.getState();
+    const active = state.sponsors.filter(s => !s.expired);
+    if (active.length >= 3) { GL_UI.toast('Slots llenos. Rescinde un contrato antes de firmar uno nuevo.', 'warning'); return; }
+    const fans = Number(state?.team?.fans || 0);
+    if (fans < (sp.minFans || 0)) { GL_UI.toast(`Necesitas ${sp.minFans.toLocaleString()} fans para acceder a este sponsor.`, 'warning'); return; }
     const _spDiv = Number(state?.season?.division) || 8;
     const _SP_MULT = {1:13.0, 2:9.0, 3:6.5, 4:4.5, 5:3.2, 6:2.2, 7:1.5, 8:1.0};
     const _spMult = _SP_MULT[_spDiv] || 1.0;
@@ -2225,13 +2239,35 @@ const SCREENS = {
       ...GL_STATE.deepClone(sp),
       weeklyValue: scaledIncome,
       demandBonus: scaledBonus,
-      weeksLeft: sp.duration
+      weeksLeft: sp.duration,
+      demandFailures: 0
     });
-    GL_STATE.addLog(`💼 ${sp.name} sponsor deal signed! +${GL_UI.fmtCR(scaledIncome)}/wk`, 'good');
+    GL_STATE.addLog(`💼 Acuerdo firmado con ${sp.name}: +${GL_UI.fmtCR(scaledIncome)}/sem`, 'good');
     GL_STATE.saveState();
-    GL_UI.toast(`${sp.name} deal signed! +${GL_UI.fmtCR(scaledIncome)}/wk`, 'success');
+    GL_UI.toast(`${sp.name} firmado! +${GL_UI.fmtCR(scaledIncome)}/sem`, 'success');
     this.renderMarket();
     GL_DASHBOARD.refresh();
+  },
+
+  rescindSponsor(sponsorId) {
+    const state = GL_STATE.getState();
+    const idx = state.sponsors.findIndex(s => s.id === sponsorId && !s.expired);
+    if (idx === -1) return;
+    const sp = state.sponsors[idx];
+    const penalty = Math.round((sp.weeklyValue || 0) * Math.max(1, sp.weeksLeft || 1) * 0.2);
+    GL_UI.confirm(
+      'Rescindir contrato',
+      `¿Rescindir el contrato con ${sp.name}? Penalización: -${GL_UI.fmtCR(penalty)} CR por incumplimiento.`
+    ).then(ok => {
+      if (!ok) return;
+      sp.expired = true;
+      if (penalty > 0) GL_STATE.addCredits(-penalty);
+      GL_STATE.addLog(`💼 Contrato rescindido con ${sp.name}. Penalización: -${GL_UI.fmtCR(penalty)} CR`, 'bad');
+      GL_STATE.saveState();
+      GL_UI.toast(`Contrato rescindido.`, 'warning');
+      this.renderMarket();
+      GL_DASHBOARD.refresh();
+    });
   },
 
   // ===== PRE-RACE SCREEN =====

@@ -2155,6 +2155,50 @@ function weeklyTick() {
   return playerEconomy;
 }
 
+// ---- Sponsor demand evaluation (called after each race) ----
+function evaluateSponsorDemands(raceResult) {
+  const state = S.getState();
+  if (!state || !Array.isArray(state.sponsors)) return;
+
+  const playerCars = Array.isArray(raceResult?.playerCars) ? raceResult.playerCars : [];
+  const positions = playerCars.map(c => Number(c.position || 99));
+  const bestPos = positions.length ? Math.min(...positions) : 99;
+  const allFinished = playerCars.every(c => !c.isDNF);
+  const lastBestPos = Number(state.lastRaceBestPos || 99);
+
+  state.sponsors.forEach(sp => {
+    if (sp.expired) return;
+    let met = false;
+    switch (sp.demandKey) {
+      case 'top8':   met = bestPos <= 8; break;
+      case 'top10':  met = bestPos <= 10; break;
+      case 'top5':   met = bestPos <= 5; break;
+      case 'podium': met = bestPos <= 3; break;
+      case 'win':    met = bestPos === 1; break;
+      case 'no_dnf': met = allFinished; break;
+      case 'improve':met = bestPos < lastBestPos; break;
+      default:       met = true;
+    }
+    if (met) {
+      sp.demandFailures = 0;
+      if (sp.demandBonus > 0) {
+        S.addCredits(sp.demandBonus);
+        S.addLog(`💼 ${sp.name}: objetivo cumplido — +${GL_UI.fmtCR(sp.demandBonus)} CR`, 'good');
+      }
+    } else {
+      sp.demandFailures = (sp.demandFailures || 0) + 1;
+      if (sp.demandFailures >= 2) {
+        sp.expired = true;
+        S.addLog(`💼 ${sp.name} canceló el contrato por incumplimiento de objetivos.`, 'bad');
+      } else {
+        S.addLog(`⚠️ ${sp.name}: objetivo no cumplido (advertencia ${sp.demandFailures}/2).`, 'warning');
+      }
+    }
+  });
+
+  state.lastRaceBestPos = bestPos;
+}
+
 function applyRaceWeekendEconomy(raceResult) {
   const state = S.getState();
   const prizeMoney = Number.isFinite(raceResult?.prizeMoney)
@@ -2165,6 +2209,8 @@ function applyRaceWeekendEconomy(raceResult) {
   if (prizeMoney !== 0) {
     S.addCredits(prizeMoney);
   }
+
+  evaluateSponsorDemands(raceResult);
 
   const creditsAfterPrize = Number(S.getState()?.finances?.credits || 0);
   const weeklyEconomy = weeklyTick() || { net: 0, income: 0, expenses: 0, effects: {} };
@@ -3309,6 +3355,7 @@ function catchUpOffline() {
     const newNext = cal.find((r) => r && (r.status === 'upcoming' || r.status === 'pending'));
     if (newNext) newNext.status = 'next';
 
+    evaluateSponsorDemands(simResult);
     S.addCredits(simResult.prizeMoney || 0);
     totalCredits += (simResult.prizeMoney || 0);
     totalPoints += (simResult.points || 0);
@@ -3404,7 +3451,7 @@ window.GL_ENGINE = {
   getTyreUsefulLife, getTyrePaceDeltaMs, getCircuitRaceDistanceKm,
   buildRacePerformanceReport, buildRaceAdminReport, buildRaceArchiveRecord, upsertRaceArchiveRecord,
   getFinanceOverview,
-  weeklyTick, applyRaceWeekendEconomy, updateConstructionQueue, startHqUpgrade,
+  weeklyTick, applyRaceWeekendEconomy, evaluateSponsorDemands, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,
   getRaceStaffEffects,

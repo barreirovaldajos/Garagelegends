@@ -553,7 +553,7 @@ const DASHBOARD = {
   renderSponsors(state) {
     const el = document.getElementById('dash-sponsors');
     if (!el) return;
-    const sponsors = state.sponsors || [];
+    const sponsors = (state.sponsors || []).filter(s => !s.expired);
     if (!sponsors.length) { el.innerHTML = `<p style="color:var(--t-tertiary);font-size:0.82rem">${__('dash_no_sponsors')}</p>`; return; }
     el.innerHTML = sponsors.map(s => GL_UI.sponsorChipHTML(s)).join('');
   },

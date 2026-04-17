@@ -163,11 +163,17 @@ function relTime(ts) {
 
 // ---- Build sponsor chips ----
 function sponsorChipHTML(sp) {
-  return `<div class="sponsor-chip">
+  if (sp.expired) return '';
+  const failures = sp.demandFailures || 0;
+  const warningBadge = failures === 1
+    ? `<span style="font-size:0.7rem;color:#f5c842;margin-left:6px" title="Advertencia: no cumpliste el objetivo la última carrera">⚠️ 1/2</span>`
+    : '';
+  return `<div class="sponsor-chip" style="${failures >= 1 ? 'border-color:rgba(245,200,66,0.4)' : ''}">
     <span style="font-size:1.2rem">${sp.logo||'💰'}</span>
-    <span class="sponsor-chip-name">${sp.name}</span>
-    <span class="sponsor-chip-income">+${fmtCR(sp.income)}/wk</span>
-    <span style="font-size:0.72rem;color:var(--t-tertiary);margin-left:auto">${sp.weeksLeft || sp.duration}wk left</span>
+    <span class="sponsor-chip-name">${sp.name}${warningBadge}</span>
+    <span class="sponsor-chip-income">+${fmtCR(sp.weeklyValue || sp.income)}/sem</span>
+    <span style="font-size:0.72rem;color:var(--t-tertiary);margin-left:4px">${sp.weeksLeft || sp.duration} sem</span>
+    <button onclick="GL_SCREENS.rescindSponsor('${sp.id}')" style="margin-left:8px;background:none;border:none;cursor:pointer;font-size:0.72rem;color:var(--t-tertiary);padding:2px 4px;border-radius:4px" title="Rescindir contrato">✕</button>
   </div>`;
 }
 
