@@ -382,34 +382,18 @@ const SCREENS = {
     };
   },
 
-  // Returns the 4 anchor points that define the pit lane geometry for a given layout.
-  // The pit lane is a horizontal straight above the main straight, connected by short bezier funnels.
-  getPitLaneGeometry(layout) {
-    const entryPt = this.getRaceTrackPoint(0.175, layout, 0);
-    const exitPt = this.getRaceTrackPoint(0.02, layout, 0);
-    const pitY = Math.min(entryPt.y, exitPt.y) - 42;
-    return { pitY, pitEntryX: entryPt.x, pitExitX: exitPt.x, entryPt, exitPt };
+  // Pit lane runs as an open path segment parallel to the main straight, offset inside the circuit.
+  // PIT_OFFSET negative = inside the track (right normal for clockwise circuits).
+  getPitLaneConstants() {
+    return { PIT_START: 0.02, PIT_END: 0.175, PIT_OFFSET: -62 };
   },
 
   getRacePitLanePoint(progress, layout) {
-    const geo = this.getPitLaneGeometry(layout);
+    const { PIT_START, PIT_END, PIT_OFFSET } = this.getPitLaneConstants();
     const local = Math.max(0, Math.min(1, Number(progress) || 0));
-    const ENTRY_END = 0.14, EXIT_START = 0.86;
-    const cubicBez = (t, p0, p1, p2, p3) => {
-      const inv = 1 - t, inv2 = inv * inv, inv3 = inv2 * inv, t2 = t * t, t3 = t2 * t;
-      return { x: (inv3 * p0.x) + (3 * inv2 * t * p1.x) + (3 * inv * t2 * p2.x) + (t3 * p3.x), y: (inv3 * p0.y) + (3 * inv2 * t * p1.y) + (3 * inv * t2 * p2.y) + (t3 * p3.y) };
-    };
-    if (local <= ENTRY_END) {
-      const t = local / ENTRY_END;
-      const p0 = geo.entryPt, p3 = { x: geo.pitEntryX, y: geo.pitY };
-      return cubicBez(t, p0, { x: p0.x + 10, y: p0.y - 20 }, { x: p3.x + 6, y: p3.y + 22 }, p3);
-    } else if (local >= EXIT_START) {
-      const t = (local - EXIT_START) / (1 - EXIT_START);
-      const p0 = { x: geo.pitExitX, y: geo.pitY }, p3 = geo.exitPt;
-      return cubicBez(t, p0, { x: p0.x - 6, y: p0.y + 22 }, { x: p3.x - 10, y: p3.y - 20 }, p3);
-    }
-    const t = (local - ENTRY_END) / (EXIT_START - ENTRY_END);
-    return { x: geo.pitEntryX + ((geo.pitExitX - geo.pitEntryX) * t), y: geo.pitY };
+    // local=0 → pit entry (track progress PIT_END), local=1 → pit exit (track progress PIT_START)
+    const trackProgress = PIT_END - (PIT_END - PIT_START) * local;
+    return this.getRaceTrackPoint(trackProgress, layout, PIT_OFFSET);
   },
 
   getRacePathData(layout, laneOffset = 0, samples = 180, usePitLane = false) {
@@ -544,27 +528,28 @@ const SCREENS = {
     const centerPath = this.getRacePathData(trackKey, -1, 220, false);
     const innerIslandPath = this.getRacePathData(trackKey, islandOffset, 220, false);
 
-    // Pit lane — straight horizontal road only; no connector curves that cross the main road
-    const geo = this.getPitLaneGeometry(trackKey);
-    const { pitY, pitEntryX, pitExitX } = geo;
-    const pitStraightPath = `M ${pitEntryX.toFixed(1)} ${pitY.toFixed(1)} L ${pitExitX.toFixed(1)} ${pitY.toFixed(1)}`;
+    // Pit lane — open path parallel to main straight, offset inside the circuit
+    const { PIT_START, PIT_END, PIT_OFFSET } = this.getPitLaneConstants();
+    const pitLanePath = this.getRacePathSegmentData(trackKey, PIT_START, PIT_END, PIT_OFFSET, 60);
 
-    // Pit boxes — perpendicular slots above the pit lane, evenly spaced
+    // Pit boxes — rotated rects aligned with pit lane direction
     const pitBoxCount = 10;
-    const pitBoxSpacing = (pitEntryX - pitExitX) / pitBoxCount;
     const pitBoxes = Array.from({ length: pitBoxCount }, (_, i) => {
-      const bx = pitExitX + ((i + 0.5) * pitBoxSpacing);
-      const bw = pitBoxSpacing * 0.8;
-      return `<rect class="race-track-pit-box" x="${(bx - bw / 2).toFixed(1)}" y="${(pitY - 28).toFixed(1)}" width="${bw.toFixed(1)}" height="27" rx="3" />`;
+      const prog = PIT_START + ((i + 0.5) / pitBoxCount) * (PIT_END - PIT_START);
+      const pt = this.getRaceTrackPoint(prog, trackKey, PIT_OFFSET - 20);
+      const fwd = this.getRaceTrackPoint(prog + 0.002, trackKey, PIT_OFFSET - 20);
+      const ang = Math.atan2(fwd.y - pt.y, fwd.x - pt.x) * 180 / Math.PI;
+      return `<rect class="race-track-pit-box" x="${(pt.x - 11).toFixed(1)}" y="${(pt.y - 7).toFixed(1)}" width="22" height="14" rx="2" transform="rotate(${ang.toFixed(1)} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)})" />`;
     }).join('');
 
-    // Selective corner curbs — thin stripes at road edges (±44 offset), red+white overlaid for classic alternating pattern
-    const curbZones = this.getLayoutCurbZones(trackKey);
-    const curbMarkup = curbZones.map((z) => {
-      const outerPath = this.getRacePathSegmentData(trackKey, z.from, z.to, 44);
-      const innerPath = this.getRacePathSegmentData(trackKey, z.from, z.to, -44);
-      return `<path class="race-track-curb-red" d="${outerPath}" /><path class="race-track-curb-white" d="${outerPath}" /><path class="race-track-curb-red" d="${innerPath}" /><path class="race-track-curb-white" d="${innerPath}" />`;
-    }).join('');
+    // PIT label at midpoint of pit lane
+    const pitLabelProg = (PIT_START + PIT_END) / 2;
+    const pitLabelPt = this.getRaceTrackPoint(pitLabelProg, trackKey, PIT_OFFSET - 38);
+    const pitLabelFwd = this.getRaceTrackPoint(pitLabelProg + 0.004, trackKey, PIT_OFFSET - 38);
+    const pitLabelAngle = Math.atan2(pitLabelFwd.y - pitLabelPt.y, pitLabelFwd.x - pitLabelPt.x) * 180 / Math.PI;
+
+    // Curbs — removed (dashed paths on curves create cone artefacts; will be reworked)
+    const curbMarkup = '';
 
     // Start / Finish line — checkerboard stripe perpendicular to track direction
     const sfProgress = 0.09;
@@ -609,11 +594,11 @@ const SCREENS = {
           <path class="race-track-road-inner" d="${roadPath}" />
           ${curbMarkup}
           <path class="race-track-centerline" d="${centerPath}" />
-          <path class="race-track-pitlane-outline" d="${pitStraightPath}" />
-          <path class="race-track-pitlane" d="${pitStraightPath}" />
+          <path class="race-track-pitlane-outline" d="${pitLanePath}" />
+          <path class="race-track-pitlane" d="${pitLanePath}" />
           <g class="race-track-pit-boxes">${pitBoxes}</g>
           ${sfMarkup}
-          <text class="race-track-pitlabel" x="${(Math.min(pitEntryX, pitExitX) + 10).toFixed(1)}" y="${(pitY - 32).toFixed(1)}">PIT</text>
+          <text class="race-track-pitlabel" x="${pitLabelPt.x.toFixed(1)}" y="${pitLabelPt.y.toFixed(1)}" transform="rotate(${pitLabelAngle.toFixed(1)} ${pitLabelPt.x.toFixed(1)} ${pitLabelPt.y.toFixed(1)})" text-anchor="middle">PIT</text>
         </svg>
         <div class="race-track-cars" id="race-track-cars"></div>
         <div class="race-track-hud">

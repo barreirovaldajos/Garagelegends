@@ -309,7 +309,7 @@
 .race-track-bg { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(232,41,42,0.05) 0%, transparent 70%); }
 .race-status-bar { display: flex; align-items: center; gap: var(--s-4); padding: var(--s-3) var(--s-4); background: var(--c-surface-2); border-radius: var(--r-md); position: relative; z-index: 2; }
 .race-lap-counter { font-family: var(--font-display); font-weight: 900; font-size: 1.1rem; }
-.race-track-stage { position: relative; z-index: 2; min-height: 292px; aspect-ratio: 1000 / 620; width: 100%; border-radius: calc(var(--r-xl) - 4px); overflow: hidden; border: 1px solid rgba(255,255,255,0.08); background: #3d6b18; }
+.race-track-stage { position: relative; z-index: 2; min-height: 292px; aspect-ratio: 1000 / 620; width: 100%; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); background: #3d6b18; }
 .race-track-stage::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 55%); pointer-events: none; z-index: 0; }
 .race-track-stage::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; }
 .race-track-stage.wet-weather { background: #2e5430; }
