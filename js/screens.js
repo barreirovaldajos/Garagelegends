@@ -1873,7 +1873,8 @@ const SCREENS = {
       : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('season_history_empty')}</div>`;
     const titles = seasonHistory.filter((summary) => Number(summary.division) === 1 && Number(summary.finishPosition) === 1).length;
     const promotions = seasonHistory.filter((summary) => summary.result === 'promoted').length;
-    const podiums = seasonHistory.filter((summary) => Number(summary.finishPosition) <= 3).length;
+    const podiums = seasonHistory.reduce((sum, s) => sum + (Number(s.podiums) || 0), 0);
+    const totalWins = seasonHistory.reduce((sum, s) => sum + (Number(s.wins) || 0), 0);
     const campaignMilestones = Array.isArray(state?.campaign?.history) ? state.campaign.history.length : 0;
     const bestFinish = seasonHistory.length
       ? seasonHistory.reduce((best, summary) => Math.min(best, Number(summary.finishPosition) || 99), 99)
@@ -1926,6 +1927,7 @@ const SCREENS = {
             <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_titles')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--c-gold)">${titles}</div></div>
             <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_promotions')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${promotions}</div></div>
             <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_podiums')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${podiums}</div></div>
+            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">Victorias totales</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${totalWins}</div></div>
             <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_best_finish')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${bestFinish ? `P${bestFinish}` : '–'}</div></div>
           </div>
           <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:10px">${__('hall_of_fame_campaign_milestones')}: <strong>${campaignMilestones}</strong></div>

@@ -2450,6 +2450,7 @@ function endSeason() {
   const finalPosition = Number(myStanding.position) || 10;
   const finalPoints = Number(myStanding.points) || 0;
   const finalWins = Number(myStanding.wins) || 0;
+  const finalPodiums = Number(myStanding.podiums) || 0;
   const transition = getDivisionTransition(state, finalPosition);
 
   const bonusCredits = finalPosition <= 3 ? 100000 : 0;
@@ -2465,6 +2466,7 @@ function endSeason() {
     finishPosition: finalPosition,
     points: finalPoints,
     wins: finalWins,
+    podiums: finalPodiums,
     result: transition.result,
     nextDivision: transition.nextDivision,
     bonusCredits,
@@ -2654,7 +2656,7 @@ function buildInitialStandings(division) {
   standings.unshift({
     id: 'player', name: S.getState().team.name || 'Your Team',
     color: S.getState().team.colors.primary, flag: '',
-    points: 0, wins: 0, position: 1, bestResult: 0
+    points: 0, wins: 0, podiums: 0, position: 1, bestResult: 0
   });
   return standings;
 }
@@ -2692,7 +2694,11 @@ function updateStandings(raceResult) {
     const hasWin = Array.isArray(playerCars)
       ? playerCars.some((c) => c && c.position === 1)
       : position === 1;
+    const hasPodium = Array.isArray(playerCars)
+      ? playerCars.some((c) => c && c.position >= 1 && c.position <= 3)
+      : (position >= 1 && position <= 3);
     if (hasWin) playerEntry.wins++;
+    if (hasPodium) playerEntry.podiums = (playerEntry.podiums || 0) + 1;
     if (!playerEntry.bestResult || bestPlayerPos < playerEntry.bestResult) playerEntry.bestResult = bestPlayerPos;
   }
 
