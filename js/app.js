@@ -166,8 +166,7 @@ const APP = {
       // If time arrived, simulate!
       if (diffMs <= 0) {
         if (window._raceInProgress || APP.currentScreen === 'race') {
-          const lblStr = nextRaceObj.type === 'practice' ? window.__('next_practice_lbl', 'PRÁCTICA') : window.__('next_race_lbl', 'PRÓX. CARRERA');
-          elNext.textContent = `${lblStr}: LIVE`;
+          elNext.textContent = `${window.__('next_race_lbl', 'PRÓX. CARRERA')}: LIVE`;
           return;
         }
          GL_ENGINE.catchUpOffline();
@@ -192,8 +191,7 @@ const APP = {
          countdown = `${diffHrs}h ${diffMins}m ${diffSecs}s`;
       }
       
-      const lblStr = nextRaceObj.type === 'practice' ? window.__('next_practice_lbl', 'PRÁCTICA') : window.__('next_race_lbl', 'PRÓX. CARRERA');
-      elNext.textContent = `${lblStr}: ${countdown}`;
+      elNext.textContent = `${window.__('next_race_lbl', 'PRÓX. CARRERA')}: ${countdown}`;
     };
     
     updateTime();

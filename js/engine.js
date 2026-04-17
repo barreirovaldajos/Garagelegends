@@ -2688,28 +2688,12 @@ function getNextRaceDate() {
   let daysToAdd = 0;
   let type = '';
 
-  if (currentDay === 0) { // Sunday
-    if (currentHours >= 18) {
-      daysToAdd = 3; type = 'practice'; // Next is Wed
-    } else {
-      daysToAdd = 0; type = 'race'; // Today is Sun
-    }
-  } else if (currentDay === 1) { // Mon
-    daysToAdd = 2; type = 'practice';
-  } else if (currentDay === 2) { // Tue
-    daysToAdd = 1; type = 'practice';
-  } else if (currentDay === 3) { // Wed
-    if (currentHours >= 18) {
-      daysToAdd = 4; type = 'race'; // Next is Sun
-    } else {
-      daysToAdd = 0; type = 'practice'; // Today is Wed
-    }
-  } else if (currentDay === 4) { // Thu
-    daysToAdd = 3; type = 'race';
-  } else if (currentDay === 5) { // Fri
-    daysToAdd = 2; type = 'race';
-  } else if (currentDay === 6) { // Sat
-    daysToAdd = 1; type = 'race';
+  // Only races (Sundays at 18:00), no practice events
+  if (currentDay === 0 && currentHours < 18) {
+    daysToAdd = 0; type = 'race'; // Today is race day
+  } else {
+    daysToAdd = (7 - currentDay) % 7 || 7; // Next Sunday
+    type = 'race';
   }
 
   nextEvent.setDate(now.getDate() + daysToAdd);
@@ -3061,10 +3045,6 @@ function recommendStrategyForRace(race, stateArg) {
     reasons.push(`Advisor memory: adapted aggression/risk from ${stat.samples} past races.`);
   }
 
-  if ((advisor.practice && advisor.practice.sessions) > 0 && isUncertain && strategy.pitPlan === 'single' && !isLikelyDry) {
-    strategy.pitPlan = 'double';
-    reasons.push('Practice trend: use two stops under uncertain conditions.');
-  }
 
   // Cold start guardrails when advisor confidence is low
   let guardrailsApplied = false;
@@ -3181,15 +3161,8 @@ function recordStrategyOutcome(race, strategy, result, meta = {}) {
   return { key, perfScore, samples: stat.samples, mode, source };
 }
 
-function recordPracticeOutcome(meta = {}) {
-  const state = S.getState();
-  if (!state) return;
-  if (!state.advisor) state.advisor = { recent: [], layoutWeatherStats: {}, practice: { sessions: 0, lastTs: 0 } };
-  if (!state.advisor.practice) state.advisor.practice = { sessions: 0, lastTs: 0 };
-  state.advisor.practice.sessions += 1;
-  state.advisor.practice.lastTs = getNowMs();
-  S.saveState();
-}
+// Practices removed from MVP — stub kept for state compatibility
+function recordPracticeOutcome() {}
 
 function shiftTimeByDays(days) {
   const state = S.getState();
@@ -3276,14 +3249,11 @@ function catchUpOffline() {
     return timestamps;
   };
 
-  const practiceDates = listScheduleCrossings(fromMs, toMs, 3, 18); // Wed 18:00
   const raceDates = listScheduleCrossings(fromMs, toMs, 0, 18); // Sun 18:00
-  const practiceCrossings = practiceDates.length;
   const raceCrossings = raceDates.length;
   const weeklyTicksTarget = Math.min(52, Math.floor(offlineMs / (7 * DAY_MS)));
 
   let simulatedRaces = 0;
-  let simulatedPractices = 0;
   let totalPoints = 0;
   let totalCredits = 0;
   let weeklyTicksApplied = 0;
@@ -3314,14 +3284,6 @@ function catchUpOffline() {
     return null;
   };
 
-  while (simulatedPractices < practiceCrossings) {
-    recordPracticeOutcome({ source: 'offline' });
-    const practiceTs = practiceDates[simulatedPractices];
-    if (practiceTs) {
-      logs.push(`🧪 Práctica simulada.`);
-    }
-    simulatedPractices += 1;
-  }
 
   while (simulatedRaces < raceCrossings) {
     const nextRaceObj = resolveNextRace();
@@ -3375,8 +3337,7 @@ function catchUpOffline() {
 
   ensureNextRaceAvailable();
 
-  const totalSimulated = simulatedRaces + simulatedPractices;
-  if (totalSimulated > 0 || logs.length) {
+  if (simulatedRaces > 0 || logs.length) {
     S.saveState();
     setTimeout(() => {
       GL_UI.openModal({
@@ -3384,7 +3345,7 @@ function catchUpOffline() {
         content: `
           <p style="color:var(--t-secondary);margin-bottom:16px">${__('offline_catchup_desc') || 'Your team continued to compete in scheduled races:'}</p>
           <div style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:10px">
-            ${simulatedRaces > 0 ? `<strong>${simulatedRaces}</strong> carrera${simulatedRaces !== 1 ? 's' : ''} simulada${simulatedRaces !== 1 ? 's' : ''} · ` : ''}${simulatedPractices > 0 ? `<strong>${simulatedPractices}</strong> práctica${simulatedPractices !== 1 ? 's' : ''} · ` : ''}Puntos: <strong>${totalPoints}</strong> · Créditos: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
+            ${simulatedRaces > 0 ? `<strong>${simulatedRaces}</strong> carrera${simulatedRaces !== 1 ? 's' : ''} simulada${simulatedRaces !== 1 ? 's' : ''} · ` : ''}Puntos: <strong>${totalPoints}</strong> · Créditos: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
           </div>
           <div style="background:var(--c-surface-2);padding:16px;border-radius:8px;font-family:monospace;font-size:0.85rem;line-height:1.5;color:var(--t-primary)">
             ${logs.join('<br>')}
@@ -3401,9 +3362,7 @@ function catchUpOffline() {
 
   return {
     simulatedRaces,
-    simulatedPractices,
-    weeklyTicks: weeklyTicksApplied,
-    totalSimulated
+    weeklyTicks: weeklyTicksApplied
   };
 }
 

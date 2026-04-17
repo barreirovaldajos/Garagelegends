@@ -367,7 +367,7 @@ const DASHBOARD = {
     const c = next.circuit;
     
     const nextRaceObj = GL_ENGINE.getNextRaceDate();
-    const typeLabel = nextRaceObj.type === 'practice' ? window.__('next_practice_lbl', 'PRÁCTICA') : window.__('next_race_lbl', 'CARRERA');
+    const typeLabel = window.__('next_race_lbl', 'CARRERA');
 
     el.innerHTML = `
       <div class="next-event-card">
