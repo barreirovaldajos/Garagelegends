@@ -191,6 +191,7 @@ const CIRCUITS = [
   { id:'c10', name:'Portimão Circuit',        country:'🇵🇹', laps:66, layout:'mixed',      weather:80, length:'4.653 km' },
   { id:'c11', name:'Mugello Circuit',         country:'🇮🇹', laps:64, layout:'power',      weather:78, length:'4.781 km' },
   { id:'c12', name:'Red Bull Ring',           country:'🇦🇹', laps:70, layout:'high-speed', weather:75, length:'4.318 km' },
+  { id:'c13', name:'Standard Circuit',        country:'🏁',  laps:65, layout:'mixed',      weather:70, length:'4.650 km' },
 ];
 
 // ---- CALENDAR per season (8 rounds for Div 8) ----

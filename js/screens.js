@@ -330,7 +330,9 @@ const SCREENS = {
       // c11: Mugello — power, long front straight, fast flowing Arrabbiata, tight Casanova
       c11: { points: [[178,138],[395,108],[665,108],[865,138],[942,200],[932,308],[875,378],[812,420],[835,500],[895,558],[735,578],[538,560],[342,558],[182,522],[118,420],[122,300],[148,215]], scaleX:1,scaleY:1 },
       // c12: Red Bull Ring — compact triangle: short lap, only 4 real corners, stays tight in the viewBox
-      c12: { points: [[248,148],[495,118],[748,118],[888,160],[942,225],[932,308],[880,368],[828,398],[805,440],[808,490],[775,518],[708,530],[608,528],[495,522],[375,512],[275,488],[198,448],[158,380],[158,305],[178,235],[208,178]], scaleX:1,scaleY:1 }
+      c12: { points: [[248,148],[495,118],[748,118],[888,160],[942,225],[932,308],[880,368],[828,398],[805,440],[808,490],[775,518],[708,530],[608,528],[495,522],[375,512],[275,488],[198,448],[158,380],[158,305],[178,235],[208,178]], scaleX:1,scaleY:1 },
+      // c13: Standard Circuit — mixed, long top straight, wide oval left section, S-curve chicane at bottom-right
+      c13: { points: [[155,148],[480,112],[800,118],[905,155],[958,218],[960,312],[948,392],[900,432],[838,454],[772,438],[712,462],[648,514],[480,538],[305,528],[162,495],[108,420],[98,315],[110,208]], scaleX:1,scaleY:1 }
     };
     const layoutFallbacks = {
       'high-speed': circuits.c1,
@@ -434,6 +436,7 @@ const SCREENS = {
       c10: [{ from:0.20,to:0.30 },{ from:0.40,to:0.52 },{ from:0.65,to:0.75 },{ from:0.77,to:0.88 }],
       c11: [{ from:0.18,to:0.30 },{ from:0.46,to:0.56 },{ from:0.68,to:0.78 },{ from:0.82,to:0.90 }],
       c12: [{ from:0.20,to:0.32 },{ from:0.48,to:0.60 },{ from:0.70,to:0.80 },{ from:0.84,to:0.92 }],
+      c13: [{ from:0.17,to:0.28 },{ from:0.38,to:0.62 },{ from:0.66,to:0.78 },{ from:0.83,to:0.93 }],
       'high-speed': [{ from:0.18,to:0.32 },{ from:0.50,to:0.60 },{ from:0.71,to:0.79 },{ from:0.83,to:0.90 }],
       power:        [{ from:0.20,to:0.30 },{ from:0.32,to:0.48 },{ from:0.50,to:0.58 },{ from:0.76,to:0.88 }],
       technical:    [{ from:0.14,to:0.28 },{ from:0.32,to:0.46 },{ from:0.62,to:0.74 },{ from:0.78,to:0.91 }],
@@ -522,7 +525,7 @@ const SCREENS = {
     const trackKey = circuit?.id || layout;
 
     // Track paths — keyed by circuit ID so each circuit has its own shape
-    const islandOffsets = { 'high-speed':-112, power:-118, technical:-90, mixed:-108, endurance:-105, c1:-112, c2:-105, c3:-118, c4:-108, c5:-90, c6:-112, c7:-108, c8:-118, c9:-90, c10:-108, c11:-118, c12:-112 };
+    const islandOffsets = { 'high-speed':-112, power:-118, technical:-90, mixed:-108, endurance:-105, c1:-112, c2:-105, c3:-118, c4:-108, c5:-90, c6:-112, c7:-108, c8:-118, c9:-90, c10:-108, c11:-118, c12:-112, c13:-108 };
     const islandOffset = islandOffsets[trackKey] || -108;
     const roadPath = this.getRacePathData(trackKey, 0, 220, false);
     const centerPath = this.getRacePathData(trackKey, -1, 220, false);
