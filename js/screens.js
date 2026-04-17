@@ -2170,7 +2170,7 @@ const SCREENS = {
     const _spDiv = Number(state?.season?.division) || 8;
     const _SP_MULT = {1:13.0, 2:9.0, 3:6.5, 4:4.5, 5:3.2, 6:2.2, 7:1.5, 8:1.0};
     const _spMult = _SP_MULT[_spDiv] || 1.0;
-    const myIds = state.sponsors.map(s=>s.id);
+    const myIds = state.sponsors.filter(s => !s.expired).map(s=>s.id);
     const available = GL_DATA.SPONSOR_POOL.filter(s=>!myIds.includes(s.id));
     if (!available.length) return `<p style="color:var(--t-secondary);font-size:0.9rem">${__('market_no_sponsors') || 'No hay patrocinadores disponibles.'}</p>`;
     return available.map(sp => {
