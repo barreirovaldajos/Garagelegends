@@ -3298,7 +3298,7 @@ function catchUpOffline() {
     if (passiveIncome > 0) {
       S.addCredits(passiveIncome);
       totalCredits += passiveIncome;
-      logs.push(`⏱️ Passive progression: +${GL_UI.fmtCR(passiveIncome)} CR`);
+      logs.push(`⏱️ Progresión pasiva: +${GL_UI.fmtCR(passiveIncome)} CR`);
     }
   }
 
@@ -3318,7 +3318,7 @@ function catchUpOffline() {
     recordPracticeOutcome({ source: 'offline' });
     const practiceTs = practiceDates[simulatedPractices];
     if (practiceTs) {
-      logs.push(`🧪 Practice simulated (${formatAuditDateTime(practiceTs)}).`);
+      logs.push(`🧪 Práctica simulada.`);
     }
     simulatedPractices += 1;
   }
@@ -3328,7 +3328,7 @@ function catchUpOffline() {
     if (!nextRaceObj) break;
 
     const raceTs = raceDates[simulatedRaces];
-    logs.push(`⏱️ Practice context prepared for Round ${nextRaceObj.round}${raceTs ? ` (${formatAuditDateTime(raceTs)})` : ''}.`);
+    logs.push(`⏱️ Preparando ronda ${nextRaceObj.round}.`);
 
     const simResult = simulateRace({
       weather: nextRaceObj.weather || 'dry',
@@ -3365,7 +3365,7 @@ function catchUpOffline() {
       });
     }
 
-    logs.push(`🏁 Round ${nextRaceObj.round}${raceTs ? ` @ ${formatAuditDateTime(raceTs)}` : ''}: P${simResult.position} (+${simResult.points} pts, +${GL_UI.fmtCR(simResult.prizeMoney || 0)} CR)`);
+    logs.push(`🏁 Ronda ${nextRaceObj.round}: P${simResult.position} (+${simResult.points} pts, +${GL_UI.fmtCR(simResult.prizeMoney || 0)} CR)`);
   }
 
   while (weeklyTicksApplied < weeklyTicksTarget) {
@@ -3384,8 +3384,7 @@ function catchUpOffline() {
         content: `
           <p style="color:var(--t-secondary);margin-bottom:16px">${__('offline_catchup_desc') || 'Your team continued to compete in scheduled races:'}</p>
           <div style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:10px">
-            Ventana: <strong>${formatAuditDateTime(fromMs)}</strong> → <strong>${formatAuditDateTime(toMs)}</strong><br>
-            Simulated: <strong>${simulatedRaces}</strong> races${simulatedPractices ? ` · <strong>${simulatedPractices}</strong> practices` : ''}${weeklyTicksApplied ? ` · <strong>${weeklyTicksApplied}</strong> weekly ticks` : ''} · Points: <strong>${totalPoints}</strong> · Credits: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
+            ${simulatedRaces > 0 ? `<strong>${simulatedRaces}</strong> carrera${simulatedRaces !== 1 ? 's' : ''} simulada${simulatedRaces !== 1 ? 's' : ''} · ` : ''}${simulatedPractices > 0 ? `<strong>${simulatedPractices}</strong> práctica${simulatedPractices !== 1 ? 's' : ''} · ` : ''}Puntos: <strong>${totalPoints}</strong> · Créditos: <strong>+${GL_UI.fmtCR(totalCredits)}</strong>
           </div>
           <div style="background:var(--c-surface-2);padding:16px;border-radius:8px;font-family:monospace;font-size:0.85rem;line-height:1.5;color:var(--t-primary)">
             ${logs.join('<br>')}
