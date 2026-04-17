@@ -23,11 +23,13 @@ const Economy = {
     const adminLv = (state.hq && state.hq.admin) || 1;
     const division = Number(state?.season?.division) || 8;
     const divisionGrantTable = { 1: 65000, 2: 52000, 3: 42000, 4: 34000, 5: 28000, 6: 23000, 7: 19000, 8: 16000 };
-    const sponsorMultiplier = 1
+    const hasCommercialDir = (state.staff || []).some(s => s.roleKey === 'commercial_dir' || (s.role || '').toLowerCase().includes('comercial'));
+    const sponsorMultiplier = (1
       + (adminLv >= 2 ? 0.1 : 0)
       + (adminLv >= 3 ? 0.05 : 0)
       + (adminLv >= 4 ? 0.05 : 0)
-      + (adminLv >= 5 ? 0.1 : 0);
+      + (adminLv >= 5 ? 0.1 : 0))
+      * (hasCommercialDir ? 1.10 : 1);
     const sponsorIncome = Math.round(baseSponsorIncome * sponsorMultiplier);
     const fanRevenue = Math.floor((state?.team?.fans || 0) * 0.12);
     const divisionGrant = divisionGrantTable[division] || 22000;

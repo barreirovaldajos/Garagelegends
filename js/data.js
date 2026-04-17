@@ -45,23 +45,60 @@ const PILOT_POOL = [
 ];
 
 // ---- STAFF POOL ----
+// MAX_STAFF: slots disponibles de personal contratado simultáneamente
+const MAX_STAFF = 5;
+
+// effectKey: clave de machine para el motor | effect: descripción visible en español
+// salary proporcional al impacto real del beneficio por semana
 const STAFF_POOL = [
-  { id:'s1', role:'Chief Engineer',  name:'Dr. Hans Müller',   nat:'🇩🇪', emoji:'👨‍🔬', rarity:'rare',
-    attrs:{ technical:88, setup:85, pitStrategy:70, scouting:40, commercial:30 }, salary:22000, bio:'Brilliant aerodynamicist. Boosts R&D speed by 15%.' },
-  { id:'s2', role:'Race Engineer',   name:'Sarah Okoro',       nat:'🇿🇦', emoji:'👩‍💼', rarity:'uncommon',
-    attrs:{ technical:72, setup:82, pitStrategy:88, scouting:50, commercial:45 }, salary:15000, bio:'Pit strategy wizard. Reduces strategy errors.' },
-  { id:'s3', role:'Scout',           name:'Pierre Lefevre',    nat:'🇫🇷', emoji:'🕵️', rarity:'uncommon',
-    attrs:{ technical:40, setup:35, pitStrategy:30, scouting:90, commercial:60 }, salary:11000, bio:'Elite talent finder. Unlocks hidden-potential pilots.' },
-  { id:'s4', role:'Pilot Coach',     name:'Coach Ramos',       nat:'🇪🇸', emoji:'🧑‍🏫', rarity:'common',
-    attrs:{ technical:55, setup:45, pitStrategy:40, scouting:60, commercial:30 }, salary:9000,  bio:'Accelerates pilot development by 20%.' },
-  { id:'s5', role:'Commercial Dir.', name:'Elena Voss',        nat:'🇦🇹', emoji:'💼', rarity:'uncommon',
-    attrs:{ technical:20, setup:15, pitStrategy:20, scouting:40, commercial:92 }, salary:14000, bio:'Brings in better sponsors. +10% sponsor income.' },
-  { id:'s6', role:'Data Analyst',    name:'Jin-ho Choi',       nat:'🇰🇷', emoji:'🖥️', rarity:'rare',
-    attrs:{ technical:80, setup:78, pitStrategy:82, scouting:55, commercial:35 }, salary:18000, bio:'Boosts car setup accuracy and race prediction.' },
-  { id:'s7', role:'Head of Pits',    name:'Tony Marchetti',    nat:'🇧🇷', emoji:'🔧', rarity:'common',
-    attrs:{ technical:65, setup:50, pitStrategy:75, scouting:30, commercial:28 }, salary:8000,  bio:'Faster pit stops; reduces execution errors.' },
-  { id:'s8', role:'Medic/Physio',    name:'Dr. Amy Lund',      nat:'🇩🇰', emoji:'🏥', rarity:'common',
-    attrs:{ technical:30, setup:25, pitStrategy:20, scouting:35, commercial:40 }, salary:7000,  bio:'Reduces injury risk and helps pilot morale recovery.' },
+  // minFans: mismo sistema que sponsors — el personal de élite exige que el equipo tenga audiencia real
+  { id:'s1', roleKey:'chief_engineer',   role:'Ingeniero Jefe',         name:'Dr. Hans Müller',  nat:'🇩🇪', emoji:'👨‍🔬', rarity:'rare',
+    attrs:{ technical:88, setup:85, pitStrategy:70, scouting:40, commercial:30 },
+    salary:20000, effectKey:'rnd_speed', minFans:2000,
+    effect:'+12% velocidad I+D · +4 pts setup vehículo',
+    bio:'Aerodinámico brillante. Su trabajo acorta el camino entre el laboratorio y la pista.' },
+
+  { id:'s2', roleKey:'race_engineer',    role:'Ingeniero de Carrera',   name:'Sarah Okoro',      nat:'🇿🇦', emoji:'👩‍💼', rarity:'uncommon',
+    attrs:{ technical:72, setup:82, pitStrategy:88, scouting:50, commercial:45 },
+    salary:13000, effectKey:'pit_strategy', minFans:800,
+    effect:'-20% errores de pit · +15% tasa de éxito undercut',
+    bio:'Estratega de boxes. Transforma una parada ordinaria en tiempo ganado.' },
+
+  { id:'s3', roleKey:'scout',            role:'Ojeador',                name:'Pierre Lefevre',   nat:'🇫🇷', emoji:'🕵️', rarity:'uncommon',
+    attrs:{ technical:40, setup:35, pitStrategy:30, scouting:90, commercial:60 },
+    salary:10000, effectKey:'scouting', minFans:800,
+    effect:'+2 pilotos visibles en mercado · -10% coste de fichaje',
+    bio:'Ojo clínico para el talento. Encuentra joyas donde nadie más mira.' },
+
+  { id:'s4', roleKey:'pilot_coach',      role:'Coach de Pilotos',       name:'Coach Ramos',      nat:'🇪🇸', emoji:'🧑‍🏫', rarity:'common',
+    attrs:{ technical:55, setup:45, pitStrategy:40, scouting:60, commercial:30 },
+    salary:8000, effectKey:'pilot_development', minFans:0,
+    effect:'+25% velocidad de desarrollo de pilotos',
+    bio:'Saca lo mejor de cada piloto. Con él, la academia rinde más rápido.' },
+
+  { id:'s5', roleKey:'commercial_dir',   role:'Director Comercial',     name:'Elena Voss',       nat:'🇦🇹', emoji:'💼', rarity:'uncommon',
+    attrs:{ technical:20, setup:15, pitStrategy:20, scouting:40, commercial:92 },
+    salary:12000, effectKey:'sponsor_income', minFans:800,
+    effect:'+10% ingresos de todos los patrocinadores activos',
+    bio:'Negociadora elite. Sus contactos generan más de lo que cobran.' },
+
+  { id:'s6', roleKey:'data_analyst',     role:'Analista de Datos',      name:'Jin-ho Choi',      nat:'🇰🇷', emoji:'🖥️', rarity:'rare',
+    attrs:{ technical:80, setup:78, pitStrategy:82, scouting:55, commercial:35 },
+    salary:16000, effectKey:'data_analysis', minFans:2000,
+    effect:'+5 pts setup vehículo · -10% riesgo de incidentes en carrera',
+    bio:'Sus modelos predictivos dan al equipo una ventaja constante e invisible.' },
+
+  { id:'s7', roleKey:'head_of_pits',     role:'Jefe de Boxes',          name:'Tony Marchetti',   nat:'🇧🇷', emoji:'🔧', rarity:'common',
+    attrs:{ technical:65, setup:50, pitStrategy:75, scouting:30, commercial:28 },
+    salary:7000, effectKey:'pit_execution', minFans:0,
+    effect:'-1.2s tiempo promedio en boxes · -25% errores de ejecución',
+    bio:'Sus mecánicos son los más rápidos del paddock. La diferencia se mide en décimas.' },
+
+  { id:'s8', roleKey:'medic',            role:'Médico / Fisioterapeuta', name:'Dra. Amy Lund',    nat:'🇩🇰', emoji:'🏥', rarity:'common',
+    attrs:{ technical:30, setup:25, pitStrategy:20, scouting:35, commercial:40 },
+    salary:6000, effectKey:'medic', minFans:0,
+    effect:'-30% riesgo de lesiones · recuperación de pilotos 2x más rápida',
+    bio:'Mantiene a los pilotos en condiciones óptimas carrera tras carrera.' },
 ];
 
 // ---- HQ BUILDINGS ----
@@ -123,15 +160,21 @@ const ENGINE_SUPPLIERS = [
 ];
 
 // ---- SPONSORS ----
+// minFans: fans mínimos para poder firmar (empieza con 500 fans, crece ~60-240/carrera en Div 8)
+// Tier 0 (libre): accesibles desde el inicio
+// Tier 1 (~800): ~3-5 carreras normales
+// Tier 2 (~1500): media temporada sólida
+// Tier 3 (~2500): temporada exitosa
+// Tier 4 (~4000): un equipo consolidado en ascenso
 const SPONSOR_POOL = [
   { id:'sp1',  name:'VELOCE Energy',   color:'#e8292a', bg:'#1a0505', income:8000,  duration:8,  demandKey:'top8',    demand:'Top 8 en carrera',              demandBonus:2000, minFans:0,    logo:'⚡' },
   { id:'sp2',  name:'NovaTech Systems',color:'#4a9eff', bg:'#050f1a', income:6000,  duration:10, demandKey:'no_dnf',  demand:'Terminar todas las carreras',    demandBonus:1000, minFans:0,    logo:'💻' },
   { id:'sp3',  name:'Grid Fuels',      color:'#f5c842', bg:'#1a1505', income:5000,  duration:12, demandKey:'improve', demand:'Mejorar posición vs carrera anterior', demandBonus:1500, minFans:0, logo:'⛽' },
-  { id:'sp4',  name:'Carbon Strike',   color:'#9b6dff', bg:'#0d0516', income:12000, duration:6,  demandKey:'podium',  demand:'Podio en carrera',               demandBonus:5000, minFans:500,  logo:'🎯' },
-  { id:'sp5',  name:'Apex Logistics',  color:'#2ecc7a', bg:'#051410', income:9000,  duration:8,  demandKey:'top5',   demand:'Top 5 en carrera',               demandBonus:3000, minFans:300,  logo:'🚚' },
-  { id:'sp6',  name:'Meridian Bank',   color:'#ff8c42', bg:'#1a0e05', income:7000,  duration:10, demandKey:'top10',  demand:'Top 10 en carrera',              demandBonus:2500, minFans:200,  logo:'🏦' },
   { id:'sp7',  name:'AltiSport',       color:'#2ecc7a', bg:'#051a0a', income:4000,  duration:12, demandKey:'no_dnf', demand:'Sin abandonos',                  demandBonus:800,  minFans:0,    logo:'🏔️' },
-  { id:'sp8',  name:'Helix Motors',    color:'#e8292a', bg:'#1a0505', income:15000, duration:4,  demandKey:'win',    demand:'Ganar una carrera',              demandBonus:8000, minFans:1000, logo:'🔴' },
+  { id:'sp6',  name:'Meridian Bank',   color:'#ff8c42', bg:'#1a0e05', income:7000,  duration:10, demandKey:'top10',  demand:'Top 10 en carrera',              demandBonus:2500, minFans:800,  logo:'🏦' },
+  { id:'sp5',  name:'Apex Logistics',  color:'#2ecc7a', bg:'#051410', income:9000,  duration:8,  demandKey:'top5',   demand:'Top 5 en carrera',               demandBonus:3000, minFans:1500, logo:'🚚' },
+  { id:'sp4',  name:'Carbon Strike',   color:'#9b6dff', bg:'#0d0516', income:12000, duration:6,  demandKey:'podium',  demand:'Podio en carrera',               demandBonus:5000, minFans:2500, logo:'🎯' },
+  { id:'sp8',  name:'Helix Motors',    color:'#e8292a', bg:'#1a0505', income:15000, duration:4,  demandKey:'win',    demand:'Ganar una carrera',              demandBonus:8000, minFans:4000, logo:'🔴' },
 ];
 
 // ---- CIRCUITS ----
@@ -275,7 +318,7 @@ const DIVISIONS = [
 ];
 
 window.GL_DATA = {
-  PILOT_POOL, STAFF_POOL, FACILITIES, SPONSOR_POOL,
+  PILOT_POOL, STAFF_POOL, MAX_STAFF, FACILITIES, SPONSOR_POOL,
   CIRCUITS, AI_TEAMS, PHILOSOPHIES,
   RANDOM_EVENT_TEMPLATES, POINTS_TABLE, DIVISIONS,
   ENGINE_SUPPLIERS,

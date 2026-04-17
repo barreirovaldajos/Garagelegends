@@ -313,14 +313,14 @@ const SCREENS = {
       c2: { points: [[182,132],[500,100],[840,132],[910,195],[905,290],[848,352],[796,380],[820,445],[892,515],[905,565],[720,575],[508,562],[295,562],[165,540],[118,460],[125,365],[155,275],[168,210]], scaleX:1,scaleY:1 },
       // c3: Monza — power, two long parallel straights, tight chicane complex, Parabolica
       c3: { points: [[185,138],[395,108],[645,108],[848,138],[922,200],[910,312],[848,380],[820,416],[848,488],[914,550],[750,572],[545,556],[346,558],[185,524],[118,450],[122,348],[142,268],[165,210]], scaleX:1,scaleY:1 },
-      // c4: Spa-Francorchamps — mixed, Raidillon sweep, long Kemmel straight, Bus Stop
-      c4: { points: [[185,142],[345,112],[580,112],[800,142],[905,202],[892,308],[840,368],[780,405],[815,475],[888,548],[758,575],[550,562],[358,565],[202,545],[128,468],[132,372],[158,272],[172,212]], scaleX:1,scaleY:1 },
-      // c5: Barcelona — technical, many corners, tight final sector, slow hairpin
-      c5: { points: [[198,140],[358,118],[545,116],[728,135],[812,180],[795,248],[728,285],[668,308],[680,368],[728,415],[762,468],[745,524],[635,558],[490,558],[356,545],[262,520],[208,468],[188,402],[212,342],[248,308],[210,260],[183,212]], scaleX:1,scaleY:1 },
+      // c4: Spa-Francorchamps — L-shaped: top straight, Raidillon dip, long Kemmel, Bus Stop deep into bottom-right
+      c4: { points: [[180,132],[415,105],[685,105],[878,132],[935,195],[925,305],[872,362],[808,398],[840,472],[912,548],[758,572],[548,558],[350,560],[195,540],[122,462],[126,368],[152,268],[168,205]], scaleX:1,scaleY:1 },
+      // c5: Barcelona — tight technical sector, many direction changes, slow hairpin, compact mid-section
+      c5: { points: [[200,138],[355,115],[545,112],[725,132],[808,178],[792,242],[726,282],[668,305],[682,362],[730,412],[758,462],[742,520],[628,555],[488,555],[352,542],[258,516],[205,464],[185,398],[210,338],[248,305],[212,258],[182,210]], scaleX:1,scaleY:1 },
       // c6: Suzuka — technical, sweeping S-curves, 130R, Degner curves, Spoon
       c6: { points: [[205,145],[420,112],[658,112],[845,145],[922,205],[905,318],[848,385],[790,422],[820,498],[892,558],[730,578],[525,560],[328,558],[188,525],[122,420],[128,305],[160,220]], scaleX:1,scaleY:1 },
-      // c7: Interlagos — mixed, compact, counterclockwise flow, Senna S, curva do sol
-      c7: { points: [[202,138],[372,110],[582,110],[778,132],[860,188],[845,268],[788,318],[728,358],[770,420],[848,492],[852,550],[718,570],[555,555],[395,528],[298,558],[220,526],[188,455],[200,375],[240,328],[210,272],[188,215]], scaleX:1,scaleY:1 },
+      // c7: Interlagos — compact heart-shape, Senna S double-kink mid-track, tight stadium section bottom
+      c7: { points: [[200,138],[368,112],[568,112],[768,132],[848,188],[832,260],[778,305],[728,298],[692,318],[712,365],[758,402],[788,445],[770,490],[718,525],[640,548],[530,552],[420,542],[332,518],[268,488],[220,448],[188,390],[192,328],[218,278],[210,238],[200,188]], scaleX:1,scaleY:1 },
       // c8: Hockenheimring — power, two long straights, three hairpins, stadium complex
       c8: { points: [[188,138],[500,108],[825,138],[902,200],[900,312],[850,375],[812,402],[850,440],[902,505],[858,562],[688,575],[488,558],[282,560],[158,530],[118,450],[122,350],[145,272],[170,212]], scaleX:1,scaleY:1 },
       // c9: Brands Hatch — technical, compact bowl, Paddock Hill, Druids hairpin
@@ -329,8 +329,8 @@ const SCREENS = {
       c10: { points: [[180,130],[360,108],[622,108],[820,132],[905,192],[888,275],[822,332],[748,374],[812,450],[885,525],[764,565],[562,548],[400,528],[298,565],[222,525],[188,450],[242,370],[318,310],[260,254],[176,212]], scaleX:1,scaleY:1 },
       // c11: Mugello — power, long front straight, fast flowing Arrabbiata, tight Casanova
       c11: { points: [[178,138],[395,108],[665,108],[865,138],[942,200],[932,308],[875,378],[812,420],[835,500],[895,558],[735,578],[538,560],[342,558],[182,522],[118,420],[122,300],[148,215]], scaleX:1,scaleY:1 },
-      // c12: Red Bull Ring — high-speed, compact, three main straights, few corners
-      c12: { points: [[212,145],[458,112],[725,112],[878,168],[902,245],[860,315],[812,360],[845,432],[905,505],[848,562],[660,575],[462,555],[278,558],[162,532],[118,450],[122,348],[154,265],[184,212]], scaleX:1,scaleY:1 }
+      // c12: Red Bull Ring — compact triangle: short lap, only 4 real corners, stays tight in the viewBox
+      c12: { points: [[248,148],[495,118],[748,118],[888,160],[942,225],[932,308],[880,368],[828,398],[805,440],[808,490],[775,518],[708,530],[608,528],[495,522],[375,512],[275,488],[198,448],[158,380],[158,305],[178,235],[208,178]], scaleX:1,scaleY:1 }
     };
     const layoutFallbacks = {
       'high-speed': circuits.c1,
@@ -391,8 +391,8 @@ const SCREENS = {
   getRacePitLanePoint(progress, layout) {
     const { PIT_START, PIT_END, PIT_OFFSET } = this.getPitLaneConstants();
     const local = Math.max(0, Math.min(1, Number(progress) || 0));
-    // local=0 → pit entry (track progress PIT_END), local=1 → pit exit (track progress PIT_START)
-    const trackProgress = PIT_END - (PIT_END - PIT_START) * local;
+    // local=0 → pit entry (track progress PIT_START), local=1 → pit exit (track progress PIT_END)
+    const trackProgress = PIT_START + (PIT_END - PIT_START) * local;
     return this.getRaceTrackPoint(trackProgress, layout, PIT_OFFSET);
   },
 
@@ -539,7 +539,7 @@ const SCREENS = {
       const pt = this.getRaceTrackPoint(prog, trackKey, PIT_OFFSET - 20);
       const fwd = this.getRaceTrackPoint(prog + 0.002, trackKey, PIT_OFFSET - 20);
       const ang = Math.atan2(fwd.y - pt.y, fwd.x - pt.x) * 180 / Math.PI;
-      return `<rect class="race-track-pit-box" x="${(pt.x - 11).toFixed(1)}" y="${(pt.y - 7).toFixed(1)}" width="22" height="14" rx="2" transform="rotate(${ang.toFixed(1)} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)})" />`;
+      return `<rect class="race-track-pit-box" x="${(pt.x - 8).toFixed(1)}" y="${(pt.y - 4).toFixed(1)}" width="16" height="8" rx="1.5" transform="rotate(${ang.toFixed(1)} ${pt.x.toFixed(1)} ${pt.y.toFixed(1)})" />`;
     }).join('');
 
     // PIT label at midpoint of pit lane
@@ -601,11 +601,16 @@ const SCREENS = {
           <text class="race-track-pitlabel" x="${pitLabelPt.x.toFixed(1)}" y="${pitLabelPt.y.toFixed(1)}" transform="rotate(${pitLabelAngle.toFixed(1)} ${pitLabelPt.x.toFixed(1)} ${pitLabelPt.y.toFixed(1)})" text-anchor="middle">PIT</text>
         </svg>
         <div class="race-track-cars" id="race-track-cars"></div>
+        <div class="race-track-progress-wrap">
+          <div class="race-track-progress-bar" id="race-track-progress-bar" style="width:0%"></div>
+          <span class="race-track-progress-label" id="race-track-progress-label">V—</span>
+        </div>
         <div class="race-track-hud">
           <span class="race-track-chip" id="race-track-chip-layout">${this.getTrackLayoutLabel(layout)}</span>
           <span class="race-track-chip" id="race-track-chip-weather">${weather === 'wet' ? '🌧️' : '☀️'} ${weatherLabel}</span>
           <span class="race-track-chip" id="race-track-chip-pit">PIT 0</span>
           <span class="race-track-chip" id="race-track-chip-player">${__('standings_you')} P—/P—</span>
+          <span class="race-track-chip race-track-chip-gap" id="race-track-chip-gap" title="Gap al auto de adelante">GAP —</span>
         </div>
       </div>`;
   },
@@ -711,6 +716,37 @@ const SCREENS = {
       } else {
         playerChip.textContent = `${__('standings_you')} P—`;
       }
+    }
+
+    const gapChip = document.getElementById('race-track-chip-gap');
+    if (gapChip && teamCars.length) {
+      const leader = teamCars[0];
+      const leaderIdx = cars.findIndex((c) => c.id === leader.id);
+      if (leaderIdx === 0) {
+        const carBehind = cars[1];
+        const gapBehindMs = carBehind ? (carBehind.gapMs - leader.gapMs) : null;
+        gapChip.textContent = gapBehindMs != null && Number.isFinite(gapBehindMs) && gapBehindMs >= 0
+          ? `LÍDER +${(gapBehindMs / 1000).toFixed(1)}s`
+          : 'LÍDER';
+      } else if (leaderIdx > 0) {
+        const carAhead = cars[leaderIdx - 1];
+        const gapMs = leader.gapMs - carAhead.gapMs;
+        gapChip.textContent = Number.isFinite(gapMs) && gapMs >= 0
+          ? `GAP ${(gapMs / 1000).toFixed(1)}s`
+          : 'GAP —';
+      } else {
+        gapChip.textContent = 'GAP —';
+      }
+    }
+
+    const progBar = document.getElementById('race-track-progress-bar');
+    const progLabel = document.getElementById('race-track-progress-label');
+    if (progBar && totalLaps > 0) {
+      const pct = Math.min(100, Math.round((currentLap / totalLaps) * 100));
+      progBar.style.width = `${pct}%`;
+    }
+    if (progLabel && totalLaps > 0) {
+      progLabel.textContent = `V${Math.max(1, currentLap)}/${totalLaps}`;
     }
 
     if (!this._raceVisualState || typeof this._raceVisualState !== 'object') {
@@ -1180,11 +1216,22 @@ const SCREENS = {
   },
 
   // ===== STAFF SCREEN =====
+  getStaffSeverance(member) {
+    const weeks = member.rarity === 'rare' ? 6 : member.rarity === 'uncommon' ? 4 : 2;
+    return (member.salary || 0) * weeks;
+  },
+
   renderStaff() {
     const state = GL_STATE.getState();
     const staff = state.staff || [];
+    const maxStaff = GL_DATA.MAX_STAFF || 5;
+    const used = staff.length;
     const el = document.getElementById('screen-staff');
     if (!el) return;
+    const atMax = used >= maxStaff;
+    const slotDots = Array.from({ length: maxStaff }, (_, i) => `
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${i < used ? 'var(--c-accent)' : 'rgba(255,255,255,0.12)'};margin-right:4px"></span>`).join('');
+
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -1192,55 +1239,105 @@ const SCREENS = {
           <div class="screen-title">${__('staff_title')}</div>
           <div class="screen-subtitle">${__('staff_subtitle')}</div>
         </div>
+        <div style="display:flex;align-items:center;gap:var(--s-3);flex-shrink:0">
+          <div style="text-align:right">
+            <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px;letter-spacing:0.04em">PERSONAL ${used}/${maxStaff}</div>
+            <div>${slotDots}</div>
+          </div>
+          ${!atMax ? `<button class="btn btn-primary btn-sm" onclick="GL_SCREENS.showHireStaff()">+ Contratar</button>` : `<span style="font-size:0.72rem;color:var(--t-tertiary);padding:6px 10px;border-radius:var(--r-sm);border:1px solid rgba(255,255,255,0.1)">Plantilla completa</span>`}
+        </div>
       </div>
       <div class="grid-2 mb-6">
-        ${staff.map(s => `
+        ${staff.map(s => {
+          const severance = this.getStaffSeverance(s);
+          return `
           <div class="card card-hover flex gap-4">
-            <div class="icon-circle ${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'green'}" style="width:52px;height:52px;font-size:1.5rem">${s.emoji||'👤'}</div>
-            <div style="flex:1">
+            <div class="icon-circle ${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'green'}" style="width:52px;height:52px;font-size:1.5rem;flex-shrink:0">${s.emoji||'👤'}</div>
+            <div style="flex:1;min-width:0">
               <div style="font-family:var(--font-display);font-weight:700;font-size:0.95rem">${s.name}</div>
-              <div style="font-size:0.75rem;color:var(--t-secondary);margin-bottom:var(--s-2)">${this.getStaffRoleLabel(s.role)} · ${s.nat}</div>
-              <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}">${s.rarity||'common'}</span>
-              <div style="margin-top:var(--s-3);font-size:0.75rem;color:var(--t-tertiary)">${s.bio||''}</div>
+              <div style="font-size:0.75rem;color:var(--t-secondary);margin-bottom:var(--s-2)">${s.role || this.getStaffRoleLabel(s.roleKey || '')} · ${s.nat}</div>
+              <div style="font-size:0.72rem;color:var(--c-accent);font-weight:600;margin-bottom:var(--s-2);line-height:1.4">${s.effect || s.bio || ''}</div>
+              <div style="font-size:0.7rem;color:var(--t-tertiary);font-style:italic">"${s.bio || ''}"</div>
             </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(s.salary)}</div>
-              <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('staff_week')}</div>
-              <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="GL_SCREENS.dismissStaff('${s.id}')">${__('staff_dismiss_btn') || 'Despedir personal'}</button>
+            <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:var(--s-1)">
+              <div>
+                <div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(s.salary)}/sem</div>
+                <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}" style="margin-top:4px">${s.rarity||'common'}</span>
+              </div>
+              <button class="btn btn-ghost btn-sm" style="margin-top:auto;font-size:0.68rem;color:var(--t-tertiary)" onclick="GL_SCREENS.dismissStaff('${s.id}')" title="Indemnización: ${GL_UI.fmtCR(severance)} CR">Despedir · ${GL_UI.fmtCR(severance)} CR</button>
             </div>
+          </div>`;
+        }).join('')}
+        ${Array.from({ length: maxStaff - used }, (_, i) => `
+          <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;border-style:dashed;min-height:100px;cursor:pointer;opacity:${atMax ? 0.4 : 1}" onclick="${atMax ? '' : 'GL_SCREENS.showHireStaff()'}">
+            <div><div style="font-size:1.5rem;color:var(--t-tertiary)">+</div><div style="font-size:0.78rem;color:var(--t-tertiary);margin-top:4px">Slot disponible</div></div>
           </div>`).join('')}
-        <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;border-style:dashed;min-height:100px;cursor:pointer" onclick="GL_SCREENS.showHireStaff()">
-          <div><div style="font-size:1.5rem">➕</div><div style="font-weight:600;margin-top:var(--s-2)">${__('staff_hire')}</div></div>
-        </div>
       </div>`;
   },
 
   showHireStaff() {
-    const available = GL_DATA.STAFF_POOL.filter(s => !GL_STATE.getState().staff.find(st=>st.id===s.id));
-    GL_UI.openModal({ title: __('staff_hire'), size: 'lg', content: `
+    const state = GL_STATE.getState();
+    const maxStaff = GL_DATA.MAX_STAFF || 5;
+    const used = (state.staff || []).length;
+    if (used >= maxStaff) {
+      GL_UI.toast('Plantilla completa. Debes despedir a alguien primero.', 'warning');
+      return;
+    }
+    const myIds = new Set((state.staff || []).map(s => s.id));
+    const available = GL_DATA.STAFF_POOL.filter(s => !myIds.has(s.id));
+    const slotsLeft = maxStaff - used;
+    const fans = Number(state?.team?.fans || 0);
+
+    GL_UI.openModal({ title: 'Contratar Personal', size: 'lg', content: `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s-4);padding:var(--s-3) var(--s-4);background:var(--c-surface-2);border-radius:var(--r-sm)">
+        <span style="font-size:0.8rem;color:var(--t-secondary)">Slots disponibles</span>
+        <span style="font-family:var(--font-display);font-weight:700;color:var(--c-accent)">${slotsLeft} de ${maxStaff}</span>
+      </div>
       <div style="display:flex;flex-direction:column;gap:var(--s-3)">
-        ${available.map(s => `
-          <div class="market-pilot-row" onclick="GL_SCREENS.hireStaff('${s.id}', this.closest('.modal-overlay'))">
-            <div class="market-pilot-avatar" style="font-size:1.5rem">${s.emoji||'👤'}</div>
-            <div class="market-pilot-info">
-              <div class="market-pilot-name">${s.name}</div>
-              <div class="market-pilot-meta">${this.getStaffRoleLabel(s.role)} · ${s.nat}</div>
-              <div style="font-size:0.75rem;color:var(--t-tertiary);margin-top:4px">${s.bio||''}</div>
+        ${available.map(s => {
+          const locked = fans < (s.minFans || 0);
+          const canHire = !locked;
+          return `
+          <div class="market-pilot-row" style="${locked ? 'opacity:0.5' : 'cursor:pointer'}" ${canHire ? `onclick="GL_SCREENS.hireStaff('${s.id}', this.closest('.modal-overlay'))"` : ''}>
+            <div class="market-pilot-avatar" style="font-size:1.5rem">${locked ? '🔒' : (s.emoji||'👤')}</div>
+            <div class="market-pilot-info" style="flex:1;min-width:0">
+              <div class="market-pilot-name" style="${locked ? 'color:var(--t-tertiary)' : ''}">${s.name}</div>
+              <div class="market-pilot-meta">${s.role || this.getStaffRoleLabel(s.roleKey || '')} · ${s.nat}</div>
+              <div style="font-size:0.72rem;color:var(--c-accent);font-weight:600;margin-top:3px">${s.effect || ''}</div>
+              ${locked
+                ? `<div style="font-size:0.72rem;color:var(--c-accent);margin-top:3px">🔒 Requiere ${s.minFans.toLocaleString()} fans (tienes ${fans.toLocaleString()})</div>`
+                : `<div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:2px;font-style:italic">${s.bio||''}</div>`
+              }
             </div>
-            <div class="market-pilot-salary"><div class="market-pilot-salary-val">${GL_UI.fmtCR(s.salary)}/wk</div>
-              <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}">${s.rarity}</span></div>
-          </div>`).join('')}
+            <div class="market-pilot-salary" style="flex-shrink:0">
+              <div class="market-pilot-salary-val">${GL_UI.fmtCR(s.salary)}/sem</div>
+              <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}" style="margin-top:4px">${s.rarity}</span>
+              <div style="font-size:0.65rem;color:var(--t-tertiary);margin-top:4px">Indem: ${GL_UI.fmtCR(this.getStaffSeverance(s))} CR</div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>` });
   },
 
   hireStaff(id, overlay) {
-    const s = GL_DATA.STAFF_POOL.find(s=>s.id===id);
+    const state = GL_STATE.getState();
+    const maxStaff = GL_DATA.MAX_STAFF || 5;
+    if ((state.staff || []).length >= maxStaff) {
+      GL_UI.toast('Plantilla completa. Debes despedir a alguien antes de contratar.', 'warning');
+      return;
+    }
+    const s = GL_DATA.STAFF_POOL.find(s => s.id === id);
     if (!s) return;
-    GL_STATE.getState().staff.push(GL_STATE.deepClone(s));
-    GL_STATE.addLog(`👥 ${__('staff_joined_as', '{name} joined as {role}.').replace('{name}', s.name).replace('{role}', this.getStaffRoleLabel(s.role))}`, 'good');
+    const fans = Number(state?.team?.fans || 0);
+    if (fans < (s.minFans || 0)) {
+      GL_UI.toast(`Necesitas ${s.minFans.toLocaleString()} fans para contratar a ${s.name}.`, 'warning');
+      return;
+    }
+    state.staff.push(GL_STATE.deepClone(s));
+    GL_STATE.addLog(`👥 ${s.name} se une al equipo como ${s.role || s.roleKey}.`, 'good');
     GL_STATE.saveState();
     overlay?.remove();
-    GL_UI.toast(`${s.name} ${__('staff_hired')}`, 'success');
+    GL_UI.toast(`${s.name} contratado.`, 'success');
     this.renderStaff();
   },
 
@@ -1250,18 +1347,15 @@ const SCREENS = {
     const member = staff.find((s) => s.id === id);
     if (!member) return;
 
-    const severance = Number(member.salary || 0);
-    const title = __('staff_dismiss_confirm_title') || 'Despedir personal';
-    const msg = (__('staff_dismiss_confirm_msg') || 'Si despides a {name}, debes pagar un sueldo completo ({amount}).')
-      .replace('{name}', member.name || __('staff_title'))
-      .replace('{amount}', `${GL_UI.fmtCR(severance)} CR`);
-    const okLabel = __('staff_dismiss_confirm_ok') || 'Despedir y pagar';
-    const cancelLabel = __('btn_cancel') || 'Cancelar';
+    const severance = this.getStaffSeverance(member);
+    const weeksLabel = member.rarity === 'rare' ? '6 semanas' : member.rarity === 'uncommon' ? '4 semanas' : '2 semanas';
+    const title = 'Despedir personal';
+    const msg = `Si despides a <strong>${member.name}</strong>, debes pagar la indemnización de ${weeksLabel} de sueldo: <strong>${GL_UI.fmtCR(severance)} CR</strong>.`;
 
-    GL_UI.confirm(title, msg, okLabel, cancelLabel).then((confirmed) => {
+    GL_UI.confirm(title, msg, 'Despedir y pagar', 'Cancelar').then((confirmed) => {
       if (!confirmed) return;
       if (!GL_STATE.spendCredits(severance)) {
-        GL_UI.toast(__('staff_dismiss_insufficient') || 'Saldo insuficiente para pagar la indemnizacion.', 'warning');
+        GL_UI.toast('Saldo insuficiente para pagar la indemnización.', 'warning');
         return;
       }
       if (typeof GL_STATE.addCashflowAdjustment === 'function') {
@@ -1270,14 +1364,13 @@ const SCREENS = {
           note: member.name || ''
         });
       }
-
       state.staff = staff.filter((s) => s.id !== id);
-      GL_STATE.addLog(`👋 ${(member.name || 'Staff')} ${__('staff_dismissed_log') || 'was dismissed'} (${GL_UI.fmtCR(severance)} CR).`, 'warning');
+      GL_STATE.addLog(`👋 ${member.name || 'Personal'} despedido. Indemnización: ${GL_UI.fmtCR(severance)} CR.`, 'warning');
       GL_STATE.saveState();
       if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') {
         GL_DASHBOARD.updateTopbar(GL_STATE.getState());
       }
-      GL_UI.toast((__('staff_dismissed_toast') || '{name} despedido.').replace('{name}', member.name || 'Personal'), 'info');
+      GL_UI.toast(`${member.name || 'Personal'} despedido.`, 'info');
       this.renderStaff();
     });
   },

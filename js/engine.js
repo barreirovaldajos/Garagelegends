@@ -236,15 +236,12 @@ function getRaceStaffEffects(state) {
     };
   }
 
-  const pickByRole = (roleKey) => {
-    const hit = staff.filter(s => ((s.role || '').toLowerCase().includes(roleKey.toLowerCase())));
-    return hit.length ? hit : [];
-  };
+  const pickByKey = (...keys) => staff.filter(s => keys.includes(s.roleKey) || keys.some(k => (s.role || '').toLowerCase().includes(k.toLowerCase())));
 
-  const raceEngineers = pickByRole('race engineer');
-  const pitHeads = pickByRole('head of pits');
-  const chiefEngineers = pickByRole('chief engineer');
-  const analysts = pickByRole('data analyst');
+  const raceEngineers = pickByKey('race_engineer', 'race engineer');
+  const pitHeads = pickByKey('head_of_pits', 'head of pits');
+  const chiefEngineers = pickByKey('chief_engineer', 'chief engineer');
+  const analysts = pickByKey('data_analyst', 'data analyst');
 
   const all = [...raceEngineers, ...pitHeads, ...chiefEngineers, ...analysts];
   const avg = (arr, key) => {
