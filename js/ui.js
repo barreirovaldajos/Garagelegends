@@ -31,7 +31,7 @@ function openModal({ title = '', content = '', size = '', onClose = null } = {})
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   const modal = document.createElement('div');
-  modal.className = `modal ${size === 'lg' ? 'modal-lg' : ''}`;
+  modal.className = `modal ${size === 'xl' ? 'modal-xl' : size === 'lg' ? 'modal-lg' : ''}`;
   modal.innerHTML = `
     <button class="modal-close">✕</button>
     ${title ? `<h2 style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;margin-bottom:var(--s-5)">${title}</h2>` : ''}

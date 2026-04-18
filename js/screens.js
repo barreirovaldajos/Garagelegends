@@ -2036,16 +2036,146 @@ const SCREENS = {
 
   openRaceReport(round) {
     const record = this.getRaceArchiveRecord(round);
-    const titleSuffix = record?.circuit?.name || `R${round}`;
+    if (!record) {
+      GL_UI.toast(__('calendar_report_unavailable'), 'info');
+      return;
+    }
+    const titleSuffix = record.circuit?.name || `R${round}`;
     GL_UI.openModal({
-      title: `${__('calendar_report_title')} · ${titleSuffix}`,
-      size: 'lg',
-      content: `
-        ${this.renderRaceAdminReport(record?.adminReport || null, { copyAction: `GL_SCREENS.copyRaceAdminReport(${Number(round)})` })}
-        <div class="divider" style="margin:18px 0"></div>
-        ${this.renderRacePerformanceReport(record?.performanceReport || null)}
-      `
+      title: `${__('postrace_title')} · ${titleSuffix}`,
+      size: 'xl',
+      content: this._buildRaceReportModalContent(record, round)
     });
+  },
+
+  _buildRaceReportModalContent(record, round) {
+    const playerCars = (Array.isArray(record.playerCars) ? record.playerCars : [])
+      .slice()
+      .sort((a, b) => {
+        const posA = a?.isDNF ? 999 : Number(a?.position || 999);
+        const posB = b?.isDNF ? 999 : Number(b?.position || 999);
+        return posA - posB;
+      });
+    const leadCar = playerCars[0] || { position: record.position, isDNF: false, pilotName: 'Driver', points: record.points };
+    const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
+    const teamResultSummary = playerCars.length
+      ? playerCars.map((car) => `${car.pilotName || __('race_driver', 'Driver')} ${car.isDNF ? 'DNF' : `P${car.position}`}`).join(' · ')
+      : `P${record.position}`;
+    const teamResultHeadline = playerCars.length
+      ? playerCars.map((car) => `<span class="badge ${car.isDNF ? 'badge-red' : 'badge-blue'}" style="font-size:0.74rem;padding:6px 10px">${car.pilotName || __('race_driver', 'Driver')}: ${car.isDNF ? 'DNF' : `P${car.position}`}</span>`).join(' ')
+      : '';
+    const heroTeamResults = playerCars.slice(0, 2).map((car) => {
+      const driverName = car.pilotName || __('race_driver', 'Driver');
+      const posText = car.isDNF ? 'DNF' : `P${car.position}`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)">
+        <span style="font-size:0.78rem;color:var(--t-secondary)">${driverName}</span>
+        <strong style="font-size:0.8rem;color:var(--t-primary)">${posText} · ${Number(car.points || 0)} pts</strong>
+      </div>`;
+    }).join('');
+
+    // Hero metrics
+    const eco = record.economySummary || {};
+    const metricsHtml = `
+      <div class="post-race-metrics" style="flex-wrap:wrap">
+        <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${record.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
+        <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(eco.prizeDelta ?? record.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
+        ${eco.weeklyNetDelta != null ? `<div class="post-race-metric"><div class="post-race-metric-val" style="color:${eco.weeklyNetDelta >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${eco.weeklyNetDelta > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(eco.weeklyNetDelta))}</div><div class="post-race-metric-label">${__('postrace_weekly_balance', 'Weekly balance')}</div></div>` : ''}
+        ${eco.fansGained != null ? `<div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${Number(eco.fansGained).toLocaleString()}</div><div class="post-race-metric-label">${__('postrace_fans_gained')}</div></div>` : ''}
+        <div class="post-race-metric"><div class="post-race-metric-val">${leadCar.improvement < 0 ? '▲'+Math.abs(leadCar.improvement) : leadCar.improvement > 0 ? '▼'+leadCar.improvement : '—'}</div><div class="post-race-metric-label">${__('postrace_vs_grid')}</div></div>
+      </div>`;
+
+    // Podium
+    const finalGrid = Array.isArray(record.finalGrid) ? record.finalGrid : [];
+    const podiumCars = finalGrid.slice(0, 3).map((car, idx) => {
+      const pos = idx + 1;
+      const trophy = pos === 1 ? '🏆' : (pos === 2 ? '🥈' : '🥉');
+      const tierClass = pos === 1 ? 'gold' : (pos === 2 ? 'silver' : 'bronze');
+      const pts = Number(GL_DATA.POINTS_TABLE[idx] || 0);
+      return { car, pos, trophy, tierClass, pts };
+    });
+    const podiumOrder = [2, 1, 3];
+    const podiumHtml = podiumOrder
+      .map((pos) => podiumCars.find((entry) => entry.pos === pos))
+      .filter(Boolean)
+      .map((entry) => {
+        const carName = entry.car?.name || __('race_driver', 'Driver');
+        return `<div class="postrace-podium-slot ${entry.tierClass} ${entry.car?.isPlayer ? 'my-team' : ''}">
+          <div class="postrace-podium-trophy">${entry.trophy}</div>
+          <div class="postrace-podium-pos">P${entry.pos}</div>
+          <div class="postrace-podium-name">${entry.car?.isPlayer ? `<strong>${carName}</strong>` : carName}</div>
+          <div class="postrace-podium-pts">${entry.pts} pts</div>
+          <div class="postrace-podium-base"></div>
+        </div>`;
+      }).join('');
+
+    // Strategy audit rows
+    const strategyRows = finalGrid.map((car, idx) => {
+      const summary = this.formatPitStrategySummary(car.strategy || {});
+      return `<div class="postrace-strategy-row ${car.isPlayer ? 'my-car' : ''}">
+        <div class="postrace-strategy-main">
+          <span class="postrace-strategy-pos">P${idx + 1}</span>
+          <span class="postrace-strategy-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
+          <span class="postrace-strategy-plan">${summary.planLabel}</span>
+        </div>
+        <div class="postrace-strategy-meta">
+          <span>${summary.stopSummary}</span>
+          <span>${summary.tyreSummary}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Events log
+    const playerEventPilotNames = this.getPlayerEventPilotNames(playerCars);
+    const events = Array.isArray(record.events) ? record.events : [];
+    const eventsHtml = events.length
+      ? events.map((ev) => `<div class="race-event ${ev.type} ${this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : ''}"><span class="race-event-lap">L${ev.lap}</span><span class="race-event-text">${ev.text}</span></div>`).join('')
+      : `<div style="color:var(--t-secondary);font-size:0.82rem">—</div>`;
+
+    // Classification top 10
+    const classificationHtml = finalGrid.slice(0, 10).map((car, i) => `
+      <div class="race-pos-row ${car.isPlayer ? 'my-car' : ''} ${i === 0 ? 'podium-gold' : i === 1 ? 'podium-silver' : i === 2 ? 'podium-bronze' : ''}">
+        <span class="race-pos-num">${i + 1}</span>
+        <span class="race-pos-name">${i === 0 ? '🏆 ' : i === 1 ? '🥈 ' : i === 2 ? '🥉 ' : ''}${car.isPlayer ? `<strong style="color:var(--c-accent)">${car.name}</strong>` : car.name}</span>
+        <span style="font-size:0.78rem;color:var(--c-gold)">${GL_DATA.POINTS_TABLE[i] || 0} pts</span>
+      </div>`).join('');
+
+    return `
+      <div class="post-race-hero" style="margin-bottom:var(--s-5)">
+        <div class="post-race-position">
+          <div class="post-race-pos-num" style="color:${posColor}">${leadCar.isDNF ? 'DNF' : 'P' + leadCar.position}</div>
+          <div class="post-race-pos-label">${leadCar.isDNF ? __('postrace_dnf') : leadCar.position === 1 ? '🏆 ' + __('postrace_winner') : leadCar.position <= 3 ? '🥇 ' + __('postrace_podium') : __('postrace_classified')}</div>
+        </div>
+        <div class="post-race-info">
+          <div class="post-race-title">${__('race_team_cars')}: ${teamResultSummary}</div>
+          <div style="color:var(--t-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${record.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(record.weather)} ${teamResultHeadline}</div>
+          <div style="display:grid;gap:6px;margin-top:10px">${heroTeamResults}</div>
+          ${metricsHtml}
+        </div>
+      </div>
+      ${podiumHtml ? `<div class="card mb-4 postrace-podium-card">
+        <div class="postrace-podium-title">🏁 ${__('postrace_class')}</div>
+        <div class="postrace-podium-wrap">${podiumHtml}</div>
+      </div>` : ''}
+      <div class="card mb-4 postrace-report-card">
+        ${this.renderRaceComparisonTable(record)}
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="section-eyebrow">${__('race_team_cars')}</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin:8px 0 14px 0">
+            ${playerCars.map((car) => `<div class="fin-item"><span>${car.pilotName}</span><strong>${car.isDNF ? 'DNF' : 'P' + car.position} · ${car.points || 0} pts</strong></div>`).join('')}
+          </div>
+          <div class="section-eyebrow">${__('postrace_events')}</div>
+          <div class="race-event-log" style="max-height:250px;overflow-y:auto">${eventsHtml}</div>
+        </div>
+        <div class="card">
+          <div class="section-eyebrow">${__('postrace_class')}</div>
+          <div class="race-grid-list">${classificationHtml}</div>
+          <div class="divider"></div>
+          <div class="section-eyebrow">${__('postrace_box_strategy_audit', 'Pit Strategy Audit')}</div>
+          <div class="postrace-strategy-list">${strategyRows}</div>
+        </div>
+      </div>`;
   },
 
   // ===== CALENDAR SCREEN =====

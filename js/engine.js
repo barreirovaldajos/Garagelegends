@@ -1549,6 +1549,29 @@ function buildRaceComparisonStats(result) {
 function buildRaceArchiveRecord(result, raceMeta = {}, stateArg = null) {
   const report = result?.performanceReport || buildRacePerformanceReport(result, stateArg);
   const adminReport = result?.adminReport || buildRaceAdminReport(result, stateArg);
+  // Slim finalGrid: exclude lapTimesMs to keep storage small, keep everything else needed for rendering
+  const slimGrid = Array.isArray(result?.finalGrid) ? result.finalGrid.map((car) => ({
+    id: car.id,
+    name: car.name,
+    pilotName: car.pilotName,
+    isPlayer: !!car.isPlayer,
+    pos: car.pos,
+    startPos: car.startPos,
+    timeMs: car.timeMs,
+    pitTimeMs: car.pitTimeMs,
+    pitStopsDone: car.pitStopsDone,
+    pitStopLosses: Array.isArray(car.pitStopLosses) ? car.pitStopLosses : [],
+    laps: car.laps,
+    tyre: car.tyre,
+    retired: !!car.retired,
+    strategy: car.strategy ? {
+      tyre: car.strategy.tyre,
+      pitPlan: car.strategy.pitPlan,
+      aggression: car.strategy.aggression,
+      pitLap: car.strategy.pitLap,
+      setup: car.strategy.setup
+    } : null
+  })) : [];
   return {
     round: Number(raceMeta?.round || result?.round || 0),
     ts: Number(raceMeta?.ts || Date.now()),
@@ -1574,6 +1597,11 @@ function buildRaceArchiveRecord(result, raceMeta = {}, stateArg = null) {
       pitStopsDone: car.pitStopsDone,
       pitTimeMs: car.pitTimeMs
     })) : [],
+    finalGrid: slimGrid,
+    events: Array.isArray(result?.events) ? result.events : [],
+    economySummary: result?.economySummary || null,
+    gridStart: Array.isArray(result?.gridStart) ? result.gridStart.map((g) => ({ id: g.id })) : [],
+    totalLaps: result?.totalLaps || null,
     performanceReport: report,
     adminReport
   };

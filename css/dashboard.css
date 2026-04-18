@@ -849,6 +849,7 @@
   /* Modal */
   .modal { padding: var(--s-5); border-radius: var(--r-lg); max-width: 95vw; }
   .modal-lg { max-width: 95vw; }
+  .modal-xl { max-width: 95vw; }
   .modal-close { top: var(--s-3); right: var(--s-3); padding: 4px 8px; font-size: 0.9rem; }
 }
 
