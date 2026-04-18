@@ -1,0 +1,31 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "scripts/**",
+      "docs/**",
+      "migration.env",
+      "firebase-service-account.json",
+      "migration-reset-links.txt",
+      "migration-summary.json",
+      "*.backup.js",
+      "*.md",
+      "*.csv",
+      "*.html.bak",
+      "package.json",
+      "package-lock.json"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}
