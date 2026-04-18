@@ -1,0 +1,15 @@
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Firebase Hosting
+        run: npx firebase deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}" --project garagelegends-1 --non-interactive
