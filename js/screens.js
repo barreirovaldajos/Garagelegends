@@ -2355,27 +2355,32 @@ const SCREENS = {
     const slotsFullMsg = activeCount >= MAX_SPONSORS
       ? `<div style="background:rgba(232,41,42,0.1);border:1px solid rgba(232,41,42,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:0.82rem;color:var(--c-accent)">⚠️ Tienes ${MAX_SPONSORS} patrocinadores activos (máximo). Rescinde uno para firmar otro.</div>`
       : `<div style="font-size:0.78rem;color:var(--t-tertiary);margin-bottom:10px">Slots de patrocinadores: <strong>${activeCount}/${MAX_SPONSORS}</strong></div>`;
-    const available = GL_DATA.SPONSOR_POOL.filter(s => !activeSponsorIds.includes(s.id));
-    if (!available.length) return `${slotsFullMsg}<p style="color:var(--t-secondary);font-size:0.9rem">No hay patrocinadores disponibles.</p>`;
-    return slotsFullMsg + available.map(sp => {
+    const allSponsors = GL_DATA.SPONSOR_POOL;
+    if (!allSponsors.length) return `${slotsFullMsg}<p style="color:var(--t-secondary);font-size:0.9rem">No hay patrocinadores disponibles.</p>`;
+    return slotsFullMsg + allSponsors.map(sp => {
       const scaledIncome = Math.round(sp.income * _spMult / 100) * 100;
       const scaledBonus = Math.round(sp.demandBonus * _spMult / 100) * 100;
-      const locked = fans < (sp.minFans || 0);
+      const isActive = activeSponsorIds.includes(sp.id);
+      const locked = !isActive && fans < (sp.minFans || 0);
       const lockReason = locked ? `Requiere ${sp.minFans.toLocaleString()} fans (tienes ${fans.toLocaleString()})` : '';
       const slotsFull = activeCount >= MAX_SPONSORS;
-      const canSign = !locked && !slotsFull;
+      const canSign = !isActive && !locked && !slotsFull;
       return `
-      <div class="market-pilot-row" style="${locked ? 'opacity:0.55' : ''}">
+      <div class="market-pilot-row" style="${locked ? 'opacity:0.55' : isActive ? 'opacity:0.75' : ''}">
         <div class="market-pilot-avatar" style="font-size:2rem;background:${sp.bg||'#111'}">${locked ? '🔒' : sp.logo}</div>
         <div class="market-pilot-info">
           <div class="market-pilot-name" style="color:${locked ? 'var(--t-tertiary)' : sp.color}">${sp.name}</div>
           <div class="market-pilot-meta">${sp.duration} semanas · ${sp.demand}</div>
           <div style="font-size:0.74rem;color:var(--c-gold);margin-top:3px">🎯 Bonus si cumples: +${GL_UI.fmtCR(scaledBonus)}</div>
           ${locked ? `<div style="font-size:0.72rem;color:var(--c-accent);margin-top:3px">🔒 ${lockReason}</div>` : ''}
+          ${isActive ? `<div style="font-size:0.72rem;color:var(--c-green);margin-top:3px">✓ Contrato activo</div>` : ''}
         </div>
         <div class="market-pilot-salary">
           <div class="market-pilot-salary-val">+${GL_UI.fmtCR(scaledIncome)}<span style="font-size:0.7rem">/sem</span></div>
-          <button class="btn btn-primary btn-sm" style="margin-top:var(--s-2)" ${canSign ? `onclick="GL_SCREENS.signSponsor('${sp.id}')"` : 'disabled'}>Firmar Acuerdo</button>
+          ${isActive
+            ? `<span class="badge badge-gray" style="margin-top:var(--s-2);padding:5px 10px">Contratado</span>`
+            : `<button class="btn btn-primary btn-sm" style="margin-top:var(--s-2)" ${canSign ? `onclick="GL_SCREENS.signSponsor('${sp.id}')"` : 'disabled'}>Firmar Acuerdo</button>`
+          }
         </div>
       </div>`;
     }).join('');
