@@ -168,13 +168,13 @@ const ENGINE_SUPPLIERS = [
 // Tier 4 (~4000): un equipo consolidado en ascenso
 const SPONSOR_POOL = [
   { id:'sp1',  name:'VELOCE Energy',   color:'#e8292a', bg:'#1a0505', income:8000,  duration:8,  demandKey:'top8',    demand:'Top 8 en carrera',              demandBonus:2000, minFans:0,    logo:'⚡' },
-  { id:'sp2',  name:'NovaTech Systems',color:'#4a9eff', bg:'#050f1a', income:6000,  duration:10, demandKey:'no_dnf',  demand:'Terminar todas las carreras',    demandBonus:1000, minFans:0,    logo:'💻' },
-  { id:'sp3',  name:'Grid Fuels',      color:'#f5c842', bg:'#1a1505', income:5000,  duration:12, demandKey:'improve', demand:'Mejorar posición vs carrera anterior', demandBonus:1500, minFans:0, logo:'⛽' },
-  { id:'sp7',  name:'AltiSport',       color:'#2ecc7a', bg:'#051a0a', income:4000,  duration:12, demandKey:'no_dnf', demand:'Sin abandonos',                  demandBonus:800,  minFans:0,    logo:'🏔️' },
+  { id:'sp2',  name:'NovaTech Systems',color:'#4a9eff', bg:'#050f1a', income:6000,  duration:10, demandKey:'top12',   demand:'Terminar en los puntos (Top 12)', demandBonus:1000, minFans:0,    logo:'💻' },
+  { id:'sp3',  name:'Grid Fuels',      color:'#f5c842', bg:'#1a1505', income:5000,  duration:12, demandKey:'top15',   demand:'Clasificar (Top 15)',             demandBonus:1500, minFans:0,    logo:'⛽' },
+  { id:'sp7',  name:'AltiSport',       color:'#2ecc7a', bg:'#051a0a', income:4000,  duration:12, demandKey:'no_dnf',  demand:'Sin abandonos',                  demandBonus:800,  minFans:0,    logo:'🏔️' },
   { id:'sp6',  name:'Meridian Bank',   color:'#ff8c42', bg:'#1a0e05', income:7000,  duration:10, demandKey:'top10',  demand:'Top 10 en carrera',              demandBonus:2500, minFans:800,  logo:'🏦' },
   { id:'sp5',  name:'Apex Logistics',  color:'#2ecc7a', bg:'#051410', income:9000,  duration:8,  demandKey:'top5',   demand:'Top 5 en carrera',               demandBonus:3000, minFans:1500, logo:'🚚' },
   { id:'sp4',  name:'Carbon Strike',   color:'#9b6dff', bg:'#0d0516', income:12000, duration:6,  demandKey:'podium',  demand:'Podio en carrera',               demandBonus:5000, minFans:2500, logo:'🎯' },
-  { id:'sp8',  name:'Helix Motors',    color:'#e8292a', bg:'#1a0505', income:15000, duration:4,  demandKey:'win',    demand:'Ganar una carrera',              demandBonus:8000, minFans:4000, logo:'🔴' },
+  { id:'sp8',  name:'Helix Motors',    color:'#e8292a', bg:'#1a0505', income:15000, duration:4,  demandKey:'win',    demand:'Ganar una carrera',              demandBonus:8000, minFans:4000, logo:'🔴', demandMaxFailures:3 },
 ];
 
 // ---- CIRCUITS ----

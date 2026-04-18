@@ -2192,15 +2192,17 @@ function evaluateSponsorDemands(raceResult) {
     if (sp.expired) return;
     let met = false;
     switch (sp.demandKey) {
-      case 'top8':   met = bestPos <= 8; break;
+      case 'top15':  met = bestPos <= 15; break;
+      case 'top12':  met = bestPos <= 12; break;
       case 'top10':  met = bestPos <= 10; break;
+      case 'top8':   met = bestPos <= 8; break;
       case 'top5':   met = bestPos <= 5; break;
       case 'podium': met = bestPos <= 3; break;
       case 'win':    met = bestPos === 1; break;
       case 'no_dnf': met = allFinished; break;
-      case 'improve':met = bestPos < lastBestPos; break;
       default:       met = true;
     }
+    const maxFailures = sp.demandMaxFailures || 2;
     if (met) {
       sp.demandFailures = 0;
       if (sp.demandBonus > 0) {
@@ -2209,11 +2211,11 @@ function evaluateSponsorDemands(raceResult) {
       }
     } else {
       sp.demandFailures = (sp.demandFailures || 0) + 1;
-      if (sp.demandFailures >= 2) {
+      if (sp.demandFailures >= maxFailures) {
         sp.expired = true;
         S.addLog(`💼 ${sp.name} canceló el contrato por incumplimiento de objetivos.`, 'bad');
       } else {
-        S.addLog(`⚠️ ${sp.name}: objetivo no cumplido (advertencia ${sp.demandFailures}/2).`, 'warning');
+        S.addLog(`⚠️ ${sp.name}: objetivo no cumplido (advertencia ${sp.demandFailures}/${maxFailures}).`, 'warning');
       }
     }
   });
