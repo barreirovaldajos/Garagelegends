@@ -1326,23 +1326,59 @@ const SCREENS = {
         <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('market');setTimeout(()=>GL_SCREENS.marketTab('sponsors',document.querySelector('.tabs .tab:last-child')),80)">Buscar patrocinadores</button>
       </div>`;
     }
+    const lastPos = Number(state.lastRaceBestPos || 0);
+    const lastPosLabel = lastPos > 0 && lastPos < 99 ? `P${lastPos}` : '—';
     return `<div class="flex flex-col gap-4 mb-6">
       ${activeSponsors.map(sp => {
         const income = Number(sp.weeklyValue || sp.income || 0);
         const weeksLeft = Number(sp.weeksLeft || sp.duration || 0);
         const penalty = Math.round(income * Math.max(1, weeksLeft) * 0.2);
-        const demandLabel = sp.demand || '';
         const bonusVal = Number(sp.demandBonus || 0);
+        const failures = Number(sp.demandFailures || 0);
+        const maxFailures = Number(sp.demandMaxFailures || 2);
+        const remaining = maxFailures - failures;
+        const isAtRisk = remaining === 1;
+        const statusColor = failures === 0 ? 'var(--c-green)' : isAtRisk ? 'var(--c-accent)' : 'var(--c-gold)';
+        const failureDots = Array.from({ length: maxFailures }, (_, i) =>
+          `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:3px;background:${i < failures ? 'var(--c-accent)' : 'rgba(255,255,255,0.15)'};border:1px solid ${i < failures ? 'var(--c-accent)' : 'rgba(255,255,255,0.2)'}"></span>`
+        ).join('');
+        // Hint contextual según tipo de demanda
+        const posKeys = ['top15','top12','top10','top8','top5','podium','win'];
+        let hint = '';
+        if (posKeys.includes(sp.demandKey) && lastPos > 0 && lastPos < 99) {
+          const needed = sp.demandKey === 'win' ? 1 : sp.demandKey === 'podium' ? 3 : sp.demandKey === 'top5' ? 5 : sp.demandKey === 'top8' ? 8 : sp.demandKey === 'top10' ? 10 : sp.demandKey === 'top12' ? 12 : 15;
+          const metLast = lastPos <= needed;
+          hint = `<span style="font-size:0.7rem;color:${metLast ? 'var(--c-green)' : 'var(--t-tertiary)'}">Última carrera: ${lastPosLabel} ${metLast ? '✓' : `(necesitas Top ${needed})`}</span>`;
+        } else if (sp.demandKey === 'no_dnf') {
+          hint = `<span style="font-size:0.7rem;color:var(--t-tertiary)">Todos los pilotos deben terminar la carrera</span>`;
+        }
         return `
-        <div class="card flex gap-4" style="align-items:center">
-          <div style="font-size:2.2rem;flex-shrink:0;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:${sp.bg||'var(--c-surface-2)'};border-radius:var(--r-sm)">${sp.logo||'💼'}</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;color:${sp.color||'var(--t-primary)'};font-size:0.95rem">${sp.name}</div>
-            <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:2px">${weeksLeft} semanas restantes · ${demandLabel}</div>
-            ${bonusVal > 0 ? `<div style="font-size:0.72rem;color:var(--c-gold);margin-top:3px">Bonus: +${GL_UI.fmtCR(bonusVal)} si cumples</div>` : ''}
+        <div class="card" style="border-left:3px solid ${statusColor}">
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="font-size:2rem;flex-shrink:0;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:${sp.bg||'var(--c-surface-2)'};border-radius:var(--r-sm)">${sp.logo||'💼'}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;color:${sp.color||'var(--t-primary)'};font-size:0.95rem">${sp.name}</div>
+              <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:2px">${weeksLeft} semanas restantes</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:var(--font-display);font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(income)}/sem</div>
+              ${bonusVal > 0 ? `<div style="font-size:0.72rem;color:var(--c-gold);margin-top:2px">+${GL_UI.fmtCR(bonusVal)} bonus</div>` : ''}
+            </div>
           </div>
-          <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:var(--s-2)">
-            <div style="font-family:var(--font-display);font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(income)}/sem</div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+              <div>
+                <div style="font-size:0.78rem;font-weight:600;color:var(--t-primary);margin-bottom:3px">🎯 ${sp.demand}</div>
+                ${hint}
+              </div>
+              <div style="text-align:right;flex-shrink:0">
+                <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">${failures === 0 ? 'Sin advertencias' : isAtRisk ? '⚠️ Última oportunidad' : `${failures} advertencia${failures>1?'s':''}`}</div>
+                <div style="display:flex;align-items:center;justify-content:flex-end">${failureDots}</div>
+                <div style="font-size:0.68rem;color:${statusColor};margin-top:3px">${remaining} fallo${remaining!==1?'s':''} restante${remaining!==1?'s':''}</div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top:8px;text-align:right">
             <button class="btn btn-ghost btn-sm" style="font-size:0.68rem;color:var(--t-tertiary)" onclick="GL_SCREENS.rescindSponsor('${sp.id}')">Rescindir · -${GL_UI.fmtCR(penalty)} CR</button>
           </div>
         </div>`;
