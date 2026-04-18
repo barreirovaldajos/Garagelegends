@@ -112,15 +112,18 @@ const SCREENS = {
     };
     const nextLevelData = def?.levels?.[currentLevel];
     const currentLevelData = def?.levels?.[Math.max(0, currentLevel - 1)];
+    const currentEffectLine = currentLevel > 0 && currentLevelData?.effect
+      ? `<span style="color:var(--c-gold);display:block;margin-bottom:2px">✓ ${currentLevelData.effect}</span>`
+      : '';
     if (!nextLevelData) {
-      return currentLevelData?.effect
-        ? `Efecto actual: ${currentLevelData.effect}`
+      return currentLevel > 0 && currentLevelData?.effect
+        ? `<span style="color:var(--c-gold)">✓ ${currentLevelData.effect}</span>`
         : 'Nivel maximo alcanzado';
     }
 
     const beforeCaps = this.getHqCapabilitySnapshot(state);
     const afterCaps = this.getHqCapabilitySnapshot(state, def.id, currentLevel + 1);
-    if (!beforeCaps || !afterCaps) return `Mejora: ${nextLevelData.effect}`;
+    if (!beforeCaps || !afterCaps) return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
 
     if (def.id === 'admin') {
       const pct = Math.round((afterCaps.sponsorMultiplier - beforeCaps.sponsorMultiplier) * 100);
@@ -136,35 +139,28 @@ const SCREENS = {
           const projectedDelta = sponsorIncome * ((afterMult - beforeMult) / beforeMult);
           if (projectedDelta > 0) estimate = ` (~+${fmtCR(Math.round(projectedDelta))}/sem)`;
         }
-        return `Prox. nivel: +${pct}% ingresos por sponsors${estimate}`;
+        return `${currentEffectLine}Prox. nivel: +${pct}% ingresos por sponsors${estimate}`;
       }
-      return `Mejora: ${nextLevelData.effect}`;
+      return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
     }
 
     if (def.id === 'rnd') {
       const speedPct = Math.round((afterCaps.rndSpeedMultiplier - beforeCaps.rndSpeedMultiplier) * 100);
-      if (!beforeCaps.rndUnlocked && afterCaps.rndUnlocked) return 'Prox. nivel: desbloquea I+D';
+      if (!beforeCaps.rndUnlocked && afterCaps.rndUnlocked) return `${currentEffectLine}Prox. nivel: desbloquea I+D`;
       if (speedPct > 0) {
         const beforeSpeed = Number(beforeCaps.rndSpeedMultiplier || 1);
         const afterSpeed = Number(afterCaps.rndSpeedMultiplier || 1);
         const durationCutPct = Math.round((1 - (beforeSpeed / Math.max(afterSpeed, 1))) * 100);
-        if (durationCutPct > 0) return `Prox. nivel: +${speedPct}% velocidad I+D (~-${durationCutPct}% tiempo por proyecto)`;
-        return `Prox. nivel: +${speedPct}% velocidad de I+D`;
+        if (durationCutPct > 0) return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad I+D (~-${durationCutPct}% tiempo por proyecto)`;
+        return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad de I+D`;
       }
-      return `Mejora: ${nextLevelData.effect}`;
-    }
-
-    if (def.id === 'wind_tunnel') {
-      if (!beforeCaps.weatherResearchUnlocked && afterCaps.weatherResearchUnlocked) {
-        return 'Prox. nivel: desbloquea investigacion de clima';
-      }
-      return `Mejora: ${nextLevelData.effect}`;
+      return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
     }
 
     if (def.id === 'factory') {
       const slotsDelta = (afterCaps.factoryParallelSlots || 1) - (beforeCaps.factoryParallelSlots || 1);
-      if (slotsDelta > 0) return `Prox. nivel: +${slotsDelta} cola paralela de I+D (mas progreso simultaneo)`;
-      return `Mejora: ${nextLevelData.effect}`;
+      if (slotsDelta > 0) return `${currentEffectLine}Prox. nivel: +${slotsDelta} cola paralela de I+D (mas progreso simultaneo)`;
+      return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
     }
 
     if (def.id === 'academy') {
@@ -175,15 +171,15 @@ const SCREENS = {
         const afterSpeed = Number(afterCaps.academyTrainingSpeedMultiplier || 1);
         const durationCutPct = Math.round((1 - (beforeSpeed / Math.max(afterSpeed, 1))) * 100);
         return durationCutPct > 0
-          ? `Prox. nivel: +${slotsDelta} slot y +${speedPct}% entreno (~-${durationCutPct}% tiempo)`
-          : `Prox. nivel: +${slotsDelta} slot y +${speedPct}% entreno`;
+          ? `${currentEffectLine}Prox. nivel: +${slotsDelta} slot y +${speedPct}% entreno (~-${durationCutPct}% tiempo)`
+          : `${currentEffectLine}Prox. nivel: +${slotsDelta} slot y +${speedPct}% entreno`;
       }
-      if (slotsDelta > 0) return `Prox. nivel: +${slotsDelta} slot de entrenamiento`;
-      if (speedPct > 0) return `Prox. nivel: +${speedPct}% velocidad de entrenamiento`;
-      return `Mejora: ${nextLevelData.effect}`;
+      if (slotsDelta > 0) return `${currentEffectLine}Prox. nivel: +${slotsDelta} slot de entrenamiento`;
+      if (speedPct > 0) return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad de entrenamiento`;
+      return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
     }
 
-    return `Mejora: ${nextLevelData.effect}`;
+    return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
   },
 
   getStaffFocusLabel(staffLabel) {
@@ -979,7 +975,7 @@ const SCREENS = {
                 <div class="building-level">
                   ${Array.from({length:def.maxLevel}).map((_,i) => `<div class="building-level-dot ${i<currentLevel?'filled':''}"></div>`).join('')}
                 </div>
-                <div style="font-size:0.72rem;color:var(--t-secondary);text-align:center;line-height:1.35;min-height:34px;margin-top:6px">${impactText}</div>
+                <div style="font-size:0.72rem;color:var(--t-secondary);text-align:center;line-height:1.35;min-height:46px;margin-top:6px">${impactText}</div>
                 ${contentHtml}
               </div>`;
             }).join('')}
@@ -988,7 +984,7 @@ const SCREENS = {
         
         <div class="flex flex-col gap-4">
           <div class="card">
-            <div class="section-eyebrow">Motor Empire Buffs</div>
+            <div class="section-eyebrow">Bonificaciones Activas</div>
             <div class="section-title mb-4" style="font-size:1.1rem">Capacidades del Cuartel</div>
             ${caps ? `
               <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:var(--s-3)">
@@ -1435,8 +1431,12 @@ const SCREENS = {
           </div>
           <div class="card">
             <div class="section-eyebrow">${__('car_rnd_points')}</div>
-            <div class="stat-card-value" style="font-size:1.4rem">${car.rnd.points || 0}</div>
-            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">${__('car_rnd_desc')}</div>
+            <div class="stat-card-value" style="font-size:1.4rem;color:${(car.rnd.points||0) >= 5 ? 'var(--c-gold)' : 'inherit'}">${car.rnd.points || 0}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">Se gastan en I+D (5 pts por proyecto). Compite para ganar más.</div>
+            ${(car.rnd.points||0) >= 5
+              ? `<button class="btn btn-ghost btn-sm w-full" style="margin-top:8px" onclick="GL_SCREENS.showRnD()">🔬 Usar en I+D</button>`
+              : `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px">Necesitas 5 pts para iniciar una investigación.</div>`
+            }
           </div>
         </div>
       </div>`;
@@ -1445,12 +1445,13 @@ const SCREENS = {
   upgradeCarComp(key) {
     const car = GL_STATE.getCar();
     const cost = 5000 + car.components[key].level * 3000;
-    if (!GL_STATE.spendCredits(cost)) { GL_UI.toast('Not enough credits', 'warning'); return; }
+    if (!GL_STATE.spendCredits(cost)) { GL_UI.toast('Créditos insuficientes', 'warning'); return; }
     car.components[key].score = Math.min(99, car.components[key].score + 3);
     car.components[key].level++;
-    GL_STATE.addLog(`⚙️ ${key} upgraded +3 points`, 'good');
+    const labels = { engine:'Motor', chassis:'Chasis', aero:'Aerodinámica', tyreManage:'Gestión de Neumáticos', brakes:'Frenos', gearbox:'Caja de Cambios', reliability:'Fiabilidad', efficiency:'Eficiencia' };
+    GL_STATE.addLog(`⚙️ ${labels[key]||key} mejorado +3 puntos`, 'good');
     GL_STATE.saveState();
-    GL_UI.toast(`${key} improved!`, 'success');
+    GL_UI.toast(`${labels[key]||key} mejorado +3`, 'success');
     this.renderCar();
     GL_DASHBOARD.refresh();
   },
@@ -1464,28 +1465,41 @@ const SCREENS = {
     }
 
     const trees = GL_ENGINE.getResearchStatus ? GL_ENGINE.getResearchStatus() : [];
+    const pointCost = (GL_ENGINE.RND_POINT_COST_PER_RESEARCH || 5);
+    const availablePoints = state.car.rnd.points || 0;
     const toTime = (ms) => {
       const h = Math.max(1, Math.round(ms / 3600000));
       return h >= 24 ? `${Math.round(h / 24)}d` : `${h}h`;
     };
+    const compLabels = { chassis:'Chasis', engine:'Motor', aero:'Aerodinámica', reliability:'Fiabilidad', tyreManage:'Gestión de Neumáticos', brakes:'Frenos', gearbox:'Caja de Cambios', efficiency:'Eficiencia' };
 
     GL_UI.openModal({
       title: 'Centro de I+D',
       content: `
-        <div style="display:grid;gap:12px;max-height:60vh;overflow:auto;">
+        <div style="background:var(--c-surface-2);border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between">
+          <span style="font-size:0.82rem;color:var(--t-secondary)">Puntos de I+D disponibles</span>
+          <span style="font-weight:700;font-size:1.1rem;color:${availablePoints >= pointCost ? 'var(--c-gold)' : 'var(--c-red)'}">${availablePoints} pts</span>
+        </div>
+        <div style="display:grid;gap:12px;max-height:55vh;overflow:auto;">
           ${trees.map(t => {
             const locked = !t.unlocked;
-            const canStart = !locked && !t.isActive && t.currentLevel < t.maxLevel;
+            const hasPoints = availablePoints >= pointCost;
+            const canStart = !locked && !t.isActive && t.currentLevel < t.maxLevel && hasPoints;
+            const canStartNoPoints = !locked && !t.isActive && t.currentLevel < t.maxLevel && !hasPoints;
+            const compLabel = compLabels[t.nextComponentBoost] || t.nextComponentBoost;
             return `
               <div style="background:var(--c-surface-2);padding:12px;border-radius:10px;border:1px solid var(--c-border)">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
                   <div style="font-weight:700">${t.icon} ${t.name}</div>
-                  <span class="badge ${t.isActive ? 'badge-blue' : 'badge-gray'}">Lv ${t.currentLevel}/${t.maxLevel}</span>
+                  <span class="badge ${t.isActive ? 'badge-blue' : 'badge-gray'}">Nv ${t.currentLevel}/${t.maxLevel}</span>
                 </div>
-                <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:6px">Boost: ${t.nextComponentBoost} · Coste: ${GL_UI.fmtCR(t.nextCost)} · Duracion: ${toTime(t.nextDuration)}</div>
+                <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:6px">
+                  Mejora: ${compLabel} · ${GL_UI.fmtCR(t.nextCost)} CR · ${pointCost} pts · Duración: ${toTime(t.nextDuration)}
+                </div>
                 ${t.isActive ? `<div style="margin-top:8px">${GL_UI.progressBar(Math.round(t.progress), 100, 'blue')}</div>` : ''}
-                ${locked ? `<div style="font-size:0.78rem;color:var(--c-orange);margin-top:8px">Requiere mejoras de HQ (I+D / Tunel de viento).</div>` : ''}
-                ${canStart ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_SCREENS.startResearchTree('${t.treeId}')">Iniciar Investigacion</button>` : ''}
+                ${locked ? `<div style="font-size:0.78rem;color:var(--c-orange);margin-top:8px">Requiere Centro de I+D Nivel 2.</div>` : ''}
+                ${canStart ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_SCREENS.startResearchTree('${t.treeId}')">Iniciar (${pointCost} pts · ${GL_UI.fmtCR(t.nextCost)} CR)</button>` : ''}
+                ${canStartNoPoints ? `<div style="font-size:0.78rem;color:var(--c-red);margin-top:8px">⚠️ Sin puntos suficientes — compite para ganar más.</div>` : ''}
               </div>
             `;
           }).join('')}
@@ -1495,16 +1509,24 @@ const SCREENS = {
   },
 
   startResearchTree(treeId) {
-    const result = GL_ENGINE.startResearch ? GL_ENGINE.startResearch(treeId) : { error: 'R&D engine not found' };
+    const result = GL_ENGINE.startResearch ? GL_ENGINE.startResearch(treeId) : { error: 'Motor de I+D no encontrado' };
     if (result && result.success) {
-      GL_UI.toast('Investigacion iniciada', 'success');
-      GL_STATE.addLog(`🔬 Nueva investigacion iniciada: ${treeId}.`, 'info');
+      GL_UI.toast(`Investigación iniciada (-${result.pointCost} pts)`, 'success');
+      GL_STATE.addLog(`🔬 Nueva investigación iniciada: ${treeId}.`, 'info');
       GL_STATE.saveState();
       this.showRnD();
       this.renderCar();
       return;
     }
-    GL_UI.toast(result && result.error ? result.error : 'No se pudo iniciar I+D', 'warning');
+    const errMap = {
+      'Insufficient funds': 'Créditos insuficientes',
+      'Research already in progress': 'Ya hay una investigación en curso',
+      'R&D Centre Lv2 required': 'Requiere Centro de I+D Nivel 2',
+      'Max level reached': 'Nivel máximo alcanzado'
+    };
+    const rawErr = result && result.error ? result.error : 'No se pudo iniciar I+D';
+    const translated = errMap[rawErr] || (rawErr.startsWith('Not enough R&D points') ? `Puntos insuficientes — compite para ganar más` : rawErr);
+    GL_UI.toast(translated, 'warning');
   },
 
   renderStarRating(stars = 0) {
@@ -1714,10 +1736,6 @@ const SCREENS = {
       ? completedRaces.reduce((best, race) => Math.min(best, Number(race?.result?.position || 99)), 99)
       : null;
     const nextWeather = nextRace ? this.getCalendarWeatherIndicator(nextRace) : null;
-    const readinessScore = !nextRace
-      ? 100
-      : (nextRace.savedStrategy ? 72 : 32) + Math.round((Number(nextWeather?.confidence || 0) / 100) * 24);
-    const readinessTier = readinessScore >= 85 ? 'high' : (readinessScore >= 60 ? 'mid' : 'low');
     const seasonProgress = cal.length ? Math.round((completedRaces.length / cal.length) * 100) : 0;
     el.innerHTML = `
       <div class="screen-header">
@@ -1761,23 +1779,6 @@ const SCREENS = {
               <strong>${seasonProgress}%</strong>
             </div>
             ${GL_UI.progressBar(seasonProgress, 100, 'red')}
-          </div>
-          <div class="calendar-insight-card ${readinessTier}">
-            <div class="calendar-insight-title">${__('calendar_readiness_title')}</div>
-            <div class="calendar-insight-score">${readinessScore}%</div>
-            <div class="calendar-insight-desc">${
-              nextRace
-                ? (nextRace.savedStrategy ? __('calendar_readiness_ready') : __('calendar_readiness_missing'))
-                : __('calendar_readiness_complete')
-            }</div>
-            ${nextRace
-              ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>`
-              : (() => {
-                  const cal2 = (typeof GL_STATE !== 'undefined' ? GL_STATE.getState() : null)?.season?.calendar || [];
-                  const seasonOver = cal2.length > 0 && cal2.every(r => r.status === 'completed');
-                  return seasonOver ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_DASHBOARD.advanceToNextSeason()">${__('season_end_btn')}</button>` : '';
-                })()
-            }
           </div>
           <div class="calendar-insight-list">
             <div class="calendar-insight-item">
@@ -2343,8 +2344,20 @@ const SCREENS = {
     GL_STATE.addLog(`💼 Acuerdo firmado con ${sp.name}: +${GL_UI.fmtCR(scaledIncome)}/sem`, 'good');
     GL_STATE.saveState();
     GL_UI.toast(`${sp.name} firmado! +${GL_UI.fmtCR(scaledIncome)}/sem`, 'success');
-    this.renderMarket();
+    this._refreshSponsorTab();
     GL_DASHBOARD.refresh();
+  },
+
+  _refreshSponsorTab() {
+    const mc = document.getElementById('market-content');
+    if (mc) {
+      mc.innerHTML = this.marketSponsorList();
+      const tabs = document.querySelectorAll('.tabs .tab');
+      tabs.forEach(t => t.classList.remove('active'));
+      if (tabs.length >= 2) tabs[1].classList.add('active');
+    } else {
+      this.renderMarket();
+    }
   },
 
   rescindSponsor(sponsorId) {
@@ -2363,7 +2376,7 @@ const SCREENS = {
       GL_STATE.addLog(`💼 Contrato rescindido con ${sp.name}. Penalización: -${GL_UI.fmtCR(penalty)} CR`, 'bad');
       GL_STATE.saveState();
       GL_UI.toast(`Contrato rescindido.`, 'warning');
-      this.renderMarket();
+      this._refreshSponsorTab();
       GL_DASHBOARD.refresh();
     });
   },

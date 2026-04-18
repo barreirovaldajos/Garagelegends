@@ -54,79 +54,6 @@ const DASHBOARD = {
     this.refresh();
   },
 
-  formatDateTimeLocal(date) {
-    const d = date instanceof Date ? date : new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  },
-
-  getNextWeekdayAtHour(baseDate, weekday, hour) {
-    const base = baseDate instanceof Date ? baseDate : new Date();
-    const target = new Date(base);
-    const deltaDays = (weekday - target.getDay() + 7) % 7;
-    target.setDate(target.getDate() + deltaDays);
-    target.setHours(hour, 0, 0, 0);
-    if (target <= base) target.setDate(target.getDate() + 7);
-    return target;
-  },
-
-  setTimePreset(presetKey) {
-    const input = document.getElementById('dash-time-target');
-    if (!input) return;
-
-    const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
-    let target = new Date(now);
-
-    if (presetKey === 'next_wed_18') {
-      target = this.getNextWeekdayAtHour(now, 3, 18);
-    } else if (presetKey === 'next_sun_18') {
-      target = this.getNextWeekdayAtHour(now, 0, 18);
-    } else if (presetKey === 'next_week_start') {
-      target = this.getNextWeekdayAtHour(now, 1, 0);
-    }
-
-    input.value = this.formatDateTimeLocal(target);
-    GL_UI.toast((__('dash_time_preset_applied', 'Preset applied: {date}')).replace('{date}', target.toLocaleString('es-ES')), 'info');
-  },
-
-  applyExactTime() {
-    const input = document.getElementById('dash-time-target');
-    if (!input || !input.value) {
-      GL_UI.toast(__('dash_time_target_select', 'Choose a target date and time.'), 'warning');
-      return;
-    }
-    if (!window.GL_ENGINE || typeof window.GL_ENGINE.shiftTimeToMs !== 'function') {
-      GL_UI.toast(__('dash_time_travel_exact_unavailable', 'Exact time travel is not available in this build.'), 'warning');
-      return;
-    }
-
-    const targetMs = new Date(input.value).getTime();
-    if (!Number.isFinite(targetMs)) {
-      GL_UI.toast(__('dash_time_target_invalid', 'Invalid date/time.'), 'warning');
-      return;
-    }
-
-    const state = GL_STATE.getState();
-    const minAllowedMs = Number(state?.meta?.created || 0);
-    if (Number.isFinite(minAllowedMs) && minAllowedMs > 0 && targetMs < minAllowedMs) {
-      const minDate = new Date(minAllowedMs);
-      GL_UI.toast((__('dash_time_before_start', 'You cannot travel before the save start ({date}).')).replace('{date}', minDate.toLocaleString('es-ES')), 'warning');
-      return;
-    }
-
-    const currentMs = (typeof window.GL_ENGINE.getNowMs === 'function') ? window.GL_ENGINE.getNowMs() : Date.now();
-    const deltaMs = targetMs - currentMs;
-    const result = window.GL_ENGINE.shiftTimeToMs(targetMs);
-    const deltaHours = Math.round(deltaMs / (60 * 60 * 1000));
-    const signedHours = `${deltaHours > 0 ? '+' : ''}${deltaHours}`;
-    GL_UI.toast((__('dash_time_adjusted', 'Time adjusted ({deltaHours}h).')).replace('{deltaHours}', signedHours), 'info');
-    if ((result?.simulatedRaces || 0) > 0) {
-      GL_UI.toast((__('dash_time_autosim_races', 'Auto-simulated: {count} race(s).')).replace('{count}', result.simulatedRaces), 'good');
-    }
-
-    this.refresh();
-  },
-
   renderFallback(state) {
     const el = document.getElementById('screen-dashboard');
     if (!el) return;
@@ -246,11 +173,6 @@ const DASHBOARD = {
     if (!el) return;
     const state = GL_STATE.getState();
     const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
-    const targetDefault = this.formatDateTimeLocal(now);
-    const minAllowedMs = Number(state?.meta?.created || 0);
-    const minAllowedValue = (Number.isFinite(minAllowedMs) && minAllowedMs > 0)
-      ? this.formatDateTimeLocal(new Date(minAllowedMs))
-      : '';
     // Only render skeleton if it's empty to avoid completely destroying DOM on every tick (prevents scroll jumping)
     // Actually, simple rendering is fine for now, but let's just do it
     el.innerHTML = `
@@ -262,11 +184,6 @@ const DASHBOARD = {
         </div>
         <div class="screen-actions">
           <button class="btn btn-primary" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
-          <input id="dash-time-target" type="datetime-local" value="${targetDefault}" min="${minAllowedValue}" style="min-width:210px;padding:8px 10px;border:1px solid var(--c-border);background:var(--c-surface-2);color:var(--t-primary);border-radius:8px;font-size:0.78rem">
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_wed_18')">${__('dash_preset_next_wed', 'Next Wed 18:00')}</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_sun_18')">${__('dash_preset_next_sun', 'Next Sun 18:00')}</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.setTimePreset('next_week_start')">${__('dash_preset_next_week', 'Start next week')}</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.applyExactTime()">${__('dash_preset_exact', 'Go to date/time')}</button>
         </div>
       </div>
       <div class="dashboard-grid stagger">
@@ -378,7 +295,7 @@ const DASHBOARD = {
         </div>
         <div class="next-event-body">
           <div class="circuit-mini">
-            <svg viewBox="0 0 200 80" class="circuit-svg">${this.circuitSVG(c.layout)}</svg>
+            <svg viewBox="${this.CIRCUIT_SVG_VIEWBOX}" class="circuit-svg">${this.circuitSVG(c.id || c.layout)}</svg>
           </div>
           <div style="display:flex;gap:var(--s-3)">
             <button class="btn btn-primary flex-1" onclick="GL_APP.navigateTo('prerace')">${window.__('dash_race_prep') || 'Preparar Estrategia'}</button>
@@ -388,16 +305,27 @@ const DASHBOARD = {
       </div>`;
   },
 
-  circuitSVG(layout) {
-    const layouts = {
-      'high-speed':  `<ellipse cx="100" cy="40" rx="85" ry="30" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6" stroke-dasharray="4,2"/>
-                      <rect x="80" y="20" width="40" height="2" fill="var(--c-accent)" rx="1"/>`,
-      'technical':   `<path d="M20,60 Q40,20 80,30 Q120,40 140,20 Q160,10 180,40 Q190,60 160,65 Q120,70 80,65 Q40,70 20,60" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6"/>`,
-      'power':       `<path d="M30,40 L90,15 L170,15 L170,65 L90,65 L90,40 L30,40" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6" stroke-linejoin="round"/>`,
-      'mixed':       `<path d="M20,55 Q30,25 60,30 L100,30 Q130,30 140,50 Q150,70 130,65 L80,65 Q50,65 40,55" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="6"/>`,
-      'endurance':   `<path d="M100,10 Q160,10 175,40 Q190,70 150,72 Q110,74 80,65 Q30,55 25,40 Q20,10 100,10" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="5"/>`
+  // circuitId: circuit id like 'c10', or layout fallback like 'mixed'.
+  // Caller is responsible for the outer <svg> tag; this returns only the inner path element.
+  // Coordinate space matches GL_SCREENS.getRacePathData (~80-960 x, ~80-580 y).
+  // Use viewBox="80 80 900 520" on the outer svg.
+  CIRCUIT_SVG_VIEWBOX: '80 80 900 520',
+  circuitSVG(circuitId) {
+    if (typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS.getRacePathData === 'function') {
+      const d = GL_SCREENS.getRacePathData(circuitId, 0, 120);
+      if (d) {
+        return `<path d="${d}" fill="none" stroke="rgba(232,41,42,0.55)" stroke-width="14" stroke-linejoin="round" stroke-linecap="round"/>`;
+      }
+    }
+    // Fallback: generic shapes (legacy, should not be reached when GL_SCREENS is loaded)
+    const fallbacks = {
+      'high-speed':  `<ellipse cx="530" cy="330" rx="410" ry="180" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="14" stroke-dasharray="20,8"/>`,
+      technical:     `<path d="M120,480 Q220,120 460,220 Q700,320 820,120 Q920,60 960,260 Q980,480 860,510 Q620,550 380,510 Q180,490 120,480" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="14"/>`,
+      power:         `<path d="M140,330 L420,110 L840,110 L840,550 L420,550 L420,330 L140,330" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="14" stroke-linejoin="round"/>`,
+      mixed:         `<path d="M100,440 Q160,160 360,210 L580,210 Q740,210 800,360 Q860,510 760,490 L460,490 Q260,490 200,430" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="14"/>`,
+      endurance:     `<path d="M530,80 Q880,80 950,330 Q1020,580 820,590 Q580,600 420,510 Q140,430 120,330 Q100,80 530,80" fill="none" stroke="rgba(232,41,42,0.5)" stroke-width="12"/>`
     };
-    return layouts[layout] || layouts['mixed'];
+    return fallbacks[circuitId] || fallbacks.mixed;
   },
 
   renderStandings(state) {
@@ -447,7 +375,7 @@ const DASHBOARD = {
         <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${c.name}</div>
         <div style="font-size:0.75rem;color:var(--t-secondary)">${c.country} · ${c.laps} ${__('laps')} · ${c.length}</div>
         <div style="font-size:0.75rem;color:var(--t-secondary)">${next.weather === 'wet' ? __('prerace_rain_expected') : __('prerace_dry2')}</div>
-        <svg viewBox="0 0 200 80" style="width:100%;opacity:0.7">${this.circuitSVG(c.layout)}</svg>
+        <svg viewBox="${this.CIRCUIT_SVG_VIEWBOX}" style="width:100%;opacity:0.7">${this.circuitSVG(c.id || c.layout)}</svg>
         ${hasStrategy ? `<div style="font-size:0.72rem;color:var(--c-green)">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</div>` : ''}
         <button class="btn btn-primary btn-sm w-full" style="justify-content:center" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
       </div>`;

@@ -105,47 +105,47 @@ const STAFF_POOL = [
 const FACILITIES = [
   { id:'admin', name:'Oficina de Administración', icon:'🏢', maxLevel:5,
     levels:[
-      { cost:15000,  durationMs:5 * 60 * 1000,   effect:'+5% sponsor income' }, // 5 mins
-      { cost:45000,  durationMs:30 * 60 * 1000,  effect:'+10% sponsor income, +1 sponsor slot' }, // 30 mins
-      { cost:150000, durationMs:2 * 3600 * 1000, effect:'+15% sponsor income, higher tier deals' }, // 2 hours
-      { cost:400000, durationMs:8 * 3600 * 1000, effect:'+20% sponsor income' }, // 8 hours
-      { cost:1000000,durationMs:24 * 3600 * 1000,effect:'+30% sponsor income, elite PR' } // 24 hours
+      { cost:15000,  durationMs:5 * 60 * 1000,   effect:'+5% ingresos por sponsors' }, // 5 mins
+      { cost:45000,  durationMs:30 * 60 * 1000,  effect:'+10% ingresos por sponsors, +1 slot de patrocinador' }, // 30 mins
+      { cost:150000, durationMs:2 * 3600 * 1000, effect:'+15% ingresos por sponsors, acuerdos de mayor nivel' }, // 2 hours
+      { cost:400000, durationMs:8 * 3600 * 1000, effect:'+20% ingresos por sponsors' }, // 8 hours
+      { cost:1000000,durationMs:24 * 3600 * 1000,effect:'+30% ingresos por sponsors, relaciones públicas élite' } // 24 hours
     ]
   },
   { id:'wind_tunnel', name:'Túnel de Viento', icon:'💨', maxLevel:5,
     levels:[
-      { cost:25000,  durationMs:10 * 60 * 1000,  effect:'+10 Base Aerodynamics' },
-      { cost:80000,  durationMs:60 * 60 * 1000,  effect:'+20 Base Aerodynamics, rain resistance' },
-      { cost:250000, durationMs:4 * 3600 * 1000, effect:'+35 Base Aerodynamics' },
-      { cost:600000, durationMs:12 * 3600 * 1000,effect:'+50 Base Aerodynamics, elite correlation' },
-      { cost:1500000,durationMs:48 * 3600 * 1000,effect:'+75 Base Aerodynamics, flawless aero' }
+      { cost:25000,  durationMs:10 * 60 * 1000,  effect:'+10 Aerodinámica base' },
+      { cost:80000,  durationMs:60 * 60 * 1000,  effect:'+20 Aerodinámica base, resistencia a la lluvia' },
+      { cost:250000, durationMs:4 * 3600 * 1000, effect:'+35 Aerodinámica base' },
+      { cost:600000, durationMs:12 * 3600 * 1000,effect:'+50 Aerodinámica base, correlación élite' },
+      { cost:1500000,durationMs:48 * 3600 * 1000,effect:'+75 Aerodinámica base, aerodinámica perfecta' }
     ]
   },
   { id:'rnd', name:'Centro de I+D', icon:'🔬', maxLevel:5,
     levels:[
-      { cost:35000,  durationMs:15 * 60 * 1000,  effect:'+10 Base Engine Power' },
-      { cost:100000, durationMs:90 * 60 * 1000,  effect:'+22 Base Engine Power, fuel efficiency' },
-      { cost:300000, durationMs:6 * 3600 * 1000, effect:'+38 Base Engine Power' },
-      { cost:750000, durationMs:16 * 3600 * 1000,effect:'+55 Base Engine Power, custom mapping' },
-      { cost:1800000,durationMs:72 * 3600 * 1000,effect:'+80 Base Engine Power, works status' }
+      { cost:35000,  durationMs:15 * 60 * 1000,  effect:'+10 Potencia de motor base' },
+      { cost:100000, durationMs:90 * 60 * 1000,  effect:'+22 Potencia de motor base, eficiencia de combustible · desbloquea I+D' },
+      { cost:300000, durationMs:6 * 3600 * 1000, effect:'+38 Potencia de motor base · +25% velocidad de I+D' },
+      { cost:750000, durationMs:16 * 3600 * 1000,effect:'+55 Potencia de motor base, mapeo personalizado' },
+      { cost:1800000,durationMs:72 * 3600 * 1000,effect:'+80 Potencia de motor base, estatus de obras · +40% velocidad de I+D' }
     ]
   },
   { id:'factory', name:'Fábrica', icon:'🏭', maxLevel:5,
     levels:[
-      { cost:20000,  durationMs:10 * 60 * 1000,  effect:'+10 Reliability, faster pit stops' },
-      { cost:65000,  durationMs:45 * 60 * 1000,  effect:'+20 Reliability, -1s pit stops' },
-      { cost:200000, durationMs:3 * 3600 * 1000, effect:'+35 Reliability, advanced materials' },
-      { cost:500000, durationMs:10 * 3600 * 1000,effect:'+55 Reliability, zero defects' },
-      { cost:1200000,durationMs:36 * 3600 * 1000,effect:'+80 Reliability, autonomous assembly' }
+      { cost:20000,  durationMs:10 * 60 * 1000,  effect:'+10 Fiabilidad, paradas en boxes más rápidas' },
+      { cost:65000,  durationMs:45 * 60 * 1000,  effect:'+20 Fiabilidad, -1s en paradas en boxes' },
+      { cost:200000, durationMs:3 * 3600 * 1000, effect:'+35 Fiabilidad, materiales avanzados' },
+      { cost:500000, durationMs:10 * 3600 * 1000,effect:'+55 Fiabilidad, cero defectos' },
+      { cost:1200000,durationMs:36 * 3600 * 1000,effect:'+80 Fiabilidad, ensamblaje autónomo' }
     ]
   },
   { id:'academy', name:'Academia de Pilotos', icon:'🎓', maxLevel:5,
     levels:[
-      { cost:30000,  durationMs:15 * 60 * 1000,  effect:'+15% pilot training speed' },
-      { cost:90000,  durationMs:60 * 60 * 1000,  effect:'+30% pilot training speed, unlock sim' },
-      { cost:250000, durationMs:5 * 3600 * 1000, effect:'+50% pilot training speed, mental coaching' },
-      { cost:650000, durationMs:14 * 3600 * 1000,effect:'+75% pilot training speed, physical peak' },
-      { cost:1400000,durationMs:48 * 3600 * 1000,effect:'+100% pilot training speed, legendary academy' }
+      { cost:30000,  durationMs:15 * 60 * 1000,  effect:'+15% velocidad de entrenamiento' },
+      { cost:90000,  durationMs:60 * 60 * 1000,  effect:'+30% velocidad de entrenamiento, simulador desbloqueado' },
+      { cost:250000, durationMs:5 * 3600 * 1000, effect:'+50% velocidad de entrenamiento, coaching mental' },
+      { cost:650000, durationMs:14 * 3600 * 1000,effect:'+75% velocidad de entrenamiento, rendimiento físico máximo' },
+      { cost:1400000,durationMs:48 * 3600 * 1000,effect:'+100% velocidad de entrenamiento, academia legendaria' }
     ]
   }
 ];

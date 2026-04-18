@@ -62,6 +62,13 @@ const APP = {
     this.attachGlobalHandlers();
     this.startRealTimeClock();
     this.bootForCurrentSession();
+    // Browser back/forward button support
+    window.addEventListener('hashchange', () => {
+      const hashScreen = location.hash.replace('#', '');
+      if (this._validScreenIds.has(hashScreen) && hashScreen !== this.currentScreen) {
+        this.navigateTo(hashScreen, { updateHash: false });
+      }
+    });
   },
 
   bootForCurrentSession() {
@@ -77,7 +84,10 @@ const APP = {
       this.buildSidebar();
       this.buildTopbar();
       if (window.GL_DASHBOARD) GL_DASHBOARD.init();
-      this.navigateTo('dashboard');
+      // Restore screen from URL hash (e.g. #finances) or default to dashboard
+      const hashScreen = location.hash.replace('#', '');
+      const startScreen = this._validScreenIds.has(hashScreen) ? hashScreen : 'dashboard';
+      this.navigateTo(startScreen);
     } else if (authReady && syncStatus && syncStatus.lastError) {
       this.showCloudRecovery(syncStatus);
     } else {
@@ -277,8 +287,16 @@ const APP = {
     </button>`;
   },
 
-  navigateTo(screenId) {
+  _validScreenIds: new Set(['dashboard','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','postrace']),
+
+  navigateTo(screenId, { updateHash = true } = {}) {
+    if (!this._validScreenIds.has(screenId)) screenId = 'dashboard';
     this.currentScreen = screenId;
+
+    // Update URL hash so F5 restores the same screen
+    if (updateHash && location.hash !== `#${screenId}`) {
+      history.pushState(null, '', `#${screenId}`);
+    }
 
     // Update nav active states
     document.querySelectorAll('.nav-item').forEach(el => {

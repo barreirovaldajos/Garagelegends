@@ -281,7 +281,7 @@ function getHqCapabilities(state) {
     academyTrainingSlots: academyLv >= 3 ? 2 : 1,
     academyTrainingSpeedMultiplier: 1 + (academyLv >= 2 ? 0.1 : 0) + (academyLv >= 3 ? 0.2 : 0) + (academyLv >= 4 ? 0.25 : 0) + (academyLv >= 5 ? 0.45 : 0),
     academyInjuryRiskMultiplier: academyLv >= 5 ? 0.5 : 1,
-    weatherResearchUnlocked: windLv >= 2
+    weatherResearchUnlocked: true
   };
 }
 
@@ -292,6 +292,8 @@ const RESEARCH_TREES = {
   reliability: { name: 'Reliability', icon: '🛡️', maxLevel: 20, costPerLevel: (l) => 6000 + (l * 1200), durationPerLevel: (l) => 6 * 24 * 3600 * 1000, componentBoost: 'reliability', boostPerLevel: 2.5 },
   weather: { name: 'Weather Mastery', icon: '🌧️', maxLevel: 20, costPerLevel: (l) => 7000 + (l * 1300), durationPerLevel: (l) => 7 * 24 * 3600 * 1000, componentBoost: 'aero', boostPerLevel: 2 }
 };
+
+const RND_POINT_COST_PER_RESEARCH = 5;
 
 function startResearch(treeId) {
   const state = S.getState();
@@ -306,16 +308,19 @@ function startResearch(treeId) {
   if (currentLevel >= tree.maxLevel) return { error: 'Max level reached' };
   const nextLevel = currentLevel + 1;
   const cost = tree.costPerLevel(nextLevel);
+  const pointCost = RND_POINT_COST_PER_RESEARCH;
   let duration = tree.durationPerLevel(nextLevel);
   duration = Math.floor(duration / caps.rndSpeedMultiplier);
   if ((state.team.engineSupplier || '').toLowerCase() === 'vulcan') {
     duration = Math.floor(duration * 0.8);
   }
   if (state.finances.credits < cost) return { error: 'Insufficient funds' };
+  if ((rnd.points || 0) < pointCost) return { error: `Not enough R&D points (need ${pointCost})` };
   state.finances.credits -= cost;
+  rnd.points = (rnd.points || 0) - pointCost;
   rnd.active = { treeId, startTime: getNowMs(), duration, targetLevel: nextLevel, progress: 0 };
   S.saveState();
-  return { success: true, treeId, cost, duration, targetLevel: nextLevel };
+  return { success: true, treeId, cost, pointCost, duration, targetLevel: nextLevel };
 }
 
 function processResearch(state) {
@@ -537,8 +542,8 @@ function getBasePitWindowPct(tyre, weather = 'dry', pitPlan = 'single') {
     return 52;
   }
   if (tyre === 'soft') return pitPlan === 'double' ? 22 : 25;
-  if (tyre === 'hard') return 60;
-  return 42;
+  if (tyre === 'hard') return pitPlan === 'double' ? 48 : 60;
+  return pitPlan === 'double' ? 32 : 42; // medium
 }
 
 function getDefaultPitTyres(strategy = {}, weather = 'dry') {
@@ -706,9 +711,29 @@ function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenc
   } else {
     tyre = seededUnit(`${seedRoot}_compound`) > 0.72 ? 'hard' : 'medium';
   }
-  const pitPlan = weather === 'wet'
-    ? (tyre === 'wet' || ((profile.tyreDegMult > 1.06 || tyreSkill < 64) && seededUnit(`${seedRoot}_wet_double`) > 0.58) ? 'double' : 'single')
-    : (tyre === 'soft' ? 'double' : 'single');
+  let pitPlan;
+  if (weather === 'wet') {
+    pitPlan = (tyre === 'wet' || ((profile.tyreDegMult > 1.06 || tyreSkill < 64) && seededUnit(`${seedRoot}_wet_double`) > 0.58)) ? 'double' : 'single';
+  } else if (tyre === 'soft') {
+    pitPlan = 'double';
+  } else if (tyre === 'hard') {
+    // Hard: parada doble rara, solo en circuitos de alto desgaste con pilotos agresivos
+    const hardDbl = (profile.tyreDegMult > 1.05 ? 0.18 : 0.07) + (strategyId === 'aggressive' ? 0.07 : 0);
+    pitPlan = seededUnit(`${seedRoot}_hard_double`) < hardDbl ? 'double' : 'single';
+  } else {
+    // Medium: varía según desgaste del circuito, estilo y habilidad de neumáticos
+    const baseDbl = profile.tyreDegMult > 1.06 ? 0.55
+      : profile.tyreDegMult > 1.03 ? 0.38
+      : 0.18;
+    const dblChance = clamp(
+      baseDbl
+      + (strategyId === 'aggressive' ? 0.10 : 0)
+      - (strategyId === 'conservative' ? 0.08 : 0)
+      + (tyreSkill < 60 ? 0.08 : 0),      // pilotos con mal manejo de neumáticos paran más
+      0.06, 0.72
+    );
+    pitPlan = seededUnit(`${seedRoot}_medium_double`) < dblChance ? 'double' : 'single';
+  }
   const setup = {
     aeroBalance: clamp(Math.round((profile.layout === 'technical' ? 68 : (profile.layout === 'high-speed' || profile.layout === 'power' ? 38 : 50)) + (setupSkill - 60) * 0.14 + seededRange(`${seedRoot}_aero`, -6, 6)), 20, 80),
     wetBias: clamp(Math.round((weather === 'wet' ? 72 : 42) + (rainSkill - 60) * 0.12 + seededRange(`${seedRoot}_wet_bias`, -8, 8)), 15, 85)
@@ -3260,15 +3285,10 @@ function catchUpOffline() {
 
   const now = getNowMs();
   const offlineMs = now - state.meta.saveTime;
-  if (offlineMs < (60 * 60 * 1000)) {
-    state.meta.saveTime = now;
-    S.saveState();
-    return 0;
-  }
-
-  const offlineHours = Math.floor(offlineMs / (60 * 60 * 1000));
   const fromMs = state.meta.saveTime;
   const toMs = now;
+
+  const offlineHours = Math.floor(offlineMs / (60 * 60 * 1000));
 
   const formatAuditDateTime = (ts) => {
     const d = new Date(ts);
@@ -3300,6 +3320,14 @@ function catchUpOffline() {
 
   const raceDates = listScheduleCrossings(fromMs, toMs, 0, 18); // Sun 18:00
   const raceCrossings = raceDates.length;
+
+  // Skip if no time has passed AND no race was crossed
+  // (allows active players to trigger a race when the countdown hits zero).
+  if (offlineMs < (60 * 60 * 1000) && raceCrossings === 0) {
+    state.meta.saveTime = now;
+    S.saveState();
+    return 0;
+  }
   const weeklyTicksTarget = Math.min(52, Math.floor(offlineMs / (7 * DAY_MS)));
 
   let simulatedRaces = 0;
