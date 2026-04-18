@@ -1802,6 +1802,238 @@ const SCREENS = {
       </div>`;
   },
 
+  toggleAnalystReport() {
+    const el = document.getElementById('postrace-analyst-panel');
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  },
+
+  renderRaceComparisonTable(result) {
+    if (!result || !GL_ENGINE.buildRaceComparisonStats) {
+      return `<p style="color:var(--t-secondary);font-size:0.82rem">Sin datos de telemetría disponibles.</p>`;
+    }
+    const stats = GL_ENGINE.buildRaceComparisonStats(result);
+    const { rows, best } = stats;
+    if (!rows || !rows.length) {
+      return `<p style="color:var(--t-secondary);font-size:0.82rem">Sin datos de telemetría disponibles.</p>`;
+    }
+
+    // ── Formatters ─────────────────────────────────────────────────────────
+    const fmtLap = (ms) => {
+      if (!ms || !Number.isFinite(ms)) return '—';
+      const m = Math.floor(ms / 60000);
+      const s = ((ms % 60000) / 1000).toFixed(1).padStart(4, '0');
+      return `${m}:${s}`;
+    };
+    const fmtPure = (ms) => {
+      if (!ms || !Number.isFinite(ms)) return '—';
+      const m = Math.floor(ms / 60000);
+      const s = Math.floor((ms % 60000) / 1000).toString().padStart(2, '0');
+      return `${m}m ${s}s`;
+    };
+    const fmtSec = (ms) => (ms && Number.isFinite(ms)) ? `${(ms / 1000).toFixed(1)}s` : '—';
+    const fmtConsist = (ms) => (ms && Number.isFinite(ms)) ? `±${(ms / 1000).toFixed(1)}s` : '—';
+    const fmtPosGain = (n) => {
+      if (!Number.isFinite(n) || n === 0) return '<span style="color:var(--t-secondary)">—</span>';
+      return n > 0
+        ? `<span style="color:var(--c-green)">▲+${n}</span>`
+        : `<span style="color:var(--c-red)">▼${Math.abs(n)}</span>`;
+    };
+
+    // ── Heatmap cell style (0=best/green, 1=worst/red) ──────────────────────
+    const heatStyle = (value, allVals, lowerIsBetter) => {
+      const valid = allVals.filter(v => Number.isFinite(v));
+      if (valid.length <= 1 || !Number.isFinite(value)) return '';
+      const min = Math.min(...valid);
+      const max = Math.max(...valid);
+      if (max === min) return '';
+      const score = lowerIsBetter ? (value - min) / (max - min) : (max - value) / (max - min);
+      const clamped = Math.max(0, Math.min(1, score));
+      if (clamped <= 0.25) return 'background:rgba(34,197,94,0.13);color:var(--c-green)';
+      if (clamped >= 0.75) return 'background:rgba(239,68,68,0.11);color:var(--c-red)';
+      return '';
+    };
+
+    // ── Column value arrays (for heatmap range) ────────────────────────────
+    const live = rows.filter(r => !r.isDNF);
+    const colAvgLap     = live.map(r => r.avgLapMs);
+    const colBestLap    = live.map(r => r.bestLapMs);
+    const colConsist    = live.map(r => r.consistencyMs);
+    const colPureRace   = live.map(r => r.pureRaceMs);
+    const colAvgPit     = live.filter(r => r.avgPitMs !== null).map(r => r.avgPitMs);
+    const colPosGain    = rows.map(r => r.posGain);
+
+    // ── Best lap overall ───────────────────────────────────────────────────
+    const overallBestLapMs = best.bestLapMs;
+
+    // ── Table rows ─────────────────────────────────────────────────────────
+    const tableRows = rows.map((row, i) => {
+      const isPlayer = row.isPlayer;
+      const rowBg = isPlayer ? 'background:var(--c-surface-2);border-left:3px solid var(--c-accent)' : '';
+      const namePart = isPlayer
+        ? `<strong style="color:var(--c-accent)">${row.name}</strong>`
+        : row.name;
+      const posLabel = row.isDNF ? '<span style="color:var(--c-red)">DNF</span>' : `P${row.finishPos}`;
+      const isFastestLap = Number.isFinite(row.bestLapMs) && Math.abs(row.bestLapMs - overallBestLapMs) < 1;
+
+      const cellAvg    = heatStyle(row.avgLapMs, colAvgLap, true);
+      const cellBest   = heatStyle(row.bestLapMs, colBestLap, true);
+      const cellConsis = heatStyle(row.consistencyMs, colConsist, true);
+      const cellPure   = heatStyle(row.pureRaceMs, colPureRace, true);
+      const cellPit    = row.avgPitMs !== null ? heatStyle(row.avgPitMs, colAvgPit, true) : '';
+
+      return `<tr style="${rowBg}">
+        <td style="white-space:nowrap;padding:7px 10px;font-size:0.78rem">
+          <span style="color:var(--t-secondary);margin-right:6px;font-size:0.72rem">${posLabel}</span>${namePart}
+        </td>
+        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellAvg}">${fmtLap(row.avgLapMs)}</td>
+        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellBest}">
+          ${fmtLap(row.bestLapMs)}${isFastestLap ? ' <span title="Vuelta rápida" style="color:#c084fc;font-size:0.7rem">★</span>' : ''}
+        </td>
+        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellConsis}">${fmtConsist(row.consistencyMs)}</td>
+        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellPure}">${fmtPure(row.pureRaceMs)}</td>
+        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellPit}">${fmtSec(row.avgPitMs)}</td>
+        <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtPosGain(row.posGain)}</td>
+      </tr>`;
+    }).join('');
+
+    // ── Analyst report ─────────────────────────────────────────────────────
+    const playerRows = rows.filter(r => r.isPlayer && !r.isDNF);
+    const METRIC_TIPS = [
+      {
+        key: 'avgLapMs',
+        label: 'Ritmo promedio',
+        bestVal: best.avgLapMs,
+        playerBest: playerRows.length ? Math.min(...playerRows.map(r => r.avgLapMs)) : null,
+        lowerBetter: true,
+        fmt: fmtLap,
+        tips: ['Sube el <strong>Motor</strong> y la <strong>Aerodinámica</strong> del coche', 'Busca mayor <strong>Ritmo de Carrera</strong> en tus pilotos']
+      },
+      {
+        key: 'bestLapMs',
+        label: 'Vuelta rápida',
+        bestVal: best.bestLapMs,
+        playerBest: playerRows.length ? Math.min(...playerRows.map(r => r.bestLapMs)) : null,
+        lowerBetter: true,
+        fmt: fmtLap,
+        tips: ['Mejora el <strong>Motor</strong> y la <strong>Caja de cambios</strong>', 'Pilotos con mayor atributo de <strong>Paso</strong> y <strong>Agresividad</strong>', 'Prueba usar <strong>Modo Motor: Push</strong> en stints cortos']
+      },
+      {
+        key: 'consistencyMs',
+        label: 'Consistencia de ritmo',
+        bestVal: best.consistencyMs,
+        playerBest: playerRows.length ? Math.min(...playerRows.map(r => r.consistencyMs)) : null,
+        lowerBetter: true,
+        fmt: fmtConsist,
+        tips: ['Pilotos con mayor atributo de <strong>Consistencia</strong> y <strong>Mental</strong>', 'Reduce la <strong>Agresividad</strong> en la estrategia', 'Baja el <strong>Nivel de Riesgo</strong>']
+      },
+      {
+        key: 'pureRaceMs',
+        label: 'Tiempo puro de carrera',
+        bestVal: best.pureRaceMs,
+        playerBest: playerRows.length ? Math.min(...playerRows.map(r => r.pureRaceMs)) : null,
+        lowerBetter: true,
+        fmt: fmtPure,
+        tips: ['Mejora el <strong>score general del coche</strong> (Motor, Chasis, Aero)', 'Pilotos con mejor <strong>Ritmo de Carrera</strong> y <strong>Pace</strong> general', 'Optimiza el <strong>Setup</strong> según el layout del circuito']
+      },
+      {
+        key: 'avgPitMs',
+        label: 'Tiempo promedio en pits',
+        bestVal: best.avgPitMs,
+        playerBest: playerRows.filter(r => r.avgPitMs !== null).length
+          ? Math.min(...playerRows.filter(r => r.avgPitMs !== null).map(r => r.avgPitMs))
+          : null,
+        lowerBetter: true,
+        fmt: fmtSec,
+        tips: ['Mejora tu <strong>Staff de Boxes</strong> (velocidad y fiabilidad del equipo de pits)', 'Revisa el timing de las paradas para aprovechar el <strong>Undercut / Overcut</strong>']
+      },
+      {
+        key: 'posGain',
+        label: 'Posiciones ganadas',
+        bestVal: best.posGain,
+        playerBest: playerRows.length ? Math.max(...playerRows.map(r => r.posGain)) : null,
+        lowerBetter: false,
+        fmt: (n) => n > 0 ? `+${n}` : `${n}`,
+        tips: ['Pilotos con mayor atributo de <strong>Adelantamiento</strong> y <strong>Agresividad</strong>', 'Sube la <strong>Agresividad</strong> en la estrategia (con cuidado de los neumáticos)', 'Una mejor posición de salida también ayuda: mejora el setup de clasificación']
+      }
+    ];
+
+    const analystLines = METRIC_TIPS.map(m => {
+      if (m.playerBest === null || !Number.isFinite(m.playerBest) || !Number.isFinite(m.bestVal)) return null;
+      const isPlayerBest = m.lowerBetter
+        ? Math.abs(m.playerBest - m.bestVal) < 0.5
+        : Math.abs(m.playerBest - m.bestVal) < 0.5;
+
+      if (isPlayerBest) {
+        return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+          <span style="font-size:1rem;flex-shrink:0">✅</span>
+          <div>
+            <div style="font-size:0.78rem;font-weight:600;color:var(--c-green)">${m.label}</div>
+            <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:2px">Tu equipo lideró esta métrica en la carrera. ¡Excelente trabajo!</div>
+          </div>
+        </div>`;
+      }
+
+      const gapMs = m.lowerBetter ? (m.playerBest - m.bestVal) : (m.bestVal - m.playerBest);
+      const gapLabel = (m.key === 'avgLapMs' || m.key === 'bestLapMs')
+        ? `+${(gapMs / 1000).toFixed(2)}s por vuelta de diferencia con el mejor`
+        : (m.key === 'pureRaceMs' ? `+${(gapMs / 1000).toFixed(0)}s de tiempo puro sobre el líder`
+        : (m.key === 'avgPitMs' || m.key === 'worstPitMs' ? `+${(gapMs / 1000).toFixed(1)}s más lento en pits`
+        : (m.key === 'posGain' ? `${Math.abs(gapMs)} posiciones menos ganadas que el mejor remontador` : '')));
+      const tipsHtml = m.tips.map(t => `<li style="margin-bottom:3px">${t}</li>`).join('');
+      return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15)">
+        <span style="font-size:1rem;flex-shrink:0">📉</span>
+        <div>
+          <div style="font-size:0.78rem;font-weight:600;color:var(--t-primary)">${m.label}</div>
+          <div style="font-size:0.73rem;color:var(--t-secondary);margin-top:2px">${gapLabel}</div>
+          <ul style="font-size:0.73rem;color:var(--t-secondary);margin:6px 0 0 0;padding-left:16px">${tipsHtml}</ul>
+        </div>
+      </div>`;
+    }).filter(Boolean).join('');
+
+    const thStyle = 'font-size:0.7rem;font-weight:600;color:var(--t-secondary);text-align:center;padding:6px 8px;white-space:nowrap;border-bottom:1px solid var(--c-border)';
+    const thFirstStyle = 'font-size:0.7rem;font-weight:600;color:var(--t-secondary);text-align:left;padding:6px 10px;border-bottom:1px solid var(--c-border)';
+
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div>
+          <div class="postrace-report-title" style="font-size:0.9rem;font-weight:700">📊 Telemetría de Carrera</div>
+          <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:2px">Pilotos ordenados por posición final · ★ vuelta rápida</div>
+        </div>
+        <button class="btn btn-secondary" style="font-size:0.76rem;padding:6px 12px" onclick="GL_SCREENS.toggleAnalystReport()">
+          🧠 Informe del Analista
+        </button>
+      </div>
+
+      <div id="postrace-analyst-panel" style="display:none;margin-bottom:14px;padding:14px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border)">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary);margin-bottom:10px">
+          Análisis de tu equipo vs el campo
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${analystLines || '<div style="font-size:0.78rem;color:var(--t-secondary)">No hay datos suficientes para generar el informe.</div>'}
+        </div>
+      </div>
+
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:580px">
+          <thead>
+            <tr style="background:var(--c-surface-2)">
+              <th style="${thFirstStyle}">Piloto</th>
+              <th style="${thStyle}" title="Tiempo promedio por vuelta excluyendo pit stops">Ritmo prom.</th>
+              <th style="${thStyle}" title="Vuelta más rápida de la carrera">Vuelta rápida</th>
+              <th style="${thStyle}" title="Variabilidad del ritmo — menor es más regular">Consistencia</th>
+              <th style="${thStyle}" title="Tiempo total de carrera sin contar pit stops">Tiempo puro</th>
+              <th style="${thStyle}" title="Tiempo promedio perdido por parada en boxes">Pits (prom.)</th>
+              <th style="${thStyle}" title="Posiciones ganadas o perdidas desde la salida">Δ Pos</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </div>`;
+  },
+
   openRaceReport(round) {
     const record = this.getRaceArchiveRecord(round);
     const titleSuffix = record?.circuit?.name || `R${round}`;
@@ -3317,10 +3549,6 @@ const SCREENS = {
       .join('');
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
-    const performanceReport = result.performanceReport || (GL_ENGINE.buildRacePerformanceReport ? GL_ENGINE.buildRacePerformanceReport(result, state) : null);
-    if (performanceReport && !result.performanceReport) result.performanceReport = performanceReport;
-    const adminReport = result.adminReport || (GL_ENGINE.buildRaceAdminReport ? GL_ENGINE.buildRaceAdminReport(result, state) : null);
-    if (adminReport && !result.adminReport) result.adminReport = adminReport;
     const crashReports = playerCars
       .filter((car) => car && car.isDNF)
       .map((car) => ({
@@ -3433,18 +3661,7 @@ const SCREENS = {
         <div class="postrace-podium-wrap">${podiumHtml || `<div style="color:var(--t-secondary)">No podium data</div>`}</div>
       </div>
       <div class="card mb-4 postrace-report-card">
-        <div class="postrace-report-head">
-          <div class="postrace-report-title">🧾 ${__('postrace_admin_report')}</div>
-          <span class="badge badge-blue">Ops</span>
-        </div>
-        <div style="margin-top:10px">${this.renderRaceAdminReport(adminReport, { compact: true, copyAction: 'GL_SCREENS.copyRaceAdminReport()' })}</div>
-      </div>
-      <div class="card mb-4 postrace-report-card">
-        <div class="postrace-report-head">
-          <div class="postrace-report-title">📈 ${__('postrace_performance_report')}</div>
-          <span class="badge badge-green">Pace</span>
-        </div>
-        <div style="margin-top:10px">${this.renderRacePerformanceReport(performanceReport, { compact: true })}</div>
+        ${this.renderRaceComparisonTable(result)}
       </div>
       <div class="grid-2">
         <div class="card">

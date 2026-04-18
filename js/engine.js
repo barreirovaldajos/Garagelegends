@@ -1427,6 +1427,125 @@ function buildRacePerformanceReport(result, stateArg = null) {
   };
 }
 
+function buildRaceComparisonStats(result) {
+  const finalGrid = Array.isArray(result?.finalGrid) ? result.finalGrid : [];
+  const totalLaps = Number(result?.totalLaps) || 1;
+  const circuitLengthKm = parseFloat((result?.circuit?.length || '4.650 km').replace(/[^\d.]/g, '')) || 4.650;
+  const layout = result?.circuit?.layout || 'mixed';
+
+  // Layout factors: how much faster/slower straights vs corners relative to avg speed
+  const layoutFactors = {
+    'high-speed': { straightDist: 0.58, straightTime: 0.38 },
+    power:        { straightDist: 0.52, straightTime: 0.36 },
+    technical:    { straightDist: 0.36, straightTime: 0.30 },
+    mixed:        { straightDist: 0.46, straightTime: 0.34 },
+    endurance:    { straightDist: 0.54, straightTime: 0.37 }
+  };
+  const lf = layoutFactors[layout] || layoutFactors.mixed;
+
+  const gridStart = Array.isArray(result?.gridStart) ? result.gridStart : [];
+
+  const rows = finalGrid.map((entry, idx) => {
+    const laps = Math.max(1, entry.laps || totalLaps);
+    const lapTimes = Array.isArray(entry.lapTimesMs) && entry.lapTimesMs.length > 0
+      ? entry.lapTimesMs
+      : null;
+    const pitLosses = Array.isArray(entry.pitStopLosses) && entry.pitStopLosses.length > 0
+      ? entry.pitStopLosses
+      : null;
+
+    // Pure race time excludes pit time
+    const pureRaceMs = Math.max(0, (entry.timeMs || 0) - (entry.pitTimeMs || 0));
+
+    // Avg lap time: use tracked array if available, else derive
+    const avgLapMs = lapTimes
+      ? lapTimes.reduce((a, b) => a + b, 0) / lapTimes.length
+      : pureRaceMs / laps;
+
+    // Best lap
+    const bestLapMs = lapTimes
+      ? Math.min(...lapTimes)
+      : avgLapMs * 0.974; // approximate if no tracking
+
+    // Consistency: std deviation of lap times (lower = more consistent)
+    let consistencyMs = null;
+    if (lapTimes && lapTimes.length > 1) {
+      const mean = avgLapMs;
+      const variance = lapTimes.reduce((sum, t) => sum + Math.pow(t - mean, 2), 0) / lapTimes.length;
+      consistencyMs = Math.sqrt(variance);
+    } else {
+      consistencyMs = avgLapMs * 0.012; // approximate
+    }
+
+    // Pit stats
+    const pitsDone = entry.pitStopsDone || 0;
+    const avgPitMs = pitsDone > 0
+      ? (pitLosses ? pitLosses.reduce((a, b) => a + b, 0) / pitLosses.length : (entry.pitTimeMs || 0) / pitsDone)
+      : null;
+    const worstPitMs = pitsDone > 0
+      ? (pitLosses ? Math.max(...pitLosses) : avgPitMs)
+      : null;
+
+    // Derived speeds from avg lap time + circuit length
+    const avgLapSec = avgLapMs / 1000;
+    const avgSpeedKph = (circuitLengthKm / avgLapSec) * 3600;
+    const straightSpeedKph = avgSpeedKph * (lf.straightDist / lf.straightTime);
+    const cornerSpeedKph = avgSpeedKph * ((1 - lf.straightDist) / (1 - lf.straightTime));
+
+    const bestLapSec = bestLapMs / 1000;
+    const bestSpeedKph = (circuitLengthKm / bestLapSec) * 3600;
+    const peakStraightKph = bestSpeedKph * (lf.straightDist / lf.straightTime);
+
+    const startIdx = gridStart.findIndex(g => g.id === entry.id);
+    const startPos = startIdx >= 0 ? startIdx + 1 : (entry.startPos || idx + 1);
+    const finishPos = entry.pos || (idx + 1);
+
+    return {
+      id: entry.id,
+      name: entry.pilotName || entry.name || 'Driver',
+      teamName: entry.name || entry.pilotName || 'Driver',
+      isPlayer: !!entry.isPlayer,
+      isDNF: !!entry.retired,
+      finishPos,
+      startPos,
+      posGain: startPos - finishPos, // positive = gained positions
+      tyre: entry.tyre || 'medium',
+      pitsDone,
+
+      // Core metrics (all in ms or kph)
+      pureRaceMs,
+      avgLapMs,
+      bestLapMs,
+      consistencyMs,
+      avgPitMs,
+      worstPitMs,
+      avgSpeedKph,
+      straightSpeedKph,
+      cornerSpeedKph,
+      peakStraightKph
+    };
+  });
+
+  // Compute per-column best values (lower is better for times, higher for speeds/posGain)
+  const safeMin = (arr) => { const v = arr.filter(x => Number.isFinite(x)); return v.length ? Math.min(...v) : null; };
+  const safeMax = (arr) => { const v = arr.filter(x => Number.isFinite(x)); return v.length ? Math.max(...v) : null; };
+  const live = rows.filter(r => !r.isDNF);
+  const best = {
+    pureRaceMs:      safeMin(live.map(r => r.pureRaceMs)),
+    avgLapMs:        safeMin(live.map(r => r.avgLapMs)),
+    bestLapMs:       safeMin(live.map(r => r.bestLapMs)),
+    consistencyMs:   safeMin(live.map(r => r.consistencyMs)),
+    avgPitMs:        safeMin(live.filter(r => r.avgPitMs !== null).map(r => r.avgPitMs)),
+    worstPitMs:      safeMin(live.filter(r => r.worstPitMs !== null).map(r => r.worstPitMs)),
+    straightSpeedKph:safeMax(live.map(r => r.straightSpeedKph)),
+    peakStraightKph: safeMax(live.map(r => r.peakStraightKph)),
+    cornerSpeedKph:  safeMax(live.map(r => r.cornerSpeedKph)),
+    posGain:         safeMax(rows.map(r => r.posGain))
+  };
+
+  return { rows, best, circuitLengthKm, layout };
+}
+
 function buildRaceArchiveRecord(result, raceMeta = {}, stateArg = null) {
   const report = result?.performanceReport || buildRacePerformanceReport(result, stateArg);
   const adminReport = result?.adminReport || buildRaceAdminReport(result, stateArg);
@@ -1663,7 +1782,9 @@ function simulateRace(options = {}) {
     pitStopsDone: 0,
     pitTimeMs: 0,
     lastPitLossMs: 0,
-    lastPitLap: null
+    lastPitLap: null,
+    lapTimesMs: [],
+    pitStopLosses: []
   }));
   const runtimes = {};
   const updateRunningOrder = () => {
@@ -1822,7 +1943,9 @@ function simulateRace(options = {}) {
       const noiseHalfRange = entry.isPlayer ? playerNoiseHalfRange : aiNoiseHalfRange;
       const noiseMs = (Math.random() - 0.5) * (noiseHalfRange * 2);
       const lapTimeMs = lapBaseMs - paceMs - aggressionMs - engineMs + tyreDeltaMs + wearMs + noiseMs;
-      entry.timeMs += Math.max(70000, lapTimeMs);
+      const clampedLapTimeMs = Math.max(70000, lapTimeMs);
+      entry.timeMs += clampedLapTimeMs;
+      if (!safetyCarActive) entry.lapTimesMs.push(clampedLapTimeMs);
       entry.laps = lap;
     });
 
@@ -1845,6 +1968,7 @@ function simulateRace(options = {}) {
         entry.pit = true;
         entry.pitStopsDone = rt.pitStopsDone;
         entry.pitTimeMs += pitLossMs;
+        entry.pitStopLosses.push(pitLossMs);
         entry.lastPitLossMs = pitLossMs;
         entry.lastPitLap = lap;
         pitStopsThisLap = true;
@@ -2005,6 +2129,8 @@ function simulateRace(options = {}) {
         tyre: entry.tyre || 'medium',
         pitStopsDone: entry.pitStopsDone || 0,
         pitTimeMs: entry.pitTimeMs || 0,
+        lapTimesMs: entry.lapTimesMs || [],
+        pitStopLosses: entry.pitStopLosses || [],
         strategy: entry.strategy || leadDriver.strategy,
         crashReport: crashReportsByCarId[entry.id] || null
       };
@@ -3482,7 +3608,7 @@ window.GL_ENGINE = {
   pilotScore, carScore, buildRaceGrid, simulateRace,
   choosePitTyreForConditions,
   getTyreUsefulLife, getTyrePaceDeltaMs, getCircuitRaceDistanceKm,
-  buildRacePerformanceReport, buildRaceAdminReport, buildRaceArchiveRecord, upsertRaceArchiveRecord,
+  buildRacePerformanceReport, buildRaceAdminReport, buildRaceArchiveRecord, upsertRaceArchiveRecord, buildRaceComparisonStats,
   getFinanceOverview,
   weeklyTick, applyRaceWeekendEconomy, evaluateSponsorDemands, updateConstructionQueue, startHqUpgrade,
   // Research/I+D
