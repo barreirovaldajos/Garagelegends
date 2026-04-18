@@ -1225,6 +1225,7 @@ const SCREENS = {
     const staff = state.staff || [];
     const maxStaff = GL_DATA.MAX_STAFF || 5;
     const used = staff.length;
+    const activeSponsors = (state.sponsors || []).filter(s => !s.expired);
     const el = document.getElementById('screen-staff');
     if (!el) return;
     const atMax = used >= maxStaff;
@@ -1238,7 +1239,7 @@ const SCREENS = {
           <div class="screen-title">${__('staff_title')}</div>
           <div class="screen-subtitle">${__('staff_subtitle')}</div>
         </div>
-        <div style="display:flex;align-items:center;gap:var(--s-3);flex-shrink:0">
+        <div id="staff-header-action" style="display:flex;align-items:center;gap:var(--s-3);flex-shrink:0">
           <div style="text-align:right">
             <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px;letter-spacing:0.04em">PERSONAL ${used}/${maxStaff}</div>
             <div>${slotDots}</div>
@@ -1246,32 +1247,107 @@ const SCREENS = {
           ${!atMax ? `<button class="btn btn-primary btn-sm" onclick="GL_SCREENS.showHireStaff()">+ Contratar</button>` : `<span style="font-size:0.72rem;color:var(--t-tertiary);padding:6px 10px;border-radius:var(--r-sm);border:1px solid rgba(255,255,255,0.1)">Plantilla completa</span>`}
         </div>
       </div>
-      <div class="grid-2 mb-6">
-        ${staff.map(s => {
-          const severance = this.getStaffSeverance(s);
-          return `
-          <div class="card card-hover flex gap-4">
-            <div class="icon-circle ${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'green'}" style="width:52px;height:52px;font-size:1.5rem;flex-shrink:0">${s.emoji||'👤'}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-family:var(--font-display);font-weight:700;font-size:0.95rem">${s.name}</div>
-              <div style="font-size:0.75rem;color:var(--t-secondary);margin-bottom:var(--s-2)">${s.role || this.getStaffRoleLabel(s.roleKey || '')} · ${s.nat}</div>
-              <div style="font-size:0.72rem;color:var(--c-accent);font-weight:600;margin-bottom:var(--s-2);line-height:1.4">${s.effect || s.bio || ''}</div>
-              <div style="font-size:0.7rem;color:var(--t-tertiary);font-style:italic">"${s.bio || ''}"</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:var(--s-1)">
-              <div>
-                <div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(s.salary)}/sem</div>
-                <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}" style="margin-top:4px">${s.rarity||'common'}</span>
-              </div>
-              <button class="btn btn-ghost btn-sm" style="margin-top:auto;font-size:0.68rem;color:var(--t-tertiary)" onclick="GL_SCREENS.dismissStaff('${s.id}')" title="Indemnización: ${GL_UI.fmtCR(severance)} CR">Despedir · ${GL_UI.fmtCR(severance)} CR</button>
-            </div>
-          </div>`;
-        }).join('')}
-        ${Array.from({ length: maxStaff - used }, (_, i) => `
-          <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;border-style:dashed;min-height:100px;cursor:pointer;opacity:${atMax ? 0.4 : 1}" onclick="${atMax ? '' : 'GL_SCREENS.showHireStaff()'}">
-            <div><div style="font-size:1.5rem;color:var(--t-tertiary)">+</div><div style="font-size:0.78rem;color:var(--t-tertiary);margin-top:4px">Slot disponible</div></div>
-          </div>`).join('')}
+      <div class="tabs mb-6" style="max-width:400px">
+        <button class="tab active" onclick="GL_SCREENS.staffTab('staff',this)">Personal</button>
+        <button class="tab" onclick="GL_SCREENS.staffTab('sponsors',this)">Patrocinadores <span style="font-size:0.7rem;opacity:0.7">(${activeSponsors.length})</span></button>
+      </div>
+      <div id="staff-content">
+        ${this._staffPanelContent(staff, maxStaff, used, atMax)}
       </div>`;
+  },
+
+  staffTab(tab, btn) {
+    const state = GL_STATE.getState();
+    const tabs = document.querySelectorAll('#screen-staff .tabs .tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    const content = document.getElementById('staff-content');
+    const headerAction = document.getElementById('staff-header-action');
+    if (!content) return;
+    if (tab === 'staff') {
+      const staff = state.staff || [];
+      const maxStaff = GL_DATA.MAX_STAFF || 5;
+      const used = staff.length;
+      const atMax = used >= maxStaff;
+      if (headerAction) {
+        const slotDots = Array.from({ length: maxStaff }, (_, i) => `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${i < used ? 'var(--c-accent)' : 'rgba(255,255,255,0.12)'};margin-right:4px"></span>`).join('');
+        headerAction.innerHTML = `
+          <div style="text-align:right">
+            <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px;letter-spacing:0.04em">PERSONAL ${used}/${maxStaff}</div>
+            <div>${slotDots}</div>
+          </div>
+          ${!atMax ? `<button class="btn btn-primary btn-sm" onclick="GL_SCREENS.showHireStaff()">+ Contratar</button>` : `<span style="font-size:0.72rem;color:var(--t-tertiary);padding:6px 10px;border-radius:var(--r-sm);border:1px solid rgba(255,255,255,0.1)">Plantilla completa</span>`}`;
+      }
+      content.innerHTML = this._staffPanelContent(staff, maxStaff, used, atMax);
+    } else {
+      if (headerAction) {
+        headerAction.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('market');setTimeout(()=>GL_SCREENS.marketTab('sponsors',document.querySelector('.tabs .tab:last-child')),80)">+ Buscar patrocinadores</button>`;
+      }
+      content.innerHTML = this._sponsorPanelContent();
+    }
+  },
+
+  _staffPanelContent(staff, maxStaff, used, atMax) {
+    return `<div class="grid-2 mb-6">
+      ${staff.map(s => {
+        const severance = this.getStaffSeverance(s);
+        return `
+        <div class="card card-hover flex gap-4">
+          <div class="icon-circle ${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'green'}" style="width:52px;height:52px;font-size:1.5rem;flex-shrink:0">${s.emoji||'👤'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--font-display);font-weight:700;font-size:0.95rem">${s.name}</div>
+            <div style="font-size:0.75rem;color:var(--t-secondary);margin-bottom:var(--s-2)">${s.role || this.getStaffRoleLabel(s.roleKey || '')} · ${s.nat}</div>
+            <div style="font-size:0.72rem;color:var(--c-accent);font-weight:600;margin-bottom:var(--s-2);line-height:1.4">${s.effect || s.bio || ''}</div>
+            <div style="font-size:0.7rem;color:var(--t-tertiary);font-style:italic">"${s.bio || ''}"</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:var(--s-1)">
+            <div>
+              <div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(s.salary)}/sem</div>
+              <span class="badge badge-${s.rarity==='rare'?'gold':s.rarity==='uncommon'?'blue':'gray'}" style="margin-top:4px">${s.rarity||'common'}</span>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:auto;font-size:0.68rem;color:var(--t-tertiary)" onclick="GL_SCREENS.dismissStaff('${s.id}')" title="Indemnización: ${GL_UI.fmtCR(severance)} CR">Despedir · ${GL_UI.fmtCR(severance)} CR</button>
+          </div>
+        </div>`;
+      }).join('')}
+      ${Array.from({ length: maxStaff - used }, (_, i) => `
+        <div class="card" style="display:flex;align-items:center;justify-content:center;text-align:center;border-style:dashed;min-height:100px;cursor:pointer;opacity:${atMax ? 0.4 : 1}" onclick="${atMax ? '' : 'GL_SCREENS.showHireStaff()'}">
+          <div><div style="font-size:1.5rem;color:var(--t-tertiary)">+</div><div style="font-size:0.78rem;color:var(--t-tertiary);margin-top:4px">Slot disponible</div></div>
+        </div>`).join('')}
+    </div>`;
+  },
+
+  _sponsorPanelContent() {
+    const state = GL_STATE.getState();
+    const activeSponsors = (state.sponsors || []).filter(s => !s.expired);
+    if (!activeSponsors.length) {
+      return `<div style="text-align:center;padding:40px 20px;color:var(--t-tertiary)">
+        <div style="font-size:2rem;margin-bottom:12px">💼</div>
+        <div style="font-size:0.9rem;margin-bottom:16px">Sin patrocinadores activos</div>
+        <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('market');setTimeout(()=>GL_SCREENS.marketTab('sponsors',document.querySelector('.tabs .tab:last-child')),80)">Buscar patrocinadores</button>
+      </div>`;
+    }
+    return `<div class="flex flex-col gap-4 mb-6">
+      ${activeSponsors.map(sp => {
+        const income = Number(sp.weeklyValue || sp.income || 0);
+        const weeksLeft = Number(sp.weeksLeft || sp.duration || 0);
+        const penalty = Math.round(income * Math.max(1, weeksLeft) * 0.2);
+        const demandLabel = sp.demand || '';
+        const bonusVal = Number(sp.demandBonus || 0);
+        return `
+        <div class="card flex gap-4" style="align-items:center">
+          <div style="font-size:2.2rem;flex-shrink:0;width:52px;height:52px;display:flex;align-items:center;justify-content:center;background:${sp.bg||'var(--c-surface-2)'};border-radius:var(--r-sm)">${sp.logo||'💼'}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;color:${sp.color||'var(--t-primary)'};font-size:0.95rem">${sp.name}</div>
+            <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:2px">${weeksLeft} semanas restantes · ${demandLabel}</div>
+            ${bonusVal > 0 ? `<div style="font-size:0.72rem;color:var(--c-gold);margin-top:3px">Bonus: +${GL_UI.fmtCR(bonusVal)} si cumples</div>` : ''}
+          </div>
+          <div style="text-align:right;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:var(--s-2)">
+            <div style="font-family:var(--font-display);font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(income)}/sem</div>
+            <button class="btn btn-ghost btn-sm" style="font-size:0.68rem;color:var(--t-tertiary)" onclick="GL_SCREENS.rescindSponsor('${sp.id}')">Rescindir · -${GL_UI.fmtCR(penalty)} CR</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
   },
 
   showHireStaff() {
@@ -1419,20 +1495,20 @@ const SCREENS = {
         <div class="flex flex-col gap-4">
           <div class="card">
             <div class="section-eyebrow">${__('car_quick_upgrades')}</div>
-            <div class="section-title mb-4" style="font-size:1rem">${__('car_spend_credits')}</div>
+            <div class="section-title mb-4" style="font-size:1rem">Créditos + 5 pts de I+D por mejora</div>
             ${Object.entries(car.components).map(([key, c]) => {
               const labels = { engine:__('car_engine'),chassis:__('car_chassis'),aero:__('car_aero'),tyreManage:__('car_tyre_manage'),brakes:__('car_brakes'),gearbox:__('car_gearbox'),reliability:__('car_reliability'),efficiency:__('car_efficiency') };
               const cost = 5000 + c.level * 3000;
               return `<div class="finance-row">
                 <span class="finance-row-label">${labels[key]}</span>
-                <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.upgradeCarComp('${key}')">+3 · ${GL_UI.fmtCR(cost)} CR</button>
+                <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.upgradeCarComp('${key}')">+3 · ${GL_UI.fmtCR(cost)} CR · 5 pts</button>
               </div>`;
             }).join('')}
           </div>
           <div class="card">
             <div class="section-eyebrow">${__('car_rnd_points')}</div>
             <div class="stat-card-value" style="font-size:1.4rem;color:${(car.rnd.points||0) >= 5 ? 'var(--c-gold)' : 'inherit'}">${car.rnd.points || 0}</div>
-            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">Se gastan en I+D (5 pts por proyecto). Compite para ganar más.</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">P1 +5 · P2 +3 · P3 +2. Se usan en mejoras rápidas (5 pts) e I+D (5 pts/proyecto).</div>
             ${(car.rnd.points||0) >= 5
               ? `<button class="btn btn-ghost btn-sm w-full" style="margin-top:8px" onclick="GL_SCREENS.showRnD()">🔬 Usar en I+D</button>`
               : `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px">Necesitas 5 pts para iniciar una investigación.</div>`
@@ -1445,7 +1521,10 @@ const SCREENS = {
   upgradeCarComp(key) {
     const car = GL_STATE.getCar();
     const cost = 5000 + car.components[key].level * 3000;
+    const rndCost = 5;
+    if ((car.rnd.points || 0) < rndCost) { GL_UI.toast(`Puntos de I+D insuficientes (necesitas ${rndCost} pts)`, 'warning'); return; }
     if (!GL_STATE.spendCredits(cost)) { GL_UI.toast('Créditos insuficientes', 'warning'); return; }
+    car.rnd.points = (car.rnd.points || 0) - rndCost;
     car.components[key].score = Math.min(99, car.components[key].score + 3);
     car.components[key].level++;
     const labels = { engine:'Motor', chassis:'Chasis', aero:'Aerodinámica', tyreManage:'Gestión de Neumáticos', brakes:'Frenos', gearbox:'Caja de Cambios', reliability:'Fiabilidad', efficiency:'Eficiencia' };
@@ -2349,10 +2428,22 @@ const SCREENS = {
   },
 
   _refreshSponsorTab() {
+    // Si estamos en la pantalla de staff con la pestaña de patrocinadores abierta
+    const sc = document.getElementById('staff-content');
+    if (sc && sc.closest('#screen-staff')) {
+      sc.innerHTML = this._sponsorPanelContent();
+      // Actualizar el contador en la pestaña
+      const state = GL_STATE.getState();
+      const count = (state.sponsors || []).filter(s => !s.expired).length;
+      const staffTabs = document.querySelectorAll('#screen-staff .tabs .tab');
+      if (staffTabs.length >= 2) staffTabs[1].innerHTML = `Patrocinadores <span style="font-size:0.7rem;opacity:0.7">(${count})</span>`;
+      return;
+    }
+    // Si estamos en la pantalla de mercado
     const mc = document.getElementById('market-content');
     if (mc) {
       mc.innerHTML = this.marketSponsorList();
-      const tabs = document.querySelectorAll('.tabs .tab');
+      const tabs = document.querySelectorAll('#screen-market .tabs .tab, .tabs .tab');
       tabs.forEach(t => t.classList.remove('active'));
       if (tabs.length >= 2) tabs[1].classList.add('active');
     } else {
@@ -3072,7 +3163,14 @@ const SCREENS = {
       }
       window._advisorStrategySource = 'manual';
 
-      state.car.rnd.points = (state.car.rnd.points || 0) + 5 + Math.floor(Math.random() * 5);
+      const _bestPos = Array.isArray(result.playerCars) && result.playerCars.length > 0
+        ? result.playerCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
+        : (result.position || 99);
+      const _rndEarned = _bestPos === 1 ? 5 : _bestPos === 2 ? 3 : _bestPos === 3 ? 2 : 0;
+      if (_rndEarned > 0) {
+        state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
+        GL_STATE.addLog(`🔬 +${_rndEarned} pts de I+D (P${_bestPos})`, 'good');
+      }
       if (archiveRecord && GL_ENGINE.upsertRaceArchiveRecord) {
         GL_ENGINE.upsertRaceArchiveRecord(state, archiveRecord);
       }
