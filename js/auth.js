@@ -11,6 +11,7 @@
     user: null,
     role: 'player',
     profile: null,
+    mp: null,
     remoteSave: null,
     remoteSaveUpdatedAt: 0,
     storageKeySuffix: '',
@@ -62,7 +63,7 @@
           }
         } else {
           this.user = null; this.profile = null; this.role = 'player';
-          this.remoteSave = null; this.remoteSaveUpdatedAt = 0;
+          this.mp = null; this.remoteSave = null; this.remoteSaveUpdatedAt = 0;
           this.storageKeySuffix = ''; this.pendingRemoteSave = null;
           this.renderGate();
         }
@@ -74,22 +75,34 @@
     async ensureProfile() {
       if (!this._db || !this.user) return;
       const ref = this._db.collection('profiles').doc(this.user.uid);
-      await ref.set({ email: this.user.email || '', role: 'player' }, { merge: true });
       try {
         const snap = await ref.get();
         if (snap.exists) {
+          // Profile exists — update email only, never overwrite role
           const data = snap.data();
+          if ((data.email || '') !== (this.user.email || '')) {
+            await ref.update({ email: this.user.email || '' });
+          }
           this.profile = data;
           this.role = data.role || 'player';
+          this.mp = data.mp || null;
           this.remoteSave = data.save_data || null;
           this.remoteSaveUpdatedAt = this.getSaveTimestamp(
             data.save_data,
             data.save_updated_at ? data.save_updated_at.toMillis() : 0
           );
-          this.lastProfileLoadAt = Date.now();
-          this.syncStatus = this.remoteSave ? 'synced' : 'ready';
-          this.lastSyncError = ''; this.lastSyncErrorAt = 0;
+        } else {
+          // New profile — set role to player
+          const newProfile = { email: this.user.email || '', role: 'player' };
+          await ref.set(newProfile);
+          this.profile = newProfile;
+          this.role = 'player';
+          this.remoteSave = null;
+          this.remoteSaveUpdatedAt = 0;
         }
+        this.lastProfileLoadAt = Date.now();
+        this.syncStatus = this.remoteSave ? 'synced' : 'ready';
+        this.lastSyncError = ''; this.lastSyncErrorAt = 0;
       } catch (e) {
         this.syncStatus = 'error'; this.lastSyncError = e.message || String(e);
         this.lastSyncErrorAt = Date.now();
@@ -248,7 +261,7 @@
           setMsg('Access granted. Loading game...', 'success');
         } catch (e) {
           const code = e.code || '';
-          if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+          if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
             setMsg('Invalid email or password.', 'error');
           } else {
             setMsg(e.message || 'Login failed.', 'error');

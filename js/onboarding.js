@@ -587,6 +587,19 @@ const OB = {
     GL_STATE.addLog(`¡Bienvenido a Garage Legends, ${GL_STATE.getState().team.name}! Tu viaje comienza ahora.`, 'good');
     GL_STATE.saveState();
 
+    // Assign to multiplayer division
+    if (window.GL_AUTH && GL_AUTH.enabled && GL_AUTH.user && typeof firebase !== 'undefined' && firebase.functions) {
+      const teamSnapshot = GL_STATE.buildTeamSnapshot();
+      const assignDivision = firebase.functions().httpsCallable('assignDivision');
+      assignDivision({ teamSnapshot: teamSnapshot }).then(result => {
+        const data = result.data || {};
+        GL_AUTH.mp = { division: data.division, divisionGroup: data.group, divKey: data.divKey, slotIndex: data.slotIndex, status: 'active' };
+        console.log('Assigned to division:', data.divKey, 'slot:', data.slotIndex);
+      }).catch(err => {
+        console.warn('Division assignment failed (will retry on next login):', err.message || err);
+      });
+    }
+
     const ob = document.getElementById('onboarding-screen');
     ob.style.transition = 'opacity 0.5s ease';
     ob.style.opacity = '0';

@@ -7,6 +7,7 @@
       "**/node_modules/**",
       "scripts/**",
       "docs/**",
+      "functions/**",
       "migration.env",
       "firebase-service-account.json",
       "migration-reset-links.txt",
@@ -27,5 +28,8 @@
   },
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "functions": {
+    "source": "functions"
   }
 }

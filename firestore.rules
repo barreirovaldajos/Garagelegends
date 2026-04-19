@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helper: is this user an admin? ----
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ---- profiles ----
+    // Players read/write their own doc. Admins can read/write any profile.
+    match /profiles/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAdmin();
+    }
+
+    // ---- divisions ----
+    // Shared division state (standings, calendar, race status).
+    // Any authenticated user can read; only admins and Cloud Functions (admin SDK) write.
+    match /divisions/{divKey} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+
+      // strategies sub-collection: players write only their own doc
+      match /strategies/{stratUserId} {
+        allow read, write: if request.auth != null && request.auth.uid == stratUserId;
+        allow read: if isAdmin();
+      }
+
+      // raceResults sub-collection: read-only for clients, written by Cloud Functions (admin SDK)
+      match /raceResults/{round} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+    }
+
+    // ---- admin config ----
+    // System messages, point adjustments, etc.
+    match /admin/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // deny everything else by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

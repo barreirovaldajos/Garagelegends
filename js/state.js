@@ -71,6 +71,7 @@ const DEFAULT_STATE = {
     raceIndex: 0,
     totalRaces: 8,
     division: 8,
+    divisionGroup: 1,
     phase: 'onboarding', // onboarding | season | offseason
     lastSummary: null,
     lastSummaryPending: false
@@ -338,7 +339,8 @@ function loadState() {
       if (typeof _state.finances.lastNet !== 'number') _state.finances.lastNet = 0;
       if (typeof _state.finances.lastRaceSettlement === 'undefined') _state.finances.lastRaceSettlement = null;
       if (!Array.isArray(_state.finances.cashflowAdjustments)) _state.finances.cashflowAdjustments = [];
-      if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, phase: 'onboarding', lastSummary: null, lastSummaryPending: false };
+      if (!_state.season) _state.season = { year: 1, week: 1, raceIndex: 0, totalRaces: 8, division: 8, divisionGroup: 1, phase: 'onboarding', lastSummary: null, lastSummaryPending: false };
+      if (!_state.season.divisionGroup) _state.season.divisionGroup = 1;
       if (typeof _state.season.lastSummaryPending !== 'boolean') _state.season.lastSummaryPending = false;
       if (typeof _state.season.lastSummary === 'undefined') _state.season.lastSummary = null;
       if (!Array.isArray(_state.raceResults)) _state.raceResults = [];
@@ -650,6 +652,33 @@ function popRandomEvent() {
   return _state.randomEvents.shift() || null;
 }
 
+// ---- Multiplayer team snapshot ----
+function buildTeamSnapshot() {
+  const state = getState();
+  return {
+    teamName: (state.team && state.team.name) || 'Team',
+    colors: state.team ? { primary: state.team.colors.primary, secondary: state.team.colors.secondary } : { primary: '#888888', secondary: '#0a0b0f' },
+    logo: (state.team && state.team.logo) || '',
+    pilots: (state.pilots || []).map(p => deepClone(p)),
+    car: { components: state.car ? deepClone(state.car.components) : {} },
+    staff: (state.staff || []).map(s => deepClone(s)),
+    hq: state.hq ? deepClone(state.hq) : { admin: 1, wind_tunnel: 1, rnd: 1, factory: 1, academy: 1 },
+    engineSupplier: (state.team && state.team.engineSupplier) || '',
+    fans: (state.team && state.team.fans) || 1000
+  };
+}
+
+function syncTeamSnapshot() {
+  if (!window.GL_AUTH || !GL_AUTH.mp || !GL_AUTH.mp.divKey) return Promise.resolve();
+  if (!GL_AUTH._db || !GL_AUTH.user) return Promise.resolve();
+
+  const snapshot = buildTeamSnapshot();
+  const updateTeamSnapshotFn = firebase.functions().httpsCallable('updateTeamSnapshot');
+  return updateTeamSnapshotFn({ teamSnapshot: snapshot }).catch(err => {
+    console.warn('syncTeamSnapshot failed:', err.message || err);
+  });
+}
+
 // Hooks para módulos externos
 window.GL_STATE = {
   loadState, saveState, getState, setState, resetState, hasOnboarded,
@@ -674,5 +703,8 @@ window.GL_STATE = {
   addContributedEvent: (ev) => { _state.faction.contributedEvents.push(ev); saveState(); },
   // Research/I+D
   getResearch: () => _state.car.rnd,
-  setResearch: (rnd) => { _state.car.rnd = rnd; saveState(); }
+  setResearch: (rnd) => { _state.car.rnd = rnd; saveState(); },
+  // Multiplayer
+  buildTeamSnapshot,
+  syncTeamSnapshot
 };

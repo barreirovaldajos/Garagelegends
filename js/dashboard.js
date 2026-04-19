@@ -5,6 +5,10 @@ const DASHBOARD = {
   init() {
     this.refresh();
     this.startEventPoller();
+    // Check for admin system messages
+    if (window.GL_ADMIN && typeof GL_ADMIN.checkSystemMessage === 'function') {
+      GL_ADMIN.checkSystemMessage();
+    }
   },
 
   refresh() {
@@ -146,7 +150,7 @@ const DASHBOARD = {
           <div class="fin-item"><span>${__('season_summary_finish')}</span><strong>P${summary.finishPosition || '-'}</strong></div>
           <div class="fin-item"><span>${__('season_summary_points')}</span><strong>${summary.points || 0}</strong></div>
           <div class="fin-item"><span>${__('season_summary_wins')}</span><strong>${summary.wins || 0}</strong></div>
-          <div class="fin-item"><span>${__('season_summary_division')}</span><strong>${summary.division || '-'} → ${summary.nextDivision || '-'}</strong></div>
+          <div class="fin-item"><span>${__('season_summary_division')}</span><strong>${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : (summary.division || '-')} → ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.nextDivision, summary.nextDivisionGroup) : (summary.nextDivision || '-')}</strong></div>
           <div class="fin-item"><span>${__('season_summary_transition')}</span><strong>${__(resultKey)}</strong></div>
           <div class="fin-item"><span>${__('season_summary_bonus')}</span><strong>+${GL_UI.fmtCR(summary.bonusCredits || 0)}</strong></div>
           ${campaignRow}
@@ -252,10 +256,16 @@ const DASHBOARD = {
       el('topbar-logo').textContent = state.team.logo||'🏎️';
     }
     if (el('topbar-avatar')) el('topbar-avatar').textContent = (state.team.name||'U')[0].toUpperCase();
-    if (el('topbar-season')) el('topbar-season').textContent = `${__('topbar_season')} ${state.season.year} · ${__('topbar_div')} ${state.season.division}`;
+    if (el('topbar-season')) {
+      const _divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
+      el('topbar-season').textContent = `${__('topbar_season')} ${state.season.year} · ${__('topbar_div')} ${_divLabel}`;
+    }
     if (el('sidebar-team-logo')) { el('sidebar-team-logo').textContent = state.team.logo||'🏎️'; el('sidebar-team-logo').style.background = state.team.colors.primary+'22'; }
     if (el('sidebar-team-name')) el('sidebar-team-name').textContent = state.team.name||'Your Team';
-    if (el('sidebar-team-div')) el('sidebar-team-div').textContent = `${__('division')} ${state.season.division}`;
+    if (el('sidebar-team-div')) {
+      const _divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
+      el('sidebar-team-div').textContent = `${__('division')} ${_divLabel}`;
+    }
   },
 
   renderNextEvent(state) {
@@ -297,6 +307,9 @@ const DASHBOARD = {
           <div class="circuit-mini">
             <svg viewBox="${this.CIRCUIT_SVG_VIEWBOX}" class="circuit-svg">${this.circuitSVG(c.id || c.layout)}</svg>
           </div>
+          ${GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer()
+            ? `<div style="font-size:0.74rem;color:var(--c-accent);margin-bottom:4px">📡 ${__('dash_mp_mode') || 'Modo Multiplayer'} · ${__('division')} ${(GL_AUTH.mp && GL_AUTH.mp.division) || '?'}-${(GL_AUTH.mp && GL_AUTH.mp.divisionGroup) || '?'}</div>`
+            : ''}
           <div style="display:flex;gap:var(--s-3)">
             <button class="btn btn-primary flex-1" onclick="GL_APP.navigateTo('prerace')">${window.__('dash_race_prep') || 'Preparar Estrategia'}</button>
             <button class="btn btn-secondary" onclick="GL_APP.navigateTo('calendar')">📅 ${__('nav_calendar')}</button>
@@ -331,9 +344,47 @@ const DASHBOARD = {
   renderStandings(state) {
     const el = document.getElementById('dash-standings');
     if (!el) return;
+
+    // MP mode: fetch from Firestore
+    if (GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer() && GL_AUTH.mp && GL_AUTH.mp.divKey && GL_AUTH._db) {
+      GL_AUTH._db.collection('divisions').doc(GL_AUTH.mp.divKey).get().then(snap => {
+        if (!snap.exists) return;
+        const data = snap.data();
+        const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
+        const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
+        const promotionSpots = divInfo.promotions || 0;
+        const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
+        const myPos = myEntry ? myEntry.position : '-';
+        const myPts = myEntry ? myEntry.points : 0;
+        const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
+        el.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
+            <div>
+              <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${data.division}-${data.group} · ${divInfo.name || ''}</div>
+            </div>
+            <div style="text-align:right">
+              <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
+              <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
+            </div>
+          </div>
+          ${mpStandings.map(s => {
+            const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
+            return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--c-border);font-size:0.78rem ${isMe?';background:var(--c-surface-2);border-radius:4px;padding:3px 6px':''}">
+              <span style="width:18px;text-align:right;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</span>
+              <span style="width:8px;height:8px;border-radius:50%;background:${s.color||'#888'};flex-shrink:0;display:inline-block"></span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isMe?'var(--t-primary)':'var(--t-secondary)'}">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+              <span style="font-weight:${isMe?'700':'400'};color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.points || 0}</span>
+            </div>`;
+          }).join('')}`;
+      }).catch(() => {});
+      el.innerHTML = '<div style="font-size:0.78rem;color:var(--t-tertiary)">Loading standings...</div>';
+      return;
+    }
+
     const standings = state.standings || [];
     const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div == state.season.division) || {}) : {};
     const divName = divInfo.name || `${__('division')} ${state.season.division}`;
+    const divGroupLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
     const myStanding = GL_STATE.getMyStanding();
     const promotionSpots = divInfo.promotions || 0;
     const myPos = myStanding.position || '-';
@@ -342,7 +393,7 @@ const DASHBOARD = {
     el.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
         <div>
-          <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">${__('division')} ${state.season.division} · ${divName}</div>
+          <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">${__('division')} ${divGroupLabel} · ${divName}</div>
         </div>
         <div style="text-align:right">
           <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>

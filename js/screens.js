@@ -2214,7 +2214,7 @@ const SCREENS = {
         <div class="screen-title-group">
           <div class="screen-eyebrow">${__('calendar_eyebrow')} ${state.season.year}</div>
           <div class="screen-title">${__('calendar_title')}</div>
-          <div class="screen-subtitle">${__('division')} ${state.season.division} · ${cal.length} ${__('calendar_round').toLowerCase()} · ${__('topbar_week')} ${state.season.week}</div>
+          <div class="screen-subtitle">${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division} · ${cal.length} ${__('calendar_round').toLowerCase()} · ${__('topbar_week')} ${state.season.week}</div>
         </div>
         <div class="screen-actions">
           <span class="badge badge-gold" style="font-size:0.85rem;padding:8px 16px">🏆 ${pts} ${__('points')}</span>
@@ -2318,10 +2318,16 @@ const SCREENS = {
   // ===== STANDINGS SCREEN =====
   renderStandings() {
     const state = GL_STATE.getState();
+    // In MP mode, fetch live standings from Firestore
+    if (GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer()) {
+      this._renderMpStandings();
+      return;
+    }
     const standings = state.standings || [];
     const el = document.getElementById('screen-standings');
     if (!el) return;
     const divInfo = GL_DATA.DIVISIONS.find(d=>d.div===state.season.division);
+    const divGroupLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
     const campaign = GL_ENGINE.getCampaignStatus ? GL_ENGINE.getCampaignStatus() : null;
     const hasLastSummary = !!state?.season?.lastSummary;
     const seasonHistory = Array.isArray(state?.seasonHistory) ? state.seasonHistory : [];
@@ -2341,8 +2347,9 @@ const SCREENS = {
           const resultLabel = summary.result === 'promoted'
             ? __('season_summary_transition_promoted')
             : (summary.result === 'relegated' ? __('season_summary_transition_relegated') : __('season_summary_transition_stayed'));
+          const _histDivLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : summary.division;
           return `<button class="btn btn-ghost btn-sm" style="justify-content:space-between;width:100%;margin-bottom:8px" onclick="GL_DASHBOARD.openSeasonSummaryHistory(${index})">
-            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${summary.division}</span>
+            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${_histDivLabel}</span>
             <span>P${summary.finishPosition} · ${resultLabel}</span>
           </button>`;
         }).join('')
@@ -2364,8 +2371,9 @@ const SCREENS = {
           const badge = Number(summary.division) === 1 && Number(summary.finishPosition) === 1
             ? __('hall_of_fame_badge_title')
             : (summary.result === 'promoted' ? __('hall_of_fame_badge_promotion') : __('hall_of_fame_badge_podium'));
+          const _hofDivLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : summary.division;
           return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:0.78rem;color:var(--t-secondary);padding:8px 0;border-bottom:1px solid var(--c-border-hi)">
-            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${summary.division}</span>
+            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${_hofDivLabel}</span>
             <span><strong style="color:var(--t-primary)">${badge}</strong> · P${summary.finishPosition}</span>
           </div>`;
         }).join('')
@@ -2374,7 +2382,7 @@ const SCREENS = {
       <div class="screen-header">
         <div class="screen-title-group">
           <div class="screen-eyebrow">${__('standings_eyebrow')}</div>
-          <div class="screen-title">${__('standings_title')} ${state.season.division}</div>
+          <div class="screen-title">${__('standings_title')} ${divGroupLabel}</div>
           <div class="screen-subtitle">${divInfo?.name || ''} · ${divInfo?.promotions || 0} ${__('standings_promotion_spots')}</div>
         </div>
         <div class="screen-actions">
@@ -2870,6 +2878,74 @@ const SCREENS = {
     });
   },
 
+  // ===== MP STANDINGS =====
+  _renderMpStandings() {
+    const el = document.getElementById('screen-standings');
+    if (!el) return;
+    const mp = window.GL_AUTH && GL_AUTH.mp;
+    if (!mp || !mp.divKey) {
+      el.innerHTML = '<div class="card"><p>No division assigned.</p></div>';
+      return;
+    }
+    const db = GL_AUTH._db;
+    if (!db) return;
+    el.innerHTML = '<div class="card"><p>Loading standings...</p></div>';
+    db.collection('divisions').doc(mp.divKey).get().then(snap => {
+      if (!snap.exists) { el.innerHTML = '<div class="card"><p>Division not found.</p></div>'; return; }
+      const data = snap.data();
+      const standings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
+      const divInfo = GL_DATA.DIVISIONS.find(d => d.div === data.division);
+      const promoZone = divInfo ? divInfo.promotions : 0;
+      const relegZone = divInfo ? divInfo.relegations : 0;
+      const totalTeams = standings.length;
+      el.innerHTML = `
+        <div class="screen-header">
+          <div class="screen-title-group">
+            <div class="screen-eyebrow">${__('standings_eyebrow') || 'Standings'}</div>
+            <div class="screen-title">${__('division')} ${data.division}-${data.group} · ${__('standings_title')}</div>
+            <div class="screen-subtitle">${divInfo?.name || ''} · ${__('season_history_year')} ${data.seasonYear || 1}</div>
+          </div>
+          <div class="screen-actions">
+            <button class="btn btn-secondary" onclick="GL_APP.navigateTo('dashboard')">← ${__('back') || 'Atrás'}</button>
+          </div>
+        </div>
+        <div class="card">
+          <table class="standings-table" style="width:100%;border-collapse:collapse;font-size:0.85rem">
+            <thead><tr>
+              <th style="text-align:left;padding:8px 4px">#</th>
+              <th style="text-align:left;padding:8px 4px">${__('team') || 'Team'}</th>
+              <th style="text-align:center;padding:8px 4px">${__('points') || 'Pts'}</th>
+              <th style="text-align:center;padding:8px 4px">${__('wins') || 'W'}</th>
+              <th style="text-align:center;padding:8px 4px">${__('podiums') || 'Pod'}</th>
+            </tr></thead>
+            <tbody>
+              ${standings.map((s, idx) => {
+                const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
+                const zone = idx < promoZone ? 'promo' : (idx >= totalTeams - relegZone && relegZone > 0 ? 'releg' : '');
+                const zoneBg = zone === 'promo' ? 'rgba(46,196,182,0.08)' : (zone === 'releg' ? 'rgba(232,41,42,0.08)' : '');
+                const meBg = isMe ? 'rgba(255,255,255,0.06)' : '';
+                const bg = meBg || zoneBg;
+                return `<tr style="background:${bg};${isMe ? 'font-weight:700' : ''}">
+                  <td style="padding:6px 4px">${s.position || idx + 1}</td>
+                  <td style="padding:6px 4px">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color || '#888'};margin-right:6px"></span>
+                    ${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}
+                  </td>
+                  <td style="text-align:center;padding:6px 4px">${s.points || 0}</td>
+                  <td style="text-align:center;padding:6px 4px">${s.wins || 0}</td>
+                  <td style="text-align:center;padding:6px 4px">${s.podiums || 0}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          ${promoZone > 0 ? `<div style="font-size:0.72rem;color:var(--c-green);margin-top:8px">▲ Top ${promoZone}: promotion zone</div>` : ''}
+          ${relegZone > 0 ? `<div style="font-size:0.72rem;color:var(--c-red);margin-top:4px">▼ Bottom ${relegZone}: relegation zone</div>` : ''}
+        </div>`;
+    }).catch(err => {
+      el.innerHTML = `<div class="card"><p style="color:var(--c-red)">Error: ${err.message || err}</p></div>`;
+    });
+  },
+
   // ===== PRE-RACE SCREEN =====
   renderPreRace() {
     const state = GL_STATE.getState();
@@ -2941,7 +3017,11 @@ const SCREENS = {
         <div class="screen-actions">
           ${next.savedStrategy ? `<span style="font-size:0.78rem;color:var(--c-green);display:flex;align-items:center;gap:4px">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</span>` : ''}
           <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${next.savedStrategy ? (__('prerace_update_strat') || '💾 Actualizar Estrategia') : (window.__('prerace_save_strat') || '💾 Guardar Estrategia')}</button>
-          <button class="btn btn-secondary btn-lg" onclick="GL_APP.navigateTo('race')">${__('race_sim_btn') || 'Correr carrera'}</button>
+          ${GL_ENGINE.isMultiplayer()
+            ? `<button class="btn btn-accent btn-lg" onclick="GL_SCREENS.submitMpStrategy()">📡 ${__('prerace_submit_mp') || 'Enviar Estrategia MP'}</button>
+               <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:4px">${__('prerace_mp_info') || 'La carrera se simula automáticamente el domingo 18:00 UTC'}</div>`
+            : `<button class="btn btn-secondary btn-lg" onclick="GL_APP.navigateTo('race')">${__('race_sim_btn') || 'Correr carrera'}</button>`
+          }
         </div>
       </div>
       <div class="prerace-grid">
@@ -3280,6 +3360,36 @@ const SCREENS = {
       GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
       this.renderPreRace();
     }
+  },
+
+  submitMpStrategy() {
+    if (!GL_ENGINE.isMultiplayer()) return;
+    // First save locally
+    this.saveStrategy();
+    const state = GL_STATE.getState();
+    const mp = window.GL_AUTH && GL_AUTH.mp;
+    if (!mp || !mp.divKey) { GL_UI.toast('No MP division assigned', 'warning'); return; }
+    const cal = state.season.calendar || [];
+    const next = cal.find(r => r.status === 'next');
+    if (!next) { GL_UI.toast('No pending race', 'warning'); return; }
+    const strategy = GL_STATE.deepClone(next.savedStrategy || window._raceStrategy || {});
+    const db = GL_AUTH._db;
+    if (!db || !GL_AUTH.user) { GL_UI.toast('Not authenticated', 'warning'); return; }
+    const stratRef = db.collection('divisions').doc(mp.divKey)
+      .collection('strategies').doc(GL_AUTH.user.uid);
+    stratRef.set({
+      userId: GL_AUTH.user.uid,
+      slotIndex: mp.slotIndex,
+      raceRound: next.round,
+      submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      strategy: strategy
+    }).then(() => {
+      GL_UI.toast(__('prerace_mp_submitted') || 'Estrategia enviada al servidor', 'good');
+      // Also sync team snapshot
+      if (GL_STATE.syncTeamSnapshot) GL_STATE.syncTeamSnapshot();
+    }).catch(err => {
+      GL_UI.toast('Error: ' + (err.message || err), 'error');
+    });
   },
 
   // ===== RACE SCREEN =====

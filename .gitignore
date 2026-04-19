@@ -1,0 +1,6 @@
+# Secrets — never commit these
+firebase-service-account.json
+migration.env
+migration-reset-links.txt
+migration-summary.json
+node_modules/
