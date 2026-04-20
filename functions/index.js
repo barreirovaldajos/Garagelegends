@@ -192,3 +192,25 @@ exports.adminStartNewSeason = functions.https.onCall(async (_data, context) => {
   await seasonManager.startNewSeason(db);
   return { success: true, message: 'New season started for all divisions' };
 });
+
+// ── 9. Admin Fill Bots – Fill empty slots in a division with AI teams ─────────
+exports.adminFillBots = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+
+  const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
+  if (!profileSnap.exists || profileSnap.data().role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin only');
+  }
+
+  const { divKey } = data;
+  if (!divKey) throw new functions.https.HttpsError('invalid-argument', 'divKey is required');
+
+  const divSnap = await db.collection('divisions').doc(divKey).get();
+  if (!divSnap.exists) throw new functions.https.HttpsError('not-found', `Division ${divKey} not found`);
+
+  const botFiller = require('./lib/bot-filler.js');
+  const division = divSnap.data().division;
+  await botFiller.fillDivisionBots(db, divKey, division);
+
+  return { success: true, divKey };
+});

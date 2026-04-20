@@ -463,6 +463,12 @@ const GL_ADMIN = {
         seasonYear: newDivData.seasonYear || 1
       }
     });
+
+    // --- 5. Fill remaining empty slots with bots ---
+    try {
+      const fillBots = firebase.functions().httpsCallable('adminFillBots');
+      await fillBots({ divKey: newDivKey });
+    } catch (_) { /* best-effort: bots failing should not block the move */ }
   },
 
   openPointsDialog(userId, teamName) {
