@@ -56,6 +56,7 @@ const APP = {
     { id:'prerace',   labelKey:'nav_prerace',   icon:'🚦', screen:'prerace', hidden:true },
     { id:'race',      labelKey:'nav_race',      icon:'🏁', screen:'race', hidden:true },
     { id:'postrace',  labelKey:'nav_postrace',  icon:'📊', screen:'postrace', hidden:true },
+    { id:'admin',     labelKey:'nav_admin',     icon:'🛡️', screen:'admin', adminOnly:true },
   ],
 
   init() {
@@ -259,7 +260,9 @@ const APP = {
     const sidebar = document.getElementById('sidebar');
     if (!sidebar) return;
     const state = GL_STATE.getState();
-    const visibleItems = this.NAV_ITEMS.filter(n => !n.hidden);
+    const isAdmin = window.GL_AUTH && GL_AUTH.isAdmin();
+    const visibleItems = this.NAV_ITEMS.filter(n => !n.hidden && !n.adminOnly);
+    const adminItems = isAdmin ? this.NAV_ITEMS.filter(n => n.adminOnly) : [];
     sidebar.innerHTML = `
       <div class="sidebar-section-label">${__('nav_main')}</div>
       ${visibleItems.slice(0,1).map(n => this.navItemHTML(n)).join('')}
@@ -267,6 +270,8 @@ const APP = {
       ${visibleItems.slice(1,5).map(n => this.navItemHTML(n)).join('')}
       <div class="sidebar-section-label">${__('nav_season')}</div>
       ${visibleItems.slice(5).map(n => this.navItemHTML(n)).join('')}
+      ${adminItems.length ? `<div class="sidebar-section-label">${__('nav_admin_section')}</div>
+      ${adminItems.map(n => this.navItemHTML(n)).join('')}` : ''}
       <div class="sidebar-divider"></div>
       <div class="sidebar-footer">
         <div class="sidebar-team-info">
@@ -287,7 +292,7 @@ const APP = {
     </button>`;
   },
 
-  _validScreenIds: new Set(['dashboard','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','postrace']),
+  _validScreenIds: new Set(['dashboard','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','postrace','admin']),
 
   navigateTo(screenId, { updateHash = true } = {}) {
     if (!this._validScreenIds.has(screenId)) screenId = 'dashboard';
@@ -322,6 +327,7 @@ const APP = {
       prerace:   () => GL_SCREENS.renderPreRace(),
       race:      () => GL_SCREENS.renderRace(),
       postrace:  () => GL_SCREENS.renderPostRace(),
+      admin:     () => { if (window.GL_ADMIN) GL_ADMIN.renderAdminPanel(); },
     };
     if (renderMap[screenId]) renderMap[screenId]();
 

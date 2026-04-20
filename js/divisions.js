@@ -84,6 +84,30 @@ const Divisions = {
       // Por ahora, solo loguea
       console.log('MMO Help Request:', request);
     },
+  // Convierte número de grupo (1-based) a letra(s): 1→'A', 26→'Z', 27→'AA', etc.
+  groupLabel(groupNum) {
+    const n = (Number.isFinite(groupNum) && groupNum >= 1) ? groupNum - 1 : 0;
+    if (n < 26) return String.fromCharCode(65 + n);
+    return String.fromCharCode(65 + Math.floor((n - 26) / 26)) + String.fromCharCode(65 + (n % 26));
+  },
+
+  // Etiqueta completa de división: "8-A", "8-B", "1" (sin letra si solo hay un grupo).
+  divisionLabel(divNum, groupNum) {
+    const catalog = getDivisionCatalog();
+    const entry = catalog.find((e) => e.div === Number(divNum));
+    const parallel = (entry && entry.parallelDivisions > 1) ? entry.parallelDivisions : 1;
+    if (parallel <= 1) return String(divNum);
+    return `${divNum}-${this.groupLabel(groupNum || 1)}`;
+  },
+
+  // Elige un grupo aleatorio válido para la división dada.
+  pickRandomGroup(divNum) {
+    const catalog = getDivisionCatalog();
+    const entry = catalog.find((e) => e.div === Number(divNum));
+    const parallel = (entry && entry.parallelDivisions > 1) ? entry.parallelDivisions : 1;
+    return Math.floor(Math.random() * parallel) + 1;
+  },
+
   getDivisionCatalog() {
     return getDivisionCatalog();
   },
