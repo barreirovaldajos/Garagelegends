@@ -283,25 +283,15 @@ const GL_ADMIN = {
   },
 
   openMoveDialog(userId, teamName) {
-    const divOptions = (window.GL_DATA && Array.isArray(GL_DATA.DIVISIONS))
-      ? GL_DATA.DIVISIONS.slice().sort((a, b) => a.div - b.div)
-      : [];
-    const firstDiv = divOptions[0] || { parallelDivisions: 1 };
-
+    const db = this.db();
     GL_UI.openModal({
       title: `${__('admin_move')}: ${teamName}`,
       content: `
         <div style="display:flex;flex-direction:column;gap:12px">
           <div>
             <label style="font-size:0.78rem;color:var(--t-secondary);display:block;margin-bottom:4px">${__('division')}</label>
-            <select id="admin-move-div" style="width:100%;background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:0.82rem">
-              ${divOptions.map(d => `<option value="${d.div}">${d.div} – ${d.name || ''}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label style="font-size:0.78rem;color:var(--t-secondary);display:block;margin-bottom:4px">${__('admin_group')}</label>
-            <select id="admin-move-group" style="width:100%;background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:0.82rem">
-              ${this._buildGroupOptions(firstDiv)}
+            <select id="admin-move-divkey" style="width:100%;background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:8px;font-size:0.82rem">
+              <option value="">Cargando divisiones…</option>
             </select>
           </div>
           <button class="btn btn-primary w-full" style="justify-content:center" onclick="GL_ADMIN.executeMovePlayer('${userId}')">
@@ -310,27 +300,52 @@ const GL_ADMIN = {
         </div>`
     });
 
-    // Wire group sync inside modal
-    setTimeout(() => this._wireGroupSync('admin-move-div', 'admin-move-group'), 50);
+    // Load real division documents from Firestore so we always use the correct doc ID
+    setTimeout(async () => {
+      const sel = document.getElementById('admin-move-divkey');
+      if (!sel || !db) return;
+      try {
+        const snap = await db.collection('divisions').where('phase', '==', 'season').get();
+        const docs = [];
+        snap.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
+        docs.sort((a, b) => (a.division - b.division) || (a.group - b.group));
+        if (docs.length === 0) {
+          sel.innerHTML = '<option value="">No hay divisiones activas</option>';
+          return;
+        }
+        sel.innerHTML = docs.map(d => {
+          const groupLetter = (typeof Divisions !== 'undefined' && Divisions.groupLabel)
+            ? Divisions.groupLabel(Number(d.group) || 1) : (d.group || 1);
+          const divEntry = (window.GL_DATA && GL_DATA.DIVISIONS)
+            ? GL_DATA.DIVISIONS.find(x => x.div === d.division) : null;
+          const divName = divEntry ? divEntry.name : '';
+          return `<option value="${d.id}">${d.division}-${groupLetter} – ${divName}</option>`;
+        }).join('');
+      } catch (e) {
+        const sel2 = document.getElementById('admin-move-divkey');
+        if (sel2) sel2.innerHTML = '<option value="">Error al cargar divisiones</option>';
+      }
+    }, 50);
   },
 
   async executeMovePlayer(userId) {
-    const divSel = document.getElementById('admin-move-div');
-    const groupSel = document.getElementById('admin-move-group');
-    if (!divSel || !groupSel) return;
-    const newDiv = Number(divSel.value);
-    const newGroup = Number(groupSel.value);
+    const divKeySel = document.getElementById('admin-move-divkey');
+    if (!divKeySel || !divKeySel.value) {
+      GL_UI.toast('Selecciona una división', 'warning');
+      return;
+    }
+    const targetDivKey = divKeySel.value;
     try {
-      await this.movePlayer(userId, newDiv, newGroup);
+      await this.movePlayer(userId, targetDivKey);
       GL_UI.closeTopModal();
       GL_UI.toast(__('admin_player_moved'), 'success');
-      this.handleSearchPlayers(''); // Refresh list
+      this.handleSearchPlayers('');
     } catch (e) {
       GL_UI.toast(__('admin_error') + ': ' + e.message, 'error');
     }
   },
 
-  async movePlayer(userId, newDivision, newGroup) {
+  async movePlayer(userId, newDivKey) {
     const db = this.db();
     if (!db) throw new Error('No DB');
     const ref = db.collection('profiles').doc(userId);
@@ -338,48 +353,22 @@ const GL_ADMIN = {
     if (!snap.exists) throw new Error('Player not found');
     const data = snap.data();
 
-    // --- 1. Update save_data ---
+    // --- 1. Fetch the target division document ---
+    const newDivRef = db.collection('divisions').doc(newDivKey);
+    const newDivSnap = await newDivRef.get();
+    if (!newDivSnap.exists) throw new Error(`División ${newDivKey} no existe.`);
+    const newDivData = newDivSnap.data();
+
+    // --- 2. Update save_data ---
     const saveData = JSON.parse(JSON.stringify(data.save_data || {}));
     if (!saveData.season) saveData.season = {};
-    saveData.season.division = Number(newDivision);
-    saveData.season.divisionGroup = Number(newGroup);
+    saveData.season.division = newDivData.division;
+    saveData.season.divisionGroup = newDivData.group;
     if (typeof window.GL_ENGINE !== 'undefined' && GL_ENGINE.buildInitialStandings) {
-      saveData.standings = GL_ENGINE.buildInitialStandings(Number(newDivision));
+      saveData.standings = GL_ENGINE.buildInitialStandings(newDivData.division);
     }
 
-    // --- 2. Move MP division assignment in Firestore ---
-    // Resolve the real document ID by querying Firestore fields (handles both "8_1" and "8_A" formats)
-    const divQuery = await db.collection('divisions')
-      .where('division', '==', Number(newDivision))
-      .where('group', '==', Number(newGroup))
-      .where('phase', '==', 'season')
-      .limit(1)
-      .get();
-    let newDivKey, newDivRef, newDivData;
-    if (!divQuery.empty) {
-      const divDoc = divQuery.docs[0];
-      newDivKey = divDoc.id;
-      newDivRef = db.collection('divisions').doc(newDivKey);
-      newDivData = divDoc.data();
-    } else {
-      // No existing document — create one with the canonical numeric key
-      newDivKey = this.divKey(newDivision, newGroup);
-      newDivRef = db.collection('divisions').doc(newDivKey);
-      newDivData = {
-        division: Number(newDivision),
-        group: Number(newGroup),
-        seasonYear: 1,
-        phase: 'season',
-        slots: {},
-        standings: [],
-        nextRaceRound: 1,
-        raceInProgress: false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      await newDivRef.set(newDivData);
-    }
-
+    // --- 3. Move MP division assignment in Firestore ---
     const oldMp = data.mp || null;
     const oldDivKey = oldMp && oldMp.divKey ? oldMp.divKey : null;
 
@@ -461,13 +450,13 @@ const GL_ADMIN = {
 
     await newDivRef.update({ standings: newStandings, slots: newSlots });
 
-    // --- 3. Update profile: save_data + mp ---
+    // --- 4. Update profile: save_data + mp ---
     await ref.update({
       save_data: saveData,
       save_updated_at: firebase.firestore.FieldValue.serverTimestamp(),
       mp: {
-        division: Number(newDivision),
-        divisionGroup: Number(newGroup),
+        division: newDivData.division,
+        divisionGroup: newDivData.group,
         divKey: newDivKey,
         slotIndex: newSlotIndex,
         status: 'active',
