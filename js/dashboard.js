@@ -391,8 +391,10 @@ const DASHBOARD = {
       if (!previewEl) return;
 
       // Use division calendar from Firestore (authoritative for MMG)
+      // Fall back to first 'upcoming' if no race is marked 'next' yet
       const divCal = data.calendar || [];
-      const next = divCal.find(r => r.status === 'next');
+      const next = divCal.find(r => r.status === 'next')
+                || divCal.find(r => r.status === 'upcoming');
       if (!next) { previewEl.innerHTML = ''; return; }
 
       const c = next.circuit;
