@@ -337,17 +337,104 @@ const GL_ADMIN = {
     const snap = await ref.get();
     if (!snap.exists) throw new Error('Player not found');
     const data = snap.data();
+
+    // --- 1. Update save_data ---
     const saveData = JSON.parse(JSON.stringify(data.save_data || {}));
     if (!saveData.season) saveData.season = {};
     saveData.season.division = Number(newDivision);
     saveData.season.divisionGroup = Number(newGroup);
-    // Rebuild standings for new division
     if (typeof window.GL_ENGINE !== 'undefined' && GL_ENGINE.buildInitialStandings) {
       saveData.standings = GL_ENGINE.buildInitialStandings(Number(newDivision));
     }
+
+    // --- 2. Move MP division assignment in Firestore ---
+    const newDivKey = this.divKey(newDivision, newGroup);
+    const oldMp = data.mp || null;
+    const oldDivKey = oldMp && oldMp.divKey ? oldMp.divKey : null;
+
+    // Remove from old division (standings + slot)
+    if (oldDivKey && oldDivKey !== newDivKey) {
+      const oldDivRef = db.collection('divisions').doc(oldDivKey);
+      const oldDivSnap = await oldDivRef.get();
+      if (oldDivSnap.exists) {
+        const oldDivData = oldDivSnap.data();
+
+        // Remove from standings
+        const oldStandings = (oldDivData.standings || []).filter(s => s.teamId !== userId);
+
+        // Remove slot
+        const oldSlots = Object.assign({}, oldDivData.slots || {});
+        if (oldMp.slotIndex != null) {
+          delete oldSlots[String(oldMp.slotIndex)];
+        } else {
+          // Find slot by userId
+          for (const [k, v] of Object.entries(oldSlots)) {
+            if (v && v.userId === userId) { delete oldSlots[k]; break; }
+          }
+        }
+
+        await oldDivRef.update({ standings: oldStandings, slots: oldSlots });
+      }
+    }
+
+    // Add to new division (standings + slot)
+    let newSlotIndex = oldMp && oldDivKey === newDivKey ? (oldMp.slotIndex ?? null) : null;
+    const newDivRef = db.collection('divisions').doc(newDivKey);
+    const newDivSnap = await newDivRef.get();
+    if (!newDivSnap.exists) throw new Error(`Division ${newDivKey} does not exist. Create it first via the season manager.`);
+    const newDivData = newDivSnap.data();
+
+    // Find first open slot
+    const newSlots = Object.assign({}, newDivData.slots || {});
+    const MAX_SLOTS = 10;
+    if (newSlotIndex == null) {
+      for (let i = 0; i < MAX_SLOTS; i++) {
+        if (!newSlots[String(i)]) { newSlotIndex = i; break; }
+      }
+    }
+    if (newSlotIndex == null) throw new Error(`Division ${newDivKey} is full (no open slots).`);
+
+    // Build team snapshot from save_data
+    const teamSnap = {
+      teamName: (saveData.team && saveData.team.name) || 'Team',
+      colors: (saveData.team && saveData.team.colors) || { primary: '#888' }
+    };
+    newSlots[String(newSlotIndex)] = {
+      type: 'player',
+      userId: userId,
+      teamSnapshot: teamSnap,
+      joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    // Upsert standing entry
+    const newStandings = (newDivData.standings || []).filter(s => s.teamId !== userId);
+    newStandings.push({
+      slotIndex: newSlotIndex,
+      teamId: userId,
+      teamName: teamSnap.teamName,
+      color: teamSnap.colors.primary || '#888',
+      points: 0,
+      wins: 0,
+      podiums: 0,
+      position: newStandings.length + 1,
+      bestResult: 0,
+      isPlayer: true
+    });
+
+    await newDivRef.update({ standings: newStandings, slots: newSlots });
+
+    // --- 3. Update profile: save_data + mp ---
     await ref.update({
       save_data: saveData,
-      save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      save_updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+      mp: {
+        division: Number(newDivision),
+        divisionGroup: Number(newGroup),
+        divKey: newDivKey,
+        slotIndex: newSlotIndex,
+        status: 'active',
+        seasonYear: newDivData.seasonYear || 1
+      }
     });
   },
 
