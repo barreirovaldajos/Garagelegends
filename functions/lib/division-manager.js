@@ -8,82 +8,105 @@ const botFiller = require('./bot-filler.js');
 const MAX_TEAMS_PER_DIVISION = 10;
 
 /**
- * Assign a new player to a division group.
- * Finds an open slot in the lowest division (8), or creates a new group.
+ * Assign a new player to a division group using social-packing logic:
+ *  1. Find the group with the most real players that still has a bot to replace.
+ *  2. If all groups are full of real players, create a new group in the same division.
+ *  3. If the division has hit its max-groups limit, fall through to the next division tier.
+ *
  * @param {FirebaseFirestore.Firestore} db
  * @param {string} userId
  * @param {object} teamSnapshot - Player's team data for simulation
  * @returns {{ divKey, division, group, slotIndex }}
  */
 async function assignPlayerToDivision(db, userId, teamSnapshot) {
-  const division = 8; // New players always start at div 8
+  // Try divisions starting from 8 (entry level) upward (7, 6…) as fallback
+  const DIVISION_ORDER = [8, 7, 6, 5, 4, 3, 2, 1];
+
+  for (const division of DIVISION_ORDER) {
+    const result = await _tryAssignInDivision(db, userId, teamSnapshot, division);
+    if (result) return result;
+  }
+
+  throw new Error('No available division found for new player.');
+}
+
+/**
+ * Try to assign a player in a specific division.
+ * Returns the assignment result or null if the division is completely full of real players.
+ */
+async function _tryAssignInDivision(db, userId, teamSnapshot, division) {
   const divCatalog = sharedData.DIVISIONS.find(d => d.div === division);
   const maxGroups = divCatalog ? divCatalog.parallelDivisions : 16;
 
-  // Find an existing group with an open slot
   const divisionsSnap = await db.collection('divisions')
     .where('division', '==', division)
     .where('phase', '==', 'season')
     .get();
 
-  let targetDivKey = null;
-  let targetGroup = null;
-  let targetSlotIndex = null;
-  let targetDivData = null;
+  // Build candidate list: groups that still have at least one bot slot to replace.
+  // Sort by real-player count descending to pack players together.
+  const candidates = [];
+  let maxExistingGroup = 0;
 
   divisionsSnap.forEach(doc => {
-    if (targetDivKey) return; // Already found one
     const data = doc.data();
     const slots = data.slots || {};
-    const occupiedCount = Object.keys(slots).length;
-    if (occupiedCount < MAX_TEAMS_PER_DIVISION) {
-      // Find first open slot index
-      for (let i = 0; i < MAX_TEAMS_PER_DIVISION; i++) {
-        if (!slots[String(i)]) {
-          targetDivKey = doc.id;
-          targetGroup = data.group;
-          targetSlotIndex = i;
-          targetDivData = data;
-          return;
-        }
-      }
+    const group = data.group || 1;
+    if (group > maxExistingGroup) maxExistingGroup = group;
+
+    let botSlotIndex = null;
+    let realCount = 0;
+    for (let i = 0; i < MAX_TEAMS_PER_DIVISION; i++) {
+      const slot = slots[String(i)];
+      if (slot && slot.type === 'player') realCount++;
+      if (slot && slot.type === 'bot' && botSlotIndex === null) botSlotIndex = i;
+    }
+
+    if (botSlotIndex !== null) {
+      candidates.push({ docId: doc.id, data, realCount, botSlotIndex });
     }
   });
 
-  // If no open slot found, create a new group
-  if (!targetDivKey) {
-    // Find the highest existing group number for this division
-    let maxGroup = 0;
-    divisionsSnap.forEach(doc => {
-      const g = doc.data().group || 0;
-      if (g > maxGroup) maxGroup = g;
-    });
-    targetGroup = maxGroup + 1;
-    if (targetGroup > maxGroups) {
-      throw new Error(`Division ${division} has reached maximum groups (${maxGroups})`);
+  candidates.sort((a, b) => b.realCount - a.realCount);
+
+  let targetDivKey, targetGroup, targetSlotIndex, targetDivData;
+
+  if (candidates.length > 0) {
+    // Case 1: place in the group with the most real players (replace a bot)
+    const best = candidates[0];
+    targetDivKey = best.docId;
+    targetGroup = best.data.group;
+    targetSlotIndex = best.botSlotIndex;
+    targetDivData = best.data;
+  } else {
+    // Case 2: all existing groups are full of real players — create a new group
+    const nextGroup = maxExistingGroup + 1;
+    if (nextGroup > maxGroups) {
+      // Case 3: division is at its group limit — signal to try next division
+      return null;
     }
+    targetGroup = nextGroup;
     targetDivKey = `${division}_${targetGroup}`;
     targetSlotIndex = 0;
-
-    // Create the new division group
     targetDivData = await _createDivisionGroup(db, division, targetGroup, targetDivKey);
   }
 
-  // Write player slot
-  const slotData = {
-    type: 'player',
-    userId: userId,
-    teamSnapshot: teamSnapshot,
-    joinedAt: require('firebase-admin').firestore.FieldValue.serverTimestamp()
-  };
-
   const divRef = db.collection('divisions').doc(targetDivKey);
+
+  // Write player slot (overwrites bot if replacing one)
   await divRef.update({
-    [`slots.${targetSlotIndex}`]: slotData
+    [`slots.${targetSlotIndex}`]: {
+      type: 'player',
+      userId: userId,
+      teamSnapshot: teamSnapshot,
+      joinedAt: require('firebase-admin').firestore.FieldValue.serverTimestamp()
+    }
   });
 
-  // Add player to standings
-  const standings = targetDivData.standings || [];
+  // Update standings: remove bot entry for this slot, add player
+  const standings = (targetDivData.standings || []).filter(
+    s => !(s.slotIndex === targetSlotIndex && !s.isPlayer)
+  );
   standings.push({
     slotIndex: targetSlotIndex,
     teamId: userId,
@@ -96,13 +119,12 @@ async function assignPlayerToDivision(db, userId, teamSnapshot) {
     bestResult: 0,
     isPlayer: true
   });
-  await divRef.update({ standings: standings });
+  await divRef.update({ standings });
 
   // Update player profile with MP data
-  const profileRef = db.collection('profiles').doc(userId);
-  await profileRef.update({
+  await db.collection('profiles').doc(userId).update({
     mp: {
-      division: division,
+      division,
       divisionGroup: targetGroup,
       divKey: targetDivKey,
       slotIndex: targetSlotIndex,
@@ -113,17 +135,10 @@ async function assignPlayerToDivision(db, userId, teamSnapshot) {
     }
   });
 
-  // If this was a new group, replace the bot in slot 0 with the player
-  // (bot was placed at slot 0 during creation, now player takes it)
-  // Actually we already placed player at targetSlotIndex, so just ensure bots fill the rest
+  // Fill any remaining empty slots with bots (only relevant for newly created groups)
   await botFiller.fillDivisionBots(db, targetDivKey, division);
 
-  return {
-    divKey: targetDivKey,
-    division: division,
-    group: targetGroup,
-    slotIndex: targetSlotIndex
-  };
+  return { divKey: targetDivKey, division, group: targetGroup, slotIndex: targetSlotIndex };
 }
 
 /**

@@ -108,21 +108,44 @@ async function run() {
     assertEq('2 jugadores en la división', players.length, 2);
   }
 
-  // ── 3. División llena → crea nuevo grupo
-  console.log('\n3. División llena → crea grupo nuevo');
+  // ── 3. Nuevo jugador reemplaza bot en grupo existente
+  console.log('\n3. Nuevo jugador reemplaza bot en grupo existente');
   {
-    // Crear 8 jugadores más para llenar el grupo (ya hay 2, más 8 bots = 10 total)
-    // Primero llenar el slot directamente via update para agilizar el test
     const r1snap = await db.collection('profiles').doc('user_001').get();
     const divKey = r1snap.data().mp.divKey;
-
-    // Llenar los slots restantes manualmente
     const divRef = db.collection('divisions').doc(divKey);
+    const divData = (await divRef.get()).data();
+
+    // Contar jugadores reales y bots antes
+    const realsBefore = Object.values(divData.slots).filter(s => s.type === 'player').length;
+    const botsBefore = Object.values(divData.slots).filter(s => s.type === 'bot').length;
+    assert('Hay bots en el grupo', botsBefore > 0);
+
+    await createProfile('user_003');
+    const result = await assignPlayerToDivision(db, 'user_003', makeSnapshot('Team Gamma'));
+
+    assertEq('Mismo grupo (no se creó uno nuevo)', result.divKey, divKey);
+    const divAfter = (await divRef.get()).data();
+    const realsAfter = Object.values(divAfter.slots).filter(s => s.type === 'player').length;
+    const botsAfter = Object.values(divAfter.slots).filter(s => s.type === 'bot').length;
+    assertEq('Un jugador más', realsAfter, realsBefore + 1);
+    assertEq('Un bot menos', botsAfter, botsBefore - 1);
+  }
+
+  // ── 4. Grupo 100% jugadores reales → crea nuevo grupo
+  console.log('\n4. Grupo lleno de jugadores reales → crea nuevo grupo');
+  {
+    const r1snap = await db.collection('profiles').doc('user_001').get();
+    const divKey = r1snap.data().mp.divKey;
+    const divRef = db.collection('divisions').doc(divKey);
+
+    // Reemplazar todos los slots restantes con jugadores reales ficticios
     const divData = (await divRef.get()).data();
     const updates = {};
     for (let i = 0; i < MAX_TEAMS_PER_DIVISION; i++) {
-      if (!divData.slots[String(i)]) {
-        updates[`slots.${i}`] = { type: 'bot', botTeamId: `filler_${i}`, teamSnapshot: {} };
+      const slot = divData.slots[String(i)];
+      if (!slot || slot.type === 'bot') {
+        updates[`slots.${i}`] = { type: 'player', userId: `fake_${i}`, teamSnapshot: {} };
       }
     }
     if (Object.keys(updates).length > 0) await divRef.update(updates);
@@ -132,12 +155,12 @@ async function run() {
     const result = await assignPlayerToDivision(db, 'user_overflow', makeSnapshot('Overflow FC'));
 
     assert('Nuevo grupo creado', result.divKey !== divKey);
-    assertEq('Nuevo divKey tiene mismo número de división', result.divKey.split('_')[0], '8');
+    assertEq('Mismo número de división', result.divKey.split('_')[0], '8');
     assertEq('Nuevo grupo es 2', result.group, 2);
   }
 
-  // ── 4. updateTeamSnapshot actualiza el slot
-  console.log('\n4. updateTeamSnapshot');
+  // ── 5. updateTeamSnapshot actualiza el slot
+  console.log('\n5. updateTeamSnapshot');
   {
     const userId = 'user_001';
     const newSnapshot = makeSnapshot('Alpha UPDATED', '#00ff00');
@@ -159,8 +182,8 @@ async function run() {
     assertEq('standings.color actualizado', entry.color, '#00ff00');
   }
 
-  // ── 5. No puede asignar jugador ya asignado a segunda división (debería reusar)
-  console.log('\n5. Jugador ya asignado — idempotencia');
+  // ── 6. No puede asignar jugador ya asignado a segunda división (debería reusar)
+  console.log('\n6. Jugador ya asignado — idempotencia');
   {
     // Si assignDivision es llamado de nuevo para user_001, debe fallar o reusar
     // El comportamiento actual asigna NUEVO slot (no idempotente), lo documentamos
