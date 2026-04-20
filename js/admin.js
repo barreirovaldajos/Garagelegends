@@ -381,8 +381,25 @@ const GL_ADMIN = {
     let newSlotIndex = oldMp && oldDivKey === newDivKey ? (oldMp.slotIndex ?? null) : null;
     const newDivRef = db.collection('divisions').doc(newDivKey);
     const newDivSnap = await newDivRef.get();
-    if (!newDivSnap.exists) throw new Error(`Division ${newDivKey} does not exist. Create it first via the season manager.`);
-    const newDivData = newDivSnap.data();
+    let newDivData;
+    if (!newDivSnap.exists) {
+      // Auto-create the division document so the admin can always move players
+      newDivData = {
+        division: Number(newDivision),
+        group: Number(newGroup),
+        seasonYear: 1,
+        phase: 'season',
+        slots: {},
+        standings: [],
+        nextRaceRound: 1,
+        raceInProgress: false,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await newDivRef.set(newDivData);
+    } else {
+      newDivData = newDivSnap.data();
+    }
 
     // Find slot: 1) empty slot, 2) bot slot to replace, 3) error
     const newSlots = Object.assign({}, newDivData.slots || {});
