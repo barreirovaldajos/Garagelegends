@@ -3001,7 +3001,6 @@ const SCREENS = {
         <div class="screen-actions">
           ${next.savedStrategy ? `<span style="font-size:0.78rem;color:var(--c-green);display:flex;align-items:center;gap:4px">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</span>` : ''}
           <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${next.savedStrategy ? (__('prerace_update_strat') || '💾 Actualizar Estrategia') : (window.__('prerace_save_strat') || '💾 Guardar Estrategia')}</button>
-          <button class="btn btn-accent btn-lg" onclick="GL_SCREENS.submitMpStrategy()">📡 ${__('prerace_submit_mp') || 'Enviar Estrategia'}</button>
           <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:4px">${__('prerace_mp_info') || 'La carrera se simula automáticamente el domingo 18:00 UTC'}</div>
         </div>
       </div>
@@ -3313,64 +3312,55 @@ const SCREENS = {
   saveStrategy() {
     const state = GL_STATE.getState();
     const nextIdx = (state.season.calendar || []).findIndex(r=>r.status==='next');
-    if (nextIdx !== -1) {
-      const selectedIds = (window._raceStrategy?.selectedPilotIds || []).slice(0, 2);
-      selectedIds.forEach((pid) => this.ensureDriverConfig(pid));
-      state.season.calendar[nextIdx].savedStrategy = GL_STATE.deepClone(window._raceStrategy || {
-        tyre:'medium', strategy:'balanced', aggression:58, riskLevel:40, pitLap:42, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
-        pitTyres: ['hard', 'medium'],
-        interventions: [{ lapPct: 42, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
-        pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
-        selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
-        driverConfigs: {}
-      });
-      if (!state.season.calendar[nextIdx].savedStrategy.pilotId && state.pilots && state.pilots[0]) {
-        state.season.calendar[nextIdx].savedStrategy.pilotId = state.pilots[0].id;
-      }
-      if (!Array.isArray(state.season.calendar[nextIdx].savedStrategy.selectedPilotIds)) {
-        state.season.calendar[nextIdx].savedStrategy.selectedPilotIds = (state.pilots || []).slice(0, 2).map((p) => p.id);
-      }
-      if (!state.season.calendar[nextIdx].savedStrategy.driverConfigs) {
-        state.season.calendar[nextIdx].savedStrategy.driverConfigs = {};
-      }
-      const allowedIds = new Set(state.season.calendar[nextIdx].savedStrategy.selectedPilotIds);
-      Object.keys(state.season.calendar[nextIdx].savedStrategy.driverConfigs).forEach((pid) => {
-        if (!allowedIds.has(pid)) delete state.season.calendar[nextIdx].savedStrategy.driverConfigs[pid];
-      });
-      GL_STATE.saveState();
-      GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
-      this.renderPreRace();
-    }
-  },
-
-  submitMpStrategy() {
-    if (!GL_ENGINE.isMultiplayer()) return;
-    // First save locally
-    this.saveStrategy();
-    const state = GL_STATE.getState();
-    const mp = window.GL_AUTH && GL_AUTH.mp;
-    if (!mp || !mp.divKey) { GL_UI.toast('No MP division assigned', 'warning'); return; }
-    const cal = state.season.calendar || [];
-    const next = cal.find(r => r.status === 'next');
-    if (!next) { GL_UI.toast('No pending race', 'warning'); return; }
-    const strategy = GL_STATE.deepClone(next.savedStrategy || window._raceStrategy || {});
-    const db = GL_AUTH._db;
-    if (!db || !GL_AUTH.user) { GL_UI.toast('Not authenticated', 'warning'); return; }
-    const stratRef = db.collection('divisions').doc(mp.divKey)
-      .collection('strategies').doc(GL_AUTH.user.uid);
-    stratRef.set({
-      userId: GL_AUTH.user.uid,
-      slotIndex: mp.slotIndex,
-      raceRound: next.round,
-      submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      strategy: strategy
-    }).then(() => {
-      GL_UI.toast(__('prerace_mp_submitted') || 'Estrategia enviada al servidor', 'good');
-      // Also sync team snapshot
-      if (GL_STATE.syncTeamSnapshot) GL_STATE.syncTeamSnapshot();
-    }).catch(err => {
-      GL_UI.toast('Error: ' + (err.message || err), 'error');
+    if (nextIdx === -1) return;
+    const selectedIds = (window._raceStrategy?.selectedPilotIds || []).slice(0, 2);
+    selectedIds.forEach((pid) => this.ensureDriverConfig(pid));
+    state.season.calendar[nextIdx].savedStrategy = GL_STATE.deepClone(window._raceStrategy || {
+      tyre:'medium', strategy:'balanced', aggression:58, riskLevel:40, pitLap:42, engineMode:'normal', pitPlan:'single', safetyCarReaction:'live', setup:{ aeroBalance:50, wetBias:50 },
+      pitTyres: ['hard', 'medium'],
+      interventions: [{ lapPct: 42, pitBias: 'none' }, { lapPct: 70, pitBias: 'none' }],
+      pilotId: (state.pilots && state.pilots[0]) ? state.pilots[0].id : null,
+      selectedPilotIds: (state.pilots || []).slice(0, 2).map((p) => p.id),
+      driverConfigs: {}
     });
+    if (!state.season.calendar[nextIdx].savedStrategy.pilotId && state.pilots && state.pilots[0]) {
+      state.season.calendar[nextIdx].savedStrategy.pilotId = state.pilots[0].id;
+    }
+    if (!Array.isArray(state.season.calendar[nextIdx].savedStrategy.selectedPilotIds)) {
+      state.season.calendar[nextIdx].savedStrategy.selectedPilotIds = (state.pilots || []).slice(0, 2).map((p) => p.id);
+    }
+    if (!state.season.calendar[nextIdx].savedStrategy.driverConfigs) {
+      state.season.calendar[nextIdx].savedStrategy.driverConfigs = {};
+    }
+    const allowedIds = new Set(state.season.calendar[nextIdx].savedStrategy.selectedPilotIds);
+    Object.keys(state.season.calendar[nextIdx].savedStrategy.driverConfigs).forEach((pid) => {
+      if (!allowedIds.has(pid)) delete state.season.calendar[nextIdx].savedStrategy.driverConfigs[pid];
+    });
+    GL_STATE.saveState();
+
+    const next = state.season.calendar[nextIdx];
+    const mp = window.GL_AUTH && GL_AUTH.mp;
+    const db = GL_AUTH && GL_AUTH._db;
+    if (GL_ENGINE.isMultiplayer() && mp && mp.divKey && db && GL_AUTH.user) {
+      const strategy = GL_STATE.deepClone(next.savedStrategy);
+      db.collection('divisions').doc(mp.divKey)
+        .collection('strategies').doc(GL_AUTH.user.uid)
+        .set({
+          userId: GL_AUTH.user.uid,
+          slotIndex: mp.slotIndex,
+          raceRound: next.round,
+          submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          strategy: strategy
+        }).then(() => {
+          GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
+          if (GL_STATE.syncTeamSnapshot) GL_STATE.syncTeamSnapshot();
+        }).catch(err => {
+          GL_UI.toast('Error al guardar: ' + (err.message || err), 'error');
+        });
+    } else {
+      GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
+    }
+    this.renderPreRace();
   },
 
   // ===== RACE SCREEN =====
