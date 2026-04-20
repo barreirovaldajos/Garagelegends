@@ -384,7 +384,7 @@ const GL_ADMIN = {
     if (!newDivSnap.exists) throw new Error(`Division ${newDivKey} does not exist. Create it first via the season manager.`);
     const newDivData = newDivSnap.data();
 
-    // Find first open slot
+    // Find slot: 1) empty slot, 2) bot slot to replace, 3) error
     const newSlots = Object.assign({}, newDivData.slots || {});
     const MAX_SLOTS = 10;
     if (newSlotIndex == null) {
@@ -392,7 +392,16 @@ const GL_ADMIN = {
         if (!newSlots[String(i)]) { newSlotIndex = i; break; }
       }
     }
-    if (newSlotIndex == null) throw new Error(`Division ${newDivKey} is full (no open slots).`);
+    if (newSlotIndex == null) {
+      // Division full — replace first bot slot
+      for (let i = 0; i < MAX_SLOTS; i++) {
+        if (newSlots[String(i)] && newSlots[String(i)].type === 'bot') {
+          newSlotIndex = i;
+          break;
+        }
+      }
+    }
+    if (newSlotIndex == null) throw new Error(`Division ${newDivKey} is full (no open or bot slots).`);
 
     // Build team snapshot from save_data
     const teamSnap = {
@@ -406,8 +415,10 @@ const GL_ADMIN = {
       joinedAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    // Upsert standing entry
-    const newStandings = (newDivData.standings || []).filter(s => s.teamId !== userId);
+    // Upsert standing entry — remove player's old entry + bot that occupied this slot (if any)
+    const newStandings = (newDivData.standings || []).filter(s =>
+      s.teamId !== userId && !(s.slotIndex === newSlotIndex && !s.isPlayer)
+    );
     newStandings.push({
       slotIndex: newSlotIndex,
       teamId: userId,
