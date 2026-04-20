@@ -464,11 +464,95 @@ const GL_ADMIN = {
       }
     });
 
-    // --- 5. Fill remaining empty slots with bots ---
-    try {
-      const fillBots = firebase.functions().httpsCallable('adminFillBots');
-      await fillBots({ divKey: newDivKey });
-    } catch (_) { /* best-effort: bots failing should not block the move */ }
+    // --- 5. Fill remaining empty slots with bots (client-side) ---
+    await this._fillDivisionBots(newDivKey, newDivData.division);
+  },
+
+  async _fillDivisionBots(divKey, division) {
+    const db = this.db();
+    if (!db) return;
+    const divRef = db.collection('divisions').doc(divKey);
+    const divSnap = await divRef.get();
+    if (!divSnap.exists) return;
+
+    const divData = divSnap.data();
+    const slots = divData.slots || {};
+    const standings = divData.standings || [];
+    const seasonYear = divData.seasonYear || 1;
+    const MAX_SLOTS = 10;
+
+    // Find empty slot indices
+    const emptyIndices = [];
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      if (!slots[String(i)]) emptyIndices.push(i);
+    }
+    if (!emptyIndices.length) return;
+
+    const CAR_RANGE = { 8:[38,55],7:[42,60],6:[48,65],5:[52,70],4:[56,75],3:[62,80],2:[68,85],1:[72,92] };
+    const carRange = CAR_RANGE[division] || CAR_RANGE[8];
+    const aiTeams = (window.GL_DATA && GL_DATA.AI_TEAMS) ? GL_DATA.AI_TEAMS : [];
+    const aiPilots = (window.GL_DATA && GL_DATA.PILOT_POOL) ? GL_DATA.PILOT_POOL.filter(p => String(p.id).startsWith('ai')) : [];
+    const RNG = window.GL_ENGINE_CORE && GL_ENGINE_CORE.SeededRNG;
+    if (!aiTeams.length || !RNG) return;
+
+    const usedBotIds = new Set(Object.values(slots).filter(s => s && s.type === 'bot' && s.botTeamId).map(s => s.botTeamId));
+    const available = aiTeams.filter(t => !usedBotIds.has(t.id));
+
+    const slotUpdates = {};
+    const newStandingEntries = [];
+
+    emptyIndices.forEach((slotIdx, i) => {
+      const aiTeam = available[i % (available.length || 1)];
+      if (!aiTeam) return;
+      const botSeed = `bot_${divKey}_${slotIdx}_${seasonYear}`;
+      const rng = new RNG(botSeed);
+
+      const components = {};
+      ['engine','chassis','aero','brakes','gearbox','reliability','efficiency','tyreManage'].forEach(comp => {
+        components[comp] = { score: rng.intRange(carRange[0], carRange[1]), level: 1 };
+      });
+
+      const hashSeed = s => { let h = 0; for (let c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+      const pilot1 = aiPilots[hashSeed(botSeed + '_p1') % aiPilots.length] || aiPilots[0];
+      const pilot2 = aiPilots[hashSeed(botSeed + '_p2') % aiPilots.length] || aiPilots[1] || aiPilots[0];
+
+      slotUpdates[`slots.${slotIdx}`] = {
+        type: 'bot',
+        botTeamId: aiTeam.id,
+        teamSnapshot: {
+          teamName: aiTeam.name,
+          colors: { primary: aiTeam.color, secondary: '#0a0b0f' },
+          logo: '',
+          pilots: [Object.assign({}, pilot1), Object.assign({}, pilot2)],
+          car: { components },
+          staff: [],
+          hq: { admin:1, wind_tunnel:1, rnd:1, factory:1, academy:1 },
+          engineSupplier: '',
+          fans: 1000 + rng.intRange(0, 3000)
+        }
+      };
+
+      if (!standings.find(s => s.teamId === aiTeam.id)) {
+        newStandingEntries.push({
+          slotIndex: slotIdx,
+          teamId: aiTeam.id,
+          teamName: aiTeam.name,
+          color: aiTeam.color,
+          flag: aiTeam.flag || '',
+          points: 0, wins: 0, podiums: 0,
+          position: standings.length + newStandingEntries.length + 1,
+          bestResult: 0,
+          isPlayer: false
+        });
+      }
+    });
+
+    if (Object.keys(slotUpdates).length) await divRef.update(slotUpdates);
+    if (newStandingEntries.length) {
+      const finalStandings = standings.concat(newStandingEntries);
+      finalStandings.forEach((s, i) => { s.position = i + 1; });
+      await divRef.update({ standings: finalStandings });
+    }
   },
 
   openPointsDialog(userId, teamName) {
