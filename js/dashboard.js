@@ -345,91 +345,76 @@ const DASHBOARD = {
     const el = document.getElementById('dash-standings');
     if (!el) return;
 
-    // MP mode: fetch from Firestore
-    if (GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer() && GL_AUTH.mp && GL_AUTH.mp.divKey && GL_AUTH._db) {
-      GL_AUTH._db.collection('divisions').doc(GL_AUTH.mp.divKey).get().then(snap => {
-        if (!snap.exists) return;
-        const data = snap.data();
-        const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
-        const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
-        const promotionSpots = divInfo.promotions || 0;
-        const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
-        const myPos = myEntry ? myEntry.position : '-';
-        const myPts = myEntry ? myEntry.points : 0;
-        const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
-        el.innerHTML = `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
-            <div>
-              <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${data.division}-${data.group} · ${divInfo.name || ''}</div>
-            </div>
-            <div style="text-align:right">
-              <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
-              <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
-            </div>
-          </div>
-          ${mpStandings.map(s => {
-            const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
-            return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--c-border);font-size:0.78rem ${isMe?';background:var(--c-surface-2);border-radius:4px;padding:3px 6px':''}">
-              <span style="width:18px;text-align:right;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</span>
-              <span style="width:8px;height:8px;border-radius:50%;background:${s.color||'#888'};flex-shrink:0;display:inline-block"></span>
-              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isMe?'var(--t-primary)':'var(--t-secondary)'}">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
-              <span style="font-weight:${isMe?'700':'400'};color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.points || 0}</span>
-            </div>`;
-          }).join('')}`;
-      }).catch(() => {});
-      el.innerHTML = '<div style="font-size:0.78rem;color:var(--t-tertiary)">Loading standings...</div>';
+    // MMG: always fetch from Firestore
+    if (!GL_AUTH.mp || !GL_AUTH.mp.divKey || !GL_AUTH._db) {
+      el.innerHTML = '<div style="font-size:0.78rem;color:var(--t-tertiary);padding:8px 0">📡 Conectando a la división...</div>';
       return;
     }
 
-    const standings = state.standings || [];
-    const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div == state.season.division) || {}) : {};
-    const divName = divInfo.name || `${__('division')} ${state.season.division}`;
-    const divGroupLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
-    const myStanding = GL_STATE.getMyStanding();
-    const promotionSpots = divInfo.promotions || 0;
-    const myPos = myStanding.position || '-';
-    const myPts = myStanding.points || 0;
-    const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
-    el.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
-        <div>
-          <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">${__('division')} ${divGroupLabel} · ${divName}</div>
-        </div>
-        <div style="text-align:right">
-          <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
-          <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
-        </div>
-      </div>
-      ${standings.map(s => `
-      <div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--c-border);font-size:0.78rem ${s.id==='player'?';background:var(--c-surface-2);border-radius:4px;padding:3px 6px':''} ">
-        <span style="width:18px;text-align:right;font-weight:700;color:${s.id==='player'?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</span>
-        <span style="width:8px;height:8px;border-radius:50%;background:${s.color||'#888'};flex-shrink:0;display:inline-block"></span>
-        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${s.id==='player'?'var(--t-primary)':'var(--t-secondary)'}">${s.name}</span>
-        <span style="font-weight:${s.id==='player'?'700':'400'};color:${s.id==='player'?'var(--c-gold)':'var(--t-tertiary)'}">${s.points}</span>
-      </div>`).join('')}`;
+    el.innerHTML = '<div style="font-size:0.78rem;color:var(--t-tertiary)">Cargando clasificación...</div>';
 
-    // Circuit preview panel
-    const previewEl = document.getElementById('dash-circuit-preview');
-    if (!previewEl) return;
-    if (GL_ENGINE && typeof GL_ENGINE.ensureNextRaceAvailable === 'function') GL_ENGINE.ensureNextRaceAvailable();
-    const cal = state.season.calendar || [];
-    const next = cal.find(r => r.status === 'next');
-    if (!next) { previewEl.innerHTML = ''; return; }
-    const c = next.circuit;
-    const hasStrategy = !!next.savedStrategy;
-    previewEl.innerHTML = `
-      <div class="section-header">
-        <span class="section-title">${__('dash_next_event')}</span>
-      </div>
-      <div class="card" style="display:flex;flex-direction:column;gap:var(--s-3)">
-        <div style="font-size:0.6rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase">${__('round')} ${next.round}</div>
-        <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${c.name}</div>
-        <div style="font-size:0.75rem;color:var(--t-secondary)">${c.country} · ${c.laps} ${__('laps')} · ${c.length}</div>
-        <div style="font-size:0.75rem;color:var(--t-secondary)">${next.weather === 'wet' ? __('prerace_rain_expected') : __('prerace_dry2')}</div>
-        <svg viewBox="${this.CIRCUIT_SVG_VIEWBOX}" style="width:100%;opacity:0.7">${this.circuitSVG(c.id || c.layout)}</svg>
-        ${hasStrategy ? `<div style="font-size:0.72rem;color:var(--c-green)">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</div>` : ''}
-        <button class="btn btn-primary btn-sm w-full" style="justify-content:center" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
-      </div>`;
+    GL_AUTH._db.collection('divisions').doc(GL_AUTH.mp.divKey).get().then(snap => {
+      if (!snap.exists) return;
+      const data = snap.data();
+
+      // ── Standings ─────────────────────────────────────────────────────────
+      const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
+      if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = mpStandings;
+      const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
+      const promotionSpots = divInfo.promotions || 0;
+      const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
+      const myPos = myEntry ? myEntry.position : '-';
+      const myPts = myEntry ? myEntry.points : 0;
+      const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
+          <div>
+            <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${data.division}-${data.group} · ${divInfo.name || ''}</div>
+          </div>
+          <div style="text-align:right">
+            <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
+            <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
+          </div>
+        </div>
+        ${mpStandings.map((s, idx) => {
+          const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
+          return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--c-border);font-size:0.78rem ${isMe?';background:var(--c-surface-2);border-radius:4px;padding:3px 6px':''}">
+            <span style="width:18px;text-align:right;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</span>
+            <span style="width:8px;height:8px;border-radius:50%;background:${s.color||'#888'};flex-shrink:0;display:inline-block"></span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;text-decoration:underline dotted" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+            <span style="font-weight:${isMe?'700':'400'};color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.points || 0}</span>
+          </div>`;
+        }).join('')}`;
+
+      // ── Circuit preview (right panel) – reads from Firestore calendar ─────
+      const previewEl = document.getElementById('dash-circuit-preview');
+      if (!previewEl) return;
+
+      // Use division calendar from Firestore (authoritative for MMG)
+      const divCal = data.calendar || [];
+      const next = divCal.find(r => r.status === 'next');
+      if (!next) { previewEl.innerHTML = ''; return; }
+
+      const c = next.circuit;
+      // Check for saved strategy from local state (strategies live client-side until submitted)
+      const localCal = state.season.calendar || [];
+      const localEntry = localCal.find(r => r.round === next.round);
+      const hasStrategy = !!(localEntry && localEntry.savedStrategy);
+
+      previewEl.innerHTML = `
+        <div class="section-header">
+          <span class="section-title">${__('dash_next_event')}</span>
+        </div>
+        <div class="card" style="display:flex;flex-direction:column;gap:var(--s-3)">
+          <div style="font-size:0.6rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase">${__('round')} ${next.round}</div>
+          <div style="font-size:1rem;font-weight:700;color:var(--t-primary)">${c.name}</div>
+          <div style="font-size:0.75rem;color:var(--t-secondary)">${c.country} · ${c.laps} ${__('laps')} · ${c.length}</div>
+          <div style="font-size:0.75rem;color:var(--t-secondary)">${next.weather === 'wet' ? __('prerace_rain_expected') : __('prerace_dry2')}</div>
+          <svg viewBox="${this.CIRCUIT_SVG_VIEWBOX}" style="width:100%;opacity:0.7">${this.circuitSVG(c.id || c.layout)}</svg>
+          ${hasStrategy ? `<div style="font-size:0.72rem;color:var(--c-green)">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</div>` : ''}
+          <button class="btn btn-primary btn-sm w-full" style="justify-content:center" onclick="GL_APP.navigateTo('prerace')">${__('dash_race_prep')}</button>
+        </div>`;
+    }).catch(() => {});
   },
 
   renderFinances(state) {

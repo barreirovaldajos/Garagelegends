@@ -1281,7 +1281,7 @@ const SCREENS = {
       content.innerHTML = this._staffPanelContent(staff, maxStaff, used, atMax);
     } else {
       if (headerAction) {
-        headerAction.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('market');setTimeout(()=>GL_SCREENS.marketTab('sponsors',document.querySelector('.tabs .tab:last-child')),80)">+ Buscar patrocinadores</button>`;
+        headerAction.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.openMarketSponsors()">+ Buscar patrocinadores</button>`;
       }
       content.innerHTML = this._sponsorPanelContent();
     }
@@ -1323,7 +1323,7 @@ const SCREENS = {
       return `<div style="text-align:center;padding:40px 20px;color:var(--t-tertiary)">
         <div style="font-size:2rem;margin-bottom:12px">💼</div>
         <div style="font-size:0.9rem;margin-bottom:16px">Sin patrocinadores activos</div>
-        <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('market');setTimeout(()=>GL_SCREENS.marketTab('sponsors',document.querySelector('.tabs .tab:last-child')),80)">Buscar patrocinadores</button>
+        <button class="btn btn-primary btn-sm" onclick="GL_SCREENS.openMarketSponsors()">Buscar patrocinadores</button>
       </div>`;
     }
     const lastPos = Number(state.lastRaceBestPos || 0);
@@ -2317,136 +2317,8 @@ const SCREENS = {
 
   // ===== STANDINGS SCREEN =====
   renderStandings() {
-    const state = GL_STATE.getState();
-    // In MP mode, fetch live standings from Firestore
-    if (GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer()) {
-      this._renderMpStandings();
-      return;
-    }
-    const standings = state.standings || [];
-    const el = document.getElementById('screen-standings');
-    if (!el) return;
-    const divInfo = GL_DATA.DIVISIONS.find(d=>d.div===state.season.division);
-    const divGroupLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
-    const campaign = GL_ENGINE.getCampaignStatus ? GL_ENGINE.getCampaignStatus() : null;
-    const hasLastSummary = !!state?.season?.lastSummary;
-    const seasonHistory = Array.isArray(state?.seasonHistory) ? state.seasonHistory : [];
-    const objective = campaign?.objective;
-    const phaseLabel = objective?.phase === 'phase1'
-      ? __('dash_campaign_phase1')
-      : (objective?.phase === 'phase2' ? __('dash_campaign_phase2') : __('dash_campaign_phase3'));
-    const campaignHistoryHtml = (campaign?.recentHistory || []).length
-      ? campaign.recentHistory.map((h) => `<div style="font-size:0.78rem;color:var(--t-secondary)">• Y${h.year} ${__(h.id === 'phase1_survive_prove' ? 'campaign_objective_phase1_title' : (h.id === 'phase2_climb' ? 'campaign_objective_phase2_title' : 'campaign_objective_phase3_title'))} <span style="color:var(--c-green)">(+${GL_UI.fmtCR(h.rewardCredits || 0)})</span></div>`).join('')
-      : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('campaign_history_empty')}</div>`;
-    const recentSeasonHistory = seasonHistory
-      .map((summary, index) => ({ summary, index }))
-      .slice(-5)
-      .reverse();
-    const seasonHistoryHtml = recentSeasonHistory.length
-      ? recentSeasonHistory.map(({ summary, index }) => {
-          const resultLabel = summary.result === 'promoted'
-            ? __('season_summary_transition_promoted')
-            : (summary.result === 'relegated' ? __('season_summary_transition_relegated') : __('season_summary_transition_stayed'));
-          const _histDivLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : summary.division;
-          return `<button class="btn btn-ghost btn-sm" style="justify-content:space-between;width:100%;margin-bottom:8px" onclick="GL_DASHBOARD.openSeasonSummaryHistory(${index})">
-            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${_histDivLabel}</span>
-            <span>P${summary.finishPosition} · ${resultLabel}</span>
-          </button>`;
-        }).join('')
-      : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('season_history_empty')}</div>`;
-    const titles = seasonHistory.filter((summary) => Number(summary.division) === 1 && Number(summary.finishPosition) === 1).length;
-    const promotions = seasonHistory.filter((summary) => summary.result === 'promoted').length;
-    const podiums = seasonHistory.reduce((sum, s) => sum + (Number(s.podiums) || 0), 0);
-    const totalWins = seasonHistory.reduce((sum, s) => sum + (Number(s.wins) || 0), 0);
-    const campaignMilestones = Array.isArray(state?.campaign?.history) ? state.campaign.history.length : 0;
-    const bestFinish = seasonHistory.length
-      ? seasonHistory.reduce((best, summary) => Math.min(best, Number(summary.finishPosition) || 99), 99)
-      : null;
-    const hallOfFameEntries = seasonHistory
-      .filter((summary) => summary.result === 'promoted' || Number(summary.finishPosition) <= 3 || (Number(summary.division) === 1 && Number(summary.finishPosition) === 1))
-      .slice(-4)
-      .reverse();
-    const hallOfFameHtml = hallOfFameEntries.length
-      ? hallOfFameEntries.map((summary) => {
-          const badge = Number(summary.division) === 1 && Number(summary.finishPosition) === 1
-            ? __('hall_of_fame_badge_title')
-            : (summary.result === 'promoted' ? __('hall_of_fame_badge_promotion') : __('hall_of_fame_badge_podium'));
-          const _hofDivLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : summary.division;
-          return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:0.78rem;color:var(--t-secondary);padding:8px 0;border-bottom:1px solid var(--c-border-hi)">
-            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${_hofDivLabel}</span>
-            <span><strong style="color:var(--t-primary)">${badge}</strong> · P${summary.finishPosition}</span>
-          </div>`;
-        }).join('')
-      : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('hall_of_fame_empty')}</div>`;
-    el.innerHTML = `
-      <div class="screen-header">
-        <div class="screen-title-group">
-          <div class="screen-eyebrow">${__('standings_eyebrow')}</div>
-          <div class="screen-title">${__('standings_title')} ${divGroupLabel}</div>
-          <div class="screen-subtitle">${divInfo?.name || ''} · ${divInfo?.promotions || 0} ${__('standings_promotion_spots')}</div>
-        </div>
-        <div class="screen-actions">
-          <button class="btn btn-secondary" onclick="GL_APP.navigateTo('dashboard')">← ${__('back') || 'Atrás'}</button>
-        </div>
-      </div>
-      <div class="grid-2 mb-4">
-        <div class="card">
-          <div class="section-eyebrow">${__('campaign_progress_title')}</div>
-          ${objective ? `
-            <div style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:6px">${__('dash_campaign_phase_label')}: <strong>${phaseLabel}</strong></div>
-            <div style="font-size:0.95rem;color:var(--t-primary);font-weight:700;margin-bottom:4px">${__(objective.titleKey)}</div>
-            <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:8px">${__(objective.descKey)}</div>
-            <div style="font-size:0.8rem;color:var(--c-gold)">${__('dash_campaign_reward')}: <strong>+${GL_UI.fmtCR(objective.rewardCredits || 0)} CR</strong></div>
-          ` : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('dash_campaign_no_objective')}</div>`}
-          <div class="divider"></div>
-          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-            <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.openLatestSeasonSummary()" ${hasLastSummary ? '' : 'disabled'}>${__('season_summary_view_last')}</button>
-          </div>
-          <div class="section-eyebrow" style="margin-top:0">${__('campaign_history_title')}</div>
-          ${campaignHistoryHtml}
-        </div>
-        <div class="card">
-          <div class="section-eyebrow">${__('hall_of_fame_title')}</div>
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 14px">
-            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_titles')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--c-gold)">${titles}</div></div>
-            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_promotions')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${promotions}</div></div>
-            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_podiums')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${podiums}</div></div>
-            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">Victorias totales</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${totalWins}</div></div>
-            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_best_finish')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${bestFinish ? `P${bestFinish}` : '–'}</div></div>
-          </div>
-          <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:10px">${__('hall_of_fame_campaign_milestones')}: <strong>${campaignMilestones}</strong></div>
-          ${hallOfFameHtml}
-        </div>
-      </div>
-      <div class="card mb-4">
-        <div class="section-eyebrow">${__('season_history_title')}</div>
-        ${seasonHistoryHtml}
-      </div>
-      <div class="card p-0">
-        <table class="standings-table-full">
-          <thead><tr>
-            <th>${__('standings_pos')}</th><th>${__('standings_team')}</th><th>${__('standings_points')}</th><th>${__('standings_wins')}</th><th>${__('standings_best')}</th><th>${__('standings_status')}</th>
-          </tr></thead>
-          <tbody>
-                ${standings.map((s, i) => {
-                  const isPromo = divInfo && i < divInfo.promotions;
-                  const isRelegate = divInfo && i >= standings.length - divInfo.relegations && state.season.division < 8;
-                  // Si hay breakdowns por estado de carrera, usar enums centralizados aquí también
-                  return `<tr class="${s.id==='player'?'my-row':''} ${isPromo?'promoted':''} ${isRelegate?'relegated':''}">
-                    <td><div class="pos-badge pos-${i<3?i+1:'n'}">${i+1}</div></td>
-                    <td style="display:flex;align-items:center;gap:var(--s-2);min-width:200px">
-                      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color||'#888'};flex-shrink:0"></span>
-                      ${s.flag||''} <strong>${s.name}</strong>${s.id==='player'?' <span style="font-size:0.8rem;color:var(--c-accent)">'+__('standings_you')+'</span>':''}
-                    </td>
-                    <td><strong style="color:var(--c-gold)">${s.points}</strong></td>
-                    <td>${s.wins || 0}</td>
-                    <td>${s.bestResult ? 'P'+s.bestResult : '–'}</td>
-                    <td>${isPromo ? `<span class="badge badge-green">${__('standings_promote')}</span>` : isRelegate ? `<span class="badge badge-red">${__('standings_relegate')}</span>` : '–'}</td>
-                  </tr>`;
-                }).join('')}
-          </tbody>
-        </table>
-      </div>`;
+    // MMG: always fetch from Firestore
+    this._renderMpStandings();
   },
 
   // ===== FINANCES SCREEN =====
@@ -2626,7 +2498,7 @@ const SCREENS = {
             <div class="section-eyebrow">${__('finances_sponsors')}</div>
             <div style="font-size:0.8rem;color:var(--t-secondary);margin-top:4px">${activeSponsors.length} ${__('dash_sponsors_label').toLowerCase()}</div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="GL_APP.navigateTo('market')">${__('dash_sponsors_market')}</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.openMarketSponsors()">${__('dash_sponsors_market')}</button>
         </div>
         <div style="margin-top:var(--s-4);display:flex;flex-direction:column;gap:8px">
           ${activeSponsors.length
@@ -2681,7 +2553,22 @@ const SCREENS = {
   },
 
   // ===== MARKET SCREEN =====
-  renderMarket() {
+  openMarketSponsors() {
+    GL_APP.navigateTo('market');
+    // renderMarket is called synchronously inside navigateTo, so sponsors tab
+    // can be activated immediately without a timeout.
+    const marketTabs = document.querySelectorAll('#screen-market .tabs .tab');
+    if (marketTabs.length >= 2) {
+      marketTabs.forEach(t => t.classList.remove('active'));
+      marketTabs[1].classList.add('active');
+      const mc = document.getElementById('market-content');
+      if (mc) mc.innerHTML = this.marketSponsorList();
+    }
+  },
+
+  // initialTab: 'pilots' | 'sponsors'  (default 'pilots')
+  renderMarket(initialTab) {
+    const tab = initialTab || 'pilots';
     const state = GL_STATE.getState();
     const myIds = state.pilots.map(p=>p.id);
     const available = GL_DATA.PILOT_POOL.filter(p => !myIds.includes(p.id));
@@ -2695,19 +2582,21 @@ const SCREENS = {
           <div class="screen-subtitle">${__('market_subtitle')}</div>
         </div>
       </div>
-      <div class="tabs mb-6" style="max-width:400px">
-        <button class="tab active" onclick="GL_SCREENS.marketTab('pilots',this)">${__('market_tab_pilots')}</button>
-        <button class="tab" onclick="GL_SCREENS.marketTab('sponsors',this)">${__('market_tab_sponsors')}</button>
+      <div class="tabs mb-6" style="max-width:400px" id="market-tabs">
+        <button class="tab ${tab==='pilots'?'active':''}" onclick="GL_SCREENS.marketTab('pilots',this)">${__('market_tab_pilots')}</button>
+        <button class="tab ${tab==='sponsors'?'active':''}" onclick="GL_SCREENS.marketTab('sponsors',this)">${__('market_tab_sponsors')}</button>
       </div>
       <div id="market-content">
-        ${this.marketPilotList(available)}
+        ${tab === 'sponsors' ? this.marketSponsorList() : this.marketPilotList(available)}
       </div>`;
   },
 
   marketTab(tab, btn) {
-    document.querySelectorAll('.tabs .tab').forEach(t=>t.classList.remove('active'));
+    // Scope to market screen tabs only to avoid touching tabs on other screens
+    document.querySelectorAll('#screen-market .tabs .tab').forEach(t=>t.classList.remove('active'));
     btn.classList.add('active');
     const mc = document.getElementById('market-content');
+    if (!mc) return;
     if (tab === 'pilots') {
       const myIds = GL_STATE.getState().pilots.map(p=>p.id);
       mc.innerHTML = this.marketPilotList(GL_DATA.PILOT_POOL.filter(p=>!myIds.includes(p.id)));
@@ -2834,26 +2723,31 @@ const SCREENS = {
   },
 
   _refreshSponsorTab() {
-    // Si estamos en la pantalla de staff con la pestaña de patrocinadores abierta
-    const sc = document.getElementById('staff-content');
-    if (sc && sc.closest('#screen-staff')) {
-      sc.innerHTML = this._sponsorPanelContent();
-      // Actualizar el contador en la pestaña
-      const state = GL_STATE.getState();
-      const count = (state.sponsors || []).filter(s => !s.expired).length;
-      const staffTabs = document.querySelectorAll('#screen-staff .tabs .tab');
-      if (staffTabs.length >= 2) staffTabs[1].innerHTML = `Patrocinadores <span style="font-size:0.7rem;opacity:0.7">(${count})</span>`;
+    const currentScreen = window.GL_APP && GL_APP.currentScreen;
+
+    if (currentScreen === 'staff') {
+      const sc = document.getElementById('staff-content');
+      if (sc) {
+        sc.innerHTML = this._sponsorPanelContent();
+        const state = GL_STATE.getState();
+        const count = (state.sponsors || []).filter(s => !s.expired).length;
+        const staffTabs = document.querySelectorAll('#screen-staff .tabs .tab');
+        if (staffTabs.length >= 2) staffTabs[1].innerHTML = `Patrocinadores <span style="font-size:0.7rem;opacity:0.7">(${count})</span>`;
+      }
       return;
     }
-    // Si estamos en la pantalla de mercado
-    const mc = document.getElementById('market-content');
-    if (mc) {
-      mc.innerHTML = this.marketSponsorList();
-      const tabs = document.querySelectorAll('#screen-market .tabs .tab, .tabs .tab');
-      tabs.forEach(t => t.classList.remove('active'));
-      if (tabs.length >= 2) tabs[1].classList.add('active');
-    } else {
-      this.renderMarket();
+
+    if (currentScreen === 'market') {
+      const mc = document.getElementById('market-content');
+      if (mc) {
+        mc.innerHTML = this.marketSponsorList();
+        // Activate sponsors tab using screen-scoped selector
+        const marketTabs = document.querySelectorAll('#screen-market .tabs .tab');
+        marketTabs.forEach(t => t.classList.remove('active'));
+        if (marketTabs.length >= 2) marketTabs[1].classList.add('active');
+      } else {
+        this.renderMarket('sponsors');
+      }
     }
   },
 
@@ -2883,66 +2777,156 @@ const SCREENS = {
     const el = document.getElementById('screen-standings');
     if (!el) return;
     const mp = window.GL_AUTH && GL_AUTH.mp;
-    if (!mp || !mp.divKey) {
-      el.innerHTML = '<div class="card"><p>No division assigned.</p></div>';
+    if (!mp || !mp.divKey || !GL_AUTH._db) {
+      el.innerHTML = `<div class="card"><p style="color:var(--t-tertiary)">📡 Conectando a la división...</p></div>`;
       return;
     }
-    const db = GL_AUTH._db;
-    if (!db) return;
-    el.innerHTML = '<div class="card"><p>Loading standings...</p></div>';
-    db.collection('divisions').doc(mp.divKey).get().then(snap => {
-      if (!snap.exists) { el.innerHTML = '<div class="card"><p>Division not found.</p></div>'; return; }
+
+    // Render local panels immediately (campaign, history, hall of fame come from local state)
+    const state = GL_STATE.getState();
+    const campaign = GL_ENGINE.getCampaignStatus ? GL_ENGINE.getCampaignStatus() : null;
+    const hasLastSummary = !!state?.season?.lastSummary;
+    const seasonHistory = Array.isArray(state?.seasonHistory) ? state.seasonHistory : [];
+    const objective = campaign?.objective;
+    const phaseLabel = objective?.phase === 'phase1'
+      ? __('dash_campaign_phase1')
+      : (objective?.phase === 'phase2' ? __('dash_campaign_phase2') : __('dash_campaign_phase3'));
+    const campaignHistoryHtml = (campaign?.recentHistory || []).length
+      ? campaign.recentHistory.map((h) => `<div style="font-size:0.78rem;color:var(--t-secondary)">• Y${h.year} ${__(h.id === 'phase1_survive_prove' ? 'campaign_objective_phase1_title' : (h.id === 'phase2_climb' ? 'campaign_objective_phase2_title' : 'campaign_objective_phase3_title'))} <span style="color:var(--c-green)">(+${GL_UI.fmtCR(h.rewardCredits || 0)})</span></div>`).join('')
+      : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('campaign_history_empty')}</div>`;
+    const recentSeasonHistory = seasonHistory.map((summary, index) => ({ summary, index })).slice(-5).reverse();
+    const seasonHistoryHtml = recentSeasonHistory.length
+      ? recentSeasonHistory.map(({ summary, index }) => {
+          const resultLabel = summary.result === 'promoted'
+            ? __('season_summary_transition_promoted')
+            : (summary.result === 'relegated' ? __('season_summary_transition_relegated') : __('season_summary_transition_stayed'));
+          const _hDiv = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : summary.division;
+          return `<button class="btn btn-ghost btn-sm" style="justify-content:space-between;width:100%;margin-bottom:8px" onclick="GL_DASHBOARD.openSeasonSummaryHistory(${index})">
+            <span>${__('season_history_year')} ${summary.year} · ${__('division')} ${_hDiv}</span>
+            <span>P${summary.finishPosition} · ${resultLabel}</span>
+          </button>`;
+        }).join('')
+      : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('season_history_empty')}</div>`;
+    const titles           = seasonHistory.filter((s) => Number(s.division) === 1 && Number(s.finishPosition) === 1).length;
+    const promotions       = seasonHistory.filter((s) => s.result === 'promoted').length;
+    const podiumsTotal     = seasonHistory.reduce((sum, s) => sum + (Number(s.podiums) || 0), 0);
+    const winsTotal        = seasonHistory.reduce((sum, s) => sum + (Number(s.wins)    || 0), 0);
+    const campaignMilestones = Array.isArray(state?.campaign?.history) ? state.campaign.history.length : 0;
+    const bestFinish       = seasonHistory.length ? seasonHistory.reduce((b, s) => Math.min(b, Number(s.finishPosition) || 99), 99) : null;
+    const hofEntries       = seasonHistory.filter((s) => s.result === 'promoted' || Number(s.finishPosition) <= 3 || (Number(s.division) === 1 && Number(s.finishPosition) === 1)).slice(-4).reverse();
+    const hallOfFameHtml   = hofEntries.length
+      ? hofEntries.map((s) => {
+          const badge = Number(s.division) === 1 && Number(s.finishPosition) === 1 ? __('hall_of_fame_badge_title') : (s.result === 'promoted' ? __('hall_of_fame_badge_promotion') : __('hall_of_fame_badge_podium'));
+          const _hDiv = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(s.division, s.divisionGroup) : s.division;
+          return `<div style="display:flex;justify-content:space-between;gap:10px;font-size:0.78rem;color:var(--t-secondary);padding:8px 0;border-bottom:1px solid var(--c-border-hi)">
+            <span>${__('season_history_year')} ${s.year} · ${__('division')} ${_hDiv}</span>
+            <span><strong style="color:var(--t-primary)">${badge}</strong> · P${s.finishPosition}</span>
+          </div>`;
+        }).join('')
+      : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('hall_of_fame_empty')}</div>`;
+
+    // Skeleton with placeholder for live table
+    el.innerHTML = `
+      <div class="screen-header">
+        <div class="screen-title-group">
+          <div class="screen-eyebrow">${__('standings_eyebrow')}</div>
+          <div class="screen-title" id="mp-standings-title">📡 ${__('standings_title')}</div>
+          <div class="screen-subtitle" id="mp-standings-subtitle">Cargando división...</div>
+        </div>
+        <div class="screen-actions">
+          <button class="btn btn-secondary" onclick="GL_APP.navigateTo('dashboard')">← ${__('back') || 'Atrás'}</button>
+        </div>
+      </div>
+      <div class="grid-2 mb-4">
+        <div class="card">
+          <div class="section-eyebrow">${__('campaign_progress_title')}</div>
+          ${objective ? `
+            <div style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:6px">${__('dash_campaign_phase_label')}: <strong>${phaseLabel}</strong></div>
+            <div style="font-size:0.95rem;color:var(--t-primary);font-weight:700;margin-bottom:4px">${__(objective.titleKey)}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:8px">${__(objective.descKey)}</div>
+            <div style="font-size:0.8rem;color:var(--c-gold)">${__('dash_campaign_reward')}: <strong>+${GL_UI.fmtCR(objective.rewardCredits || 0)} CR</strong></div>
+          ` : `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('dash_campaign_no_objective')}</div>`}
+          <div class="divider"></div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+            <button class="btn btn-ghost btn-sm" onclick="GL_DASHBOARD.openLatestSeasonSummary()" ${hasLastSummary ? '' : 'disabled'}>${__('season_summary_view_last')}</button>
+          </div>
+          <div class="section-eyebrow" style="margin-top:0">${__('campaign_history_title')}</div>
+          ${campaignHistoryHtml}
+        </div>
+        <div class="card">
+          <div class="section-eyebrow">${__('hall_of_fame_title')}</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 14px">
+            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_titles')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--c-gold)">${titles}</div></div>
+            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_promotions')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${promotions}</div></div>
+            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_podiums')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${podiumsTotal}</div></div>
+            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">Victorias totales</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${winsTotal}</div></div>
+            <div style="padding:10px;border-radius:10px;background:var(--c-surface-2)"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('hall_of_fame_best_finish')}</div><div style="font-size:1.2rem;font-weight:800;color:var(--t-primary)">${bestFinish ? `P${bestFinish}` : '–'}</div></div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:10px">${__('hall_of_fame_campaign_milestones')}: <strong>${campaignMilestones}</strong></div>
+          ${hallOfFameHtml}
+        </div>
+      </div>
+      <div class="card mb-4">
+        <div class="section-eyebrow">${__('season_history_title')}</div>
+        ${seasonHistoryHtml}
+      </div>
+      <div class="card p-0" id="mp-live-standings-table">
+        <div style="padding:16px;color:var(--t-tertiary);font-size:0.82rem">📡 Cargando clasificación en vivo...</div>
+      </div>`;
+
+    // Fetch live standings from Firestore and fill table
+    GL_AUTH._db.collection('divisions').doc(mp.divKey).get().then(snap => {
+      const titleEl    = document.getElementById('mp-standings-title');
+      const subtitleEl = document.getElementById('mp-standings-subtitle');
+      const tableEl    = document.getElementById('mp-live-standings-table');
+      if (!snap.exists) {
+        if (tableEl) tableEl.innerHTML = '<div style="padding:16px;color:var(--c-red)">División no encontrada.</div>';
+        return;
+      }
       const data = snap.data();
       const standings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
-      const divInfo = GL_DATA.DIVISIONS.find(d => d.div === data.division);
+      if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = standings;
+      const divInfo  = GL_DATA.DIVISIONS.find(d => d.div === data.division);
       const promoZone = divInfo ? divInfo.promotions : 0;
       const relegZone = divInfo ? divInfo.relegations : 0;
       const totalTeams = standings.length;
-      el.innerHTML = `
-        <div class="screen-header">
-          <div class="screen-title-group">
-            <div class="screen-eyebrow">${__('standings_eyebrow') || 'Standings'}</div>
-            <div class="screen-title">${__('division')} ${data.division}-${data.group} · ${__('standings_title')}</div>
-            <div class="screen-subtitle">${divInfo?.name || ''} · ${__('season_history_year')} ${data.seasonYear || 1}</div>
-          </div>
-          <div class="screen-actions">
-            <button class="btn btn-secondary" onclick="GL_APP.navigateTo('dashboard')">← ${__('back') || 'Atrás'}</button>
-          </div>
-        </div>
-        <div class="card">
-          <table class="standings-table" style="width:100%;border-collapse:collapse;font-size:0.85rem">
-            <thead><tr>
-              <th style="text-align:left;padding:8px 4px">#</th>
-              <th style="text-align:left;padding:8px 4px">${__('team') || 'Team'}</th>
-              <th style="text-align:center;padding:8px 4px">${__('points') || 'Pts'}</th>
-              <th style="text-align:center;padding:8px 4px">${__('wins') || 'W'}</th>
-              <th style="text-align:center;padding:8px 4px">${__('podiums') || 'Pod'}</th>
-            </tr></thead>
-            <tbody>
-              ${standings.map((s, idx) => {
-                const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
-                const zone = idx < promoZone ? 'promo' : (idx >= totalTeams - relegZone && relegZone > 0 ? 'releg' : '');
-                const zoneBg = zone === 'promo' ? 'rgba(46,196,182,0.08)' : (zone === 'releg' ? 'rgba(232,41,42,0.08)' : '');
-                const meBg = isMe ? 'rgba(255,255,255,0.06)' : '';
-                const bg = meBg || zoneBg;
-                return `<tr style="background:${bg};${isMe ? 'font-weight:700' : ''}">
-                  <td style="padding:6px 4px">${s.position || idx + 1}</td>
-                  <td style="padding:6px 4px">
-                    <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color || '#888'};margin-right:6px"></span>
-                    ${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}
-                  </td>
-                  <td style="text-align:center;padding:6px 4px">${s.points || 0}</td>
-                  <td style="text-align:center;padding:6px 4px">${s.wins || 0}</td>
-                  <td style="text-align:center;padding:6px 4px">${s.podiums || 0}</td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-          ${promoZone > 0 ? `<div style="font-size:0.72rem;color:var(--c-green);margin-top:8px">▲ Top ${promoZone}: promotion zone</div>` : ''}
-          ${relegZone > 0 ? `<div style="font-size:0.72rem;color:var(--c-red);margin-top:4px">▼ Bottom ${relegZone}: relegation zone</div>` : ''}
-        </div>`;
+      if (titleEl)    titleEl.textContent    = `📡 ${__('division')} ${data.division}-${data.group} · ${__('standings_title')}`;
+      if (subtitleEl) subtitleEl.textContent = `${divInfo?.name || ''} · ${__('season_history_year')} ${data.seasonYear || 1} · ${promoZone} ${__('standings_promotion_spots')}`;
+      if (tableEl) tableEl.innerHTML = `
+        <table class="standings-table-full">
+          <thead><tr>
+            <th>${__('standings_pos')}</th>
+            <th>${__('standings_team')}</th>
+            <th>${__('standings_points')}</th>
+            <th>${__('standings_wins')}</th>
+            <th>${__('standings_podiums', 'Podios')}</th>
+            <th>${__('standings_status')}</th>
+          </tr></thead>
+          <tbody>
+            ${standings.map((s, idx) => {
+              const isMe   = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
+              const isPromo = idx < promoZone;
+              const isReleg = idx >= totalTeams - relegZone && relegZone > 0;
+              return `<tr class="${isMe ? 'my-row' : ''} ${isPromo ? 'promoted' : ''} ${isReleg ? 'relegated' : ''}">
+                <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${s.position || idx + 1}</div></td>
+                <td style="display:flex;align-items:center;gap:var(--s-2);min-width:200px">
+                  <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color || '#888'};flex-shrink:0"></span>
+                  <span style="cursor:pointer;text-decoration:underline dotted" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+                  ${isMe ? `<span style="font-size:0.8rem;color:var(--c-accent)">${__('standings_you')}</span>` : ''}
+                </td>
+                <td><strong style="color:var(--c-gold)">${s.points || 0}</strong></td>
+                <td>${s.wins || 0}</td>
+                <td>${s.podiums || 0}</td>
+                <td>${isPromo ? `<span class="badge badge-green">${__('standings_promote')}</span>` : isReleg ? `<span class="badge badge-red">${__('standings_relegate')}</span>` : '–'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        ${promoZone > 0 ? `<div style="padding:8px 16px;font-size:0.72rem;color:var(--c-green)">▲ Top ${promoZone}: zona de ascenso</div>` : ''}
+        ${relegZone > 0 ? `<div style="padding:4px 16px 10px;font-size:0.72rem;color:var(--c-red)">▼ Últimos ${relegZone}: zona de descenso</div>` : ''}`;
     }).catch(err => {
-      el.innerHTML = `<div class="card"><p style="color:var(--c-red)">Error: ${err.message || err}</p></div>`;
+      const tableEl = document.getElementById('mp-live-standings-table');
+      if (tableEl) tableEl.innerHTML = `<div style="padding:16px;color:var(--c-red)">Error: ${err.message || err}</div>`;
     });
   },
 
@@ -3017,11 +3001,8 @@ const SCREENS = {
         <div class="screen-actions">
           ${next.savedStrategy ? `<span style="font-size:0.78rem;color:var(--c-green);display:flex;align-items:center;gap:4px">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</span>` : ''}
           <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${next.savedStrategy ? (__('prerace_update_strat') || '💾 Actualizar Estrategia') : (window.__('prerace_save_strat') || '💾 Guardar Estrategia')}</button>
-          ${GL_ENGINE.isMultiplayer()
-            ? `<button class="btn btn-accent btn-lg" onclick="GL_SCREENS.submitMpStrategy()">📡 ${__('prerace_submit_mp') || 'Enviar Estrategia MP'}</button>
-               <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:4px">${__('prerace_mp_info') || 'La carrera se simula automáticamente el domingo 18:00 UTC'}</div>`
-            : `<button class="btn btn-secondary btn-lg" onclick="GL_APP.navigateTo('race')">${__('race_sim_btn') || 'Correr carrera'}</button>`
-          }
+          <button class="btn btn-accent btn-lg" onclick="GL_SCREENS.submitMpStrategy()">📡 ${__('prerace_submit_mp') || 'Enviar Estrategia'}</button>
+          <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:4px">${__('prerace_mp_info') || 'La carrera se simula automáticamente el domingo 18:00 UTC'}</div>
         </div>
       </div>
       <div class="prerace-grid">

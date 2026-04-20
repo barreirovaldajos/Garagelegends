@@ -45,6 +45,7 @@ const APP = {
 
   NAV_ITEMS: [
     { id:'dashboard', labelKey:'nav_dashboard', icon:'🏠', screen:'dashboard' },
+    { id:'mi-equipo', labelKey:'nav_mi_equipo', icon:'🏎️', screen:'mi-equipo' },
     { id:'garage',    labelKey:'nav_garage',    icon:'🏗️', screen:'garage' },
     { id:'pilots',    labelKey:'nav_pilots',    icon:'🧑‍✈️', screen:'pilots' },
     { id:'car',       labelKey:'nav_car',       icon:'⚙️', screen:'car' },
@@ -265,11 +266,11 @@ const APP = {
     const adminItems = isAdmin ? this.NAV_ITEMS.filter(n => n.adminOnly) : [];
     sidebar.innerHTML = `
       <div class="sidebar-section-label">${__('nav_main')}</div>
-      ${visibleItems.slice(0,1).map(n => this.navItemHTML(n)).join('')}
+      ${visibleItems.slice(0,2).map(n => this.navItemHTML(n)).join('')}
       <div class="sidebar-section-label">${__('nav_team')}</div>
-      ${visibleItems.slice(1,5).map(n => this.navItemHTML(n)).join('')}
+      ${visibleItems.slice(2,6).map(n => this.navItemHTML(n)).join('')}
       <div class="sidebar-section-label">${__('nav_season')}</div>
-      ${visibleItems.slice(5).map(n => this.navItemHTML(n)).join('')}
+      ${visibleItems.slice(6).map(n => this.navItemHTML(n)).join('')}
       ${adminItems.length ? `<div class="sidebar-section-label">${__('nav_admin_section')}</div>
       ${adminItems.map(n => this.navItemHTML(n)).join('')}` : ''}
       <div class="sidebar-divider"></div>
@@ -292,7 +293,7 @@ const APP = {
     </button>`;
   },
 
-  _validScreenIds: new Set(['dashboard','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','postrace','admin']),
+  _validScreenIds: new Set(['dashboard','mi-equipo','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','postrace','admin']),
 
   navigateTo(screenId, { updateHash = true } = {}) {
     if (!this._validScreenIds.has(screenId)) screenId = 'dashboard';
@@ -315,19 +316,20 @@ const APP = {
 
     // Render screen content
     const renderMap = {
-      dashboard: () => GL_DASHBOARD.refresh(),
-      garage:    () => GL_SCREENS.renderGarage(),
-      pilots:    () => GL_SCREENS.renderPilots(),
-      staff:     () => GL_SCREENS.renderStaff(),
-      car:       () => GL_SCREENS.renderCar(),
-      calendar:  () => GL_SCREENS.renderCalendar(),
-      standings: () => GL_SCREENS.renderStandings(),
-      finances:  () => GL_SCREENS.renderFinances(),
-      market:    () => GL_SCREENS.renderMarket(),
-      prerace:   () => GL_SCREENS.renderPreRace(),
-      race:      () => GL_SCREENS.renderRace(),
-      postrace:  () => GL_SCREENS.renderPostRace(),
-      admin:     () => { if (window.GL_ADMIN) GL_ADMIN.renderAdminPanel(); },
+      dashboard:  () => GL_DASHBOARD.refresh(),
+      'mi-equipo':() => { if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE.renderMyTeam(); },
+      garage:     () => GL_SCREENS.renderGarage(),
+      pilots:     () => GL_SCREENS.renderPilots(),
+      staff:      () => GL_SCREENS.renderStaff(),
+      car:        () => GL_SCREENS.renderCar(),
+      calendar:   () => GL_SCREENS.renderCalendar(),
+      standings:  () => GL_SCREENS.renderStandings(),
+      finances:   () => GL_SCREENS.renderFinances(),
+      market:     () => GL_SCREENS.renderMarket(),
+      prerace:    () => GL_SCREENS.renderPreRace(),
+      race:       () => GL_SCREENS.renderRace(),
+      postrace:   () => GL_SCREENS.renderPostRace(),
+      admin:      () => { if (window.GL_ADMIN) GL_ADMIN.renderAdminPanel(); },
     };
     if (renderMap[screenId]) renderMap[screenId]();
 

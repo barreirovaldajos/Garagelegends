@@ -607,7 +607,9 @@
       var staffFx = getRaceStaffEffects(pt.staff || []);
       var pilots = pt.pilots || [];
       var strategy = pt.strategy || {};
-      var selectedPilotIds = strategy.selectedPilotIds || pilots.map(function (p) { return p.id; }).slice(0, 2);
+      var selectedPilotIds = (strategy.selectedPilotIds && strategy.selectedPilotIds.length > 0)
+        ? strategy.selectedPilotIds
+        : pilots.map(function (p) { return p.id; }).slice(0, 2);
       var driverConfigs = strategy.driverConfigs || {};
       var teamName = pt.teamName || 'Team';
       var teamColor = pt.colors && pt.colors.primary ? pt.colors.primary : '#e8292a';
