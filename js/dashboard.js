@@ -390,17 +390,19 @@ const DASHBOARD = {
       const previewEl = document.getElementById('dash-circuit-preview');
       if (!previewEl) return;
 
-      // Use division calendar from Firestore (authoritative for MMG)
-      // Fall back to first 'upcoming' if no race is marked 'next' yet
+      // Use division calendar from Firestore; fall back to local state when
+      // Firestore calendar is empty or has no pending races yet.
       const divCal = data.calendar || [];
+      const localCal2 = state.season.calendar || [];
       const next = divCal.find(r => r.status === 'next')
-                || divCal.find(r => r.status === 'upcoming');
+                || divCal.find(r => r.status === 'upcoming')
+                || localCal2.find(r => r.status === 'next')
+                || localCal2.find(r => r.status === 'upcoming');
       if (!next) { previewEl.innerHTML = ''; return; }
 
       const c = next.circuit;
       // Check for saved strategy from local state (strategies live client-side until submitted)
-      const localCal = state.season.calendar || [];
-      const localEntry = localCal.find(r => r.round === next.round);
+      const localEntry = localCal2.find(r => r.round === next.round);
       const hasStrategy = !!(localEntry && localEntry.savedStrategy);
 
       previewEl.innerHTML = `
