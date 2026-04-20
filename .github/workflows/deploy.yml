@@ -11,6 +11,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify critical JS files exist
+        run: |
+          missing=0
+          for f in js/firebase-config.js js/app.js js/auth.js; do
+            if [ ! -f "$f" ]; then
+              echo "ERROR: archivo crítico faltante antes del deploy: $f"
+              missing=1
+            fi
+          done
+          if [ $missing -eq 1 ]; then
+            echo "Deploy cancelado — archivos JS críticos no encontrados en el repo."
+            exit 1
+          fi
+
       - name: Install Firebase Tools
         run: npm install -g firebase-tools
 
