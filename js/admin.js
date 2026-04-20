@@ -348,7 +348,38 @@ const GL_ADMIN = {
     }
 
     // --- 2. Move MP division assignment in Firestore ---
-    const newDivKey = this.divKey(newDivision, newGroup);
+    // Resolve the real document ID by querying Firestore fields (handles both "8_1" and "8_A" formats)
+    const divQuery = await db.collection('divisions')
+      .where('division', '==', Number(newDivision))
+      .where('group', '==', Number(newGroup))
+      .where('phase', '==', 'season')
+      .limit(1)
+      .get();
+    let newDivKey, newDivRef, newDivData;
+    if (!divQuery.empty) {
+      const divDoc = divQuery.docs[0];
+      newDivKey = divDoc.id;
+      newDivRef = db.collection('divisions').doc(newDivKey);
+      newDivData = divDoc.data();
+    } else {
+      // No existing document — create one with the canonical numeric key
+      newDivKey = this.divKey(newDivision, newGroup);
+      newDivRef = db.collection('divisions').doc(newDivKey);
+      newDivData = {
+        division: Number(newDivision),
+        group: Number(newGroup),
+        seasonYear: 1,
+        phase: 'season',
+        slots: {},
+        standings: [],
+        nextRaceRound: 1,
+        raceInProgress: false,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      await newDivRef.set(newDivData);
+    }
+
     const oldMp = data.mp || null;
     const oldDivKey = oldMp && oldMp.divKey ? oldMp.divKey : null;
 
@@ -379,27 +410,6 @@ const GL_ADMIN = {
 
     // Add to new division (standings + slot)
     let newSlotIndex = oldMp && oldDivKey === newDivKey ? (oldMp.slotIndex ?? null) : null;
-    const newDivRef = db.collection('divisions').doc(newDivKey);
-    const newDivSnap = await newDivRef.get();
-    let newDivData;
-    if (!newDivSnap.exists) {
-      // Auto-create the division document so the admin can always move players
-      newDivData = {
-        division: Number(newDivision),
-        group: Number(newGroup),
-        seasonYear: 1,
-        phase: 'season',
-        slots: {},
-        standings: [],
-        nextRaceRound: 1,
-        raceInProgress: false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      await newDivRef.set(newDivData);
-    } else {
-      newDivData = newDivSnap.data();
-    }
 
     // Find slot: 1) empty slot, 2) bot slot to replace, 3) error
     const newSlots = Object.assign({}, newDivData.slots || {});
