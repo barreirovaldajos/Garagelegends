@@ -540,15 +540,15 @@
       var hardDbl = (profile.tyreDegMult > 1.05 ? 0.18 : 0.07) + (strategyId === 'aggressive' ? 0.07 : 0);
       pitPlan = seededUnit(seedRoot + '_hard_double') < hardDbl ? 'double' : 'single';
     } else {
-      var baseDbl = profile.tyreDegMult > 1.06 ? 0.55
-        : profile.tyreDegMult > 1.03 ? 0.38
-        : 0.18;
+      var baseDbl = profile.tyreDegMult > 1.06 ? 0.65
+        : profile.tyreDegMult > 1.03 ? 0.50
+        : 0.38;
       var dblChance = clamp(
         baseDbl
-        + (strategyId === 'aggressive' ? 0.10 : 0)
-        - (strategyId === 'conservative' ? 0.08 : 0)
+        + (strategyId === 'aggressive' ? 0.12 : 0)
+        - (strategyId === 'conservative' ? 0.10 : 0)
         + (tyreSkill < 60 ? 0.08 : 0),
-        0.06, 0.72
+        0.15, 0.80
       );
       pitPlan = seededUnit(seedRoot + '_medium_double') < dblChance ? 'double' : 'single';
     }

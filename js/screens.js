@@ -1332,7 +1332,7 @@ const SCREENS = {
     return `<div class="grid-3 mb-6">
       ${activeSponsors.map(sp => {
         const income = Number(sp.weeklyValue || sp.income || 0);
-        const weeksLeft = Number(sp.weeksLeft || sp.duration || 0);
+        const weeksLeft = sp.weeksLeft != null ? Number(sp.weeksLeft) : Number(sp.duration || 0);
         const penalty = Math.round(income * Math.max(1, weeksLeft) * 0.2);
         const bonusVal = Number(sp.demandBonus || 0);
         const failures = Number(sp.demandFailures || 0);
@@ -1973,19 +1973,15 @@ const SCREENS = {
           <div class="postrace-report-title" style="font-size:0.9rem;font-weight:700">📊 Telemetría de Carrera</div>
           <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:2px">Pilotos ordenados por posición final · ★ vuelta rápida</div>
         </div>
-        <button class="btn btn-secondary" style="font-size:0.76rem;padding:6px 12px" onclick="GL_SCREENS.toggleAnalystReport()">
-          🧠 Informe del Analista
-        </button>
+        ${hasTimingData ? `<button class="btn btn-secondary" style="font-size:0.76rem;padding:6px 12px" onclick="GL_SCREENS.toggleAnalystReport()">🧠 Informe del Analista</button>` : ''}
       </div>
 
-      <div id="postrace-analyst-panel" style="display:none;margin-bottom:14px;padding:14px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border)">
-        <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary);margin-bottom:10px">
-          Análisis de tu equipo vs el campo
-        </div>
+      ${hasTimingData ? `<div id="postrace-analyst-panel" style="display:none;margin-bottom:14px;padding:14px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border)">
+        <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary);margin-bottom:10px">Análisis de tu equipo vs el campo</div>
         <div style="display:flex;flex-direction:column;gap:8px">
           ${analystLines || '<div style="font-size:0.78rem;color:var(--t-secondary)">No hay datos suficientes para generar el informe.</div>'}
         </div>
-      </div>
+      </div>` : ''}
 
       ${!hasTimingData ? `<div style="font-size:0.72rem;color:var(--t-tertiary);padding:4px 0 8px 0">⚠️ Datos de timing no disponibles para carreras multijugador (columnas de tiempo muestran —)</div>` : ''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -2010,14 +2006,20 @@ const SCREENS = {
               const namePart = isPlayer ? `<strong style="color:var(--c-accent)">${row.name}</strong>` : row.name;
               const posLabel = row.isDNF ? '<span style="color:var(--c-red)">DNF</span>' : `P${row.finishPos}`;
               const isFastestLap = Number.isFinite(row.bestLapMs) && Math.abs(row.bestLapMs - best.bestLapMs) < 1;
+              const live = rows.filter(r => !r.isDNF);
+              const hAvg  = heatStyle(row.avgLapMs,       live.map(r => r.avgLapMs),       true);
+              const hBest = heatStyle(row.bestLapMs,      live.map(r => r.bestLapMs),      true);
+              const hCons = heatStyle(row.consistencyMs,  live.map(r => r.consistencyMs),  true);
+              const hPure = heatStyle(row.pureRaceMs,     live.map(r => r.pureRaceMs),     true);
+              const hPit  = row.avgPitMs != null ? heatStyle(row.avgPitMs, live.filter(r => r.avgPitMs != null).map(r => r.avgPitMs), true) : '';
               const timingCells = hasTimingData ? `
-                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtLap(row.avgLapMs)}</td>
-                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${hAvg}">${fmtLap(row.avgLapMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${hBest}">
                   ${fmtLap(row.bestLapMs)}${isFastestLap ? ' <span title="Vuelta rápida" style="color:#c084fc;font-size:0.7rem">★</span>' : ''}
                 </td>
-                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtConsist(row.consistencyMs)}</td>
-                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtPure(row.pureRaceMs)}</td>
-                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtSec(row.avgPitMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${hCons}">${fmtConsist(row.consistencyMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${hPure}">${fmtPure(row.pureRaceMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${hPit}">${fmtSec(row.avgPitMs)}</td>
               ` : '';
               return `<tr style="${rowBg}">
                 <td style="white-space:nowrap;padding:7px 10px;font-size:0.78rem">
@@ -2553,7 +2555,7 @@ const SCREENS = {
             ? activeSponsors
                 .map((sp) => {
                   const incomeVal = Number(sp.weeklyValue || sp.income || 0);
-                  const weeksLeft = Number(sp.weeksLeft || sp.duration || 0);
+                  const weeksLeft = sp.weeksLeft != null ? Number(sp.weeksLeft) : Number(sp.duration || 0);
                   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)">
                     <div style="display:flex;align-items:center;gap:8px;min-width:0">
                       <span style="font-size:1rem">${sp.logo || '💼'}</span>

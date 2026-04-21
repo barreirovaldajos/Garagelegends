@@ -3509,6 +3509,7 @@ window.GL_ENGINE = {
   buildRacePerformanceReport, buildRaceAdminReport, buildRaceArchiveRecord, upsertRaceArchiveRecord, buildRaceComparisonStats,
   getFinanceOverview,
   weeklyTick, applyRaceWeekendEconomy, evaluateSponsorDemands, updateConstructionQueue, startHqUpgrade,
+  processWeeklyAgreements: processWeeklyAgreementLifecycle,
   // Research/I+D
   startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,
   getRaceStaffEffects,

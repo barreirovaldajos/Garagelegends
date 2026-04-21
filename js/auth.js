@@ -149,13 +149,22 @@
       }
       if (pendingRaceResult) {
         if (!Array.isArray(state.raceResults)) state.raceResults = [];
-        // Avoid duplicates by round
+        // Avoid duplicates by round+ts
         if (!state.raceResults.find(r => r.round === pendingRaceResult.round && r.ts === pendingRaceResult.ts)) {
           state.raceResults.push(pendingRaceResult);
         }
         // Update lastRaceSettlement for finance panel
         if (!state.finances) state.finances = {};
         state.finances.lastRaceSettlement = { prizeDelta: pendingRaceResult.prizeMoney, week: pendingRaceResult.round };
+        // Decrement sponsor/staff contract durations (1 race = 1 week in MP)
+        if (window.GL_ENGINE && GL_ENGINE.processWeeklyAgreements) {
+          GL_ENGINE.processWeeklyAgreements(state);
+        } else if (state.sponsors) {
+          // Fallback: decrement weeksLeft directly
+          state.sponsors.forEach(sp => {
+            if (typeof sp.weeksLeft === 'number') sp.weeksLeft = Math.max(0, sp.weeksLeft - 1);
+          });
+        }
       }
 
       const sd = JSON.parse(JSON.stringify(state));
