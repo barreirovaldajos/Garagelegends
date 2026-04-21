@@ -308,7 +308,7 @@ const DASHBOARD = {
             <svg viewBox="${this.CIRCUIT_SVG_VIEWBOX}" class="circuit-svg">${this.circuitSVG(c.id || c.layout)}</svg>
           </div>
           ${GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer()
-            ? `<div style="font-size:0.74rem;color:var(--c-accent);margin-bottom:4px">📡 ${__('dash_mp_mode') || 'Modo Multiplayer'} · ${__('division')} ${(GL_AUTH.mp && GL_AUTH.mp.division) || '?'}-${(GL_AUTH.mp && GL_AUTH.mp.divisionGroup) || '?'}</div>`
+            ? `<div style="font-size:0.74rem;color:var(--c-accent);margin-bottom:4px">📡 ${__('dash_mp_mode') || 'Modo Multiplayer'} · ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel && GL_AUTH.mp) ? Divisions.divisionLabel(GL_AUTH.mp.division, GL_AUTH.mp.divisionGroup) : `${(GL_AUTH.mp && GL_AUTH.mp.division) || '?'}-${(GL_AUTH.mp && GL_AUTH.mp.divisionGroup) || '?'}`}</div>`
             : ''}
           <div style="display:flex;gap:var(--s-3)">
             <button class="btn btn-primary flex-1" onclick="GL_APP.navigateTo('prerace')">${window.__('dash_race_prep') || 'Preparar Estrategia'}</button>
@@ -369,7 +369,7 @@ const DASHBOARD = {
       el.innerHTML = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
           <div>
-            <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${data.division}-${data.group} · ${divInfo.name || ''}</div>
+            <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(data.division, data.group) : `${data.division}-${data.group}`} · ${divInfo.name || ''}</div>
           </div>
           <div style="text-align:right">
             <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
