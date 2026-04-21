@@ -1315,7 +1315,11 @@
         return {
           id: e.id, teamId: e.teamId, name: e.name, pilotName: e.pilotName,
           color: e.color, isPlayer: e.isPlayer, pos: e.pos, retired: e.retired,
-          tyre: e.tyre, pitStopsDone: e.pitStopsDone || 0
+          tyre: e.tyre, pitStopsDone: e.pitStopsDone || 0,
+          timeMs: e.timeMs || 0,
+          pitTimeMs: e.pitTimeMs || 0,
+          lapTimesMs: e.lapTimesMs || [],
+          pitStopLosses: e.pitStopLosses || []
         };
       }),
       gridStart: gridStart.map(function (e) {

@@ -85,30 +85,23 @@
           }
           // Apply any pending MP rewards (credits, fans) before loading state.
           // These fields live outside save_data so SP saves cannot overwrite them.
-          const pendingCredits = (data.mp && data.mp.pendingCredits) || 0;
-          const pendingFans    = (data.mp && data.mp.pendingFans)    || 0;
-          if ((pendingCredits > 0 || pendingFans > 0) && data.save_data) {
-            const sd = JSON.parse(JSON.stringify(data.save_data));
-            if (pendingCredits > 0) {
-              if (!sd.finances) sd.finances = {};
-              sd.finances.credits = (sd.finances.credits || 0) + pendingCredits;
+          // Pending MP rewards are applied via _applyMpPending (also called by onSnapshot listener).
+          // Pre-apply to data.save_data so state loads with correct values immediately.
+          const pendingCredits    = (data.mp && data.mp.pendingCredits)    || 0;
+          const pendingFans       = (data.mp && data.mp.pendingFans)       || 0;
+          const pendingRaceResult = (data.mp && data.mp.pendingRaceResult) || null;
+          if ((pendingCredits > 0 || pendingFans > 0 || pendingRaceResult) && data.save_data) {
+            const sd = data.save_data;
+            if (pendingCredits > 0) { if (!sd.finances) sd.finances = {}; sd.finances.credits = (sd.finances.credits || 0) + pendingCredits; }
+            if (pendingFans    > 0) { if (!sd.team)     sd.team     = {}; sd.team.fans         = (sd.team.fans     || 0) + pendingFans; }
+            if (pendingRaceResult) {
+              if (!Array.isArray(sd.raceResults)) sd.raceResults = [];
+              if (!sd.raceResults.find(r => r.round === pendingRaceResult.round && r.ts === pendingRaceResult.ts))
+                sd.raceResults.push(pendingRaceResult);
             }
-            if (pendingFans > 0) {
-              if (!sd.team) sd.team = {};
-              sd.team.fans = (sd.team.fans || 0) + pendingFans;
-            }
-            // Bump saveTime so this remote state wins over any local cache
             if (!sd.meta) sd.meta = {};
             sd.meta.saveTime = Date.now();
-            data.save_data = sd;
-            data.mp = Object.assign({}, data.mp, { pendingCredits: 0, pendingFans: 0 });
-            const fsUpdates = {
-              save_data: sd,
-              save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            if (pendingCredits > 0) fsUpdates['mp.pendingCredits'] = firebase.firestore.FieldValue.delete();
-            if (pendingFans    > 0) fsUpdates['mp.pendingFans']    = firebase.firestore.FieldValue.delete();
-            ref.update(fsUpdates).catch(e => console.warn('Failed to persist MP rewards:', e));
+            data.mp = Object.assign({}, data.mp, { pendingCredits: 0, pendingFans: 0, pendingRaceResult: null });
           }
           this.profile = data;
           this.role = data.role || 'player';
@@ -139,41 +132,55 @@
       }
     },
 
+    _applyMpPending(data, profileRef) {
+      const pendingCredits    = (data.mp && data.mp.pendingCredits)    || 0;
+      const pendingFans       = (data.mp && data.mp.pendingFans)       || 0;
+      const pendingRaceResult = (data.mp && data.mp.pendingRaceResult) || null;
+      if (pendingCredits <= 0 && pendingFans <= 0 && !pendingRaceResult) return false;
+
+      const state = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
+      if (!state) return false;
+
+      if (pendingCredits > 0 && state.finances) {
+        state.finances.credits = (state.finances.credits || 0) + pendingCredits;
+      }
+      if (pendingFans > 0 && state.team) {
+        state.team.fans = (state.team.fans || 0) + pendingFans;
+      }
+      if (pendingRaceResult) {
+        if (!Array.isArray(state.raceResults)) state.raceResults = [];
+        // Avoid duplicates by round
+        if (!state.raceResults.find(r => r.round === pendingRaceResult.round && r.ts === pendingRaceResult.ts)) {
+          state.raceResults.push(pendingRaceResult);
+        }
+        // Update lastRaceSettlement for finance panel
+        if (!state.finances) state.finances = {};
+        state.finances.lastRaceSettlement = { prizeDelta: pendingRaceResult.prizeMoney, week: pendingRaceResult.round };
+      }
+
+      const sd = JSON.parse(JSON.stringify(state));
+      if (!sd.meta) sd.meta = {};
+      sd.meta.saveTime = Date.now();
+      const fsUpdates = {
+        save_data: sd,
+        save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      if (pendingCredits    > 0) fsUpdates['mp.pendingCredits']    = firebase.firestore.FieldValue.delete();
+      if (pendingFans       > 0) fsUpdates['mp.pendingFans']       = firebase.firestore.FieldValue.delete();
+      if (pendingRaceResult)     fsUpdates['mp.pendingRaceResult'] = firebase.firestore.FieldValue.delete();
+      profileRef.update(fsUpdates).then(() => {
+        this.remoteSave = sd;
+        this.remoteSaveUpdatedAt = sd.meta.saveTime;
+        if (window.GL_DASHBOARD && GL_DASHBOARD.renderTopbar) GL_DASHBOARD.renderTopbar(state);
+        else if (window.GL_APP && GL_APP.refreshTopbar) GL_APP.refreshTopbar();
+      }).catch(e => console.warn('Failed to apply MP rewards:', e));
+      return true;
+    },
+
     _startMpRewardsListener(profileRef) {
       this._mpRewardsListener = profileRef.onSnapshot(snap => {
         if (!snap.exists || !this.user) return;
-        const data = snap.data();
-        const pendingCredits = (data.mp && data.mp.pendingCredits) || 0;
-        const pendingFans    = (data.mp && data.mp.pendingFans)    || 0;
-        if (pendingCredits <= 0 && pendingFans <= 0) return;
-
-        // Apply rewards to local state immediately
-        const state = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
-        if (!state) return;
-        if (pendingCredits > 0 && state.finances) {
-          state.finances.credits = (state.finances.credits || 0) + pendingCredits;
-        }
-        if (pendingFans > 0 && state.team) {
-          state.team.fans = (state.team.fans || 0) + pendingFans;
-        }
-
-        // Persist: write updated save_data + clear pending fields
-        const sd = JSON.parse(JSON.stringify(state));
-        if (!sd.meta) sd.meta = {};
-        sd.meta.saveTime = Date.now();
-        const fsUpdates = {
-          save_data: sd,
-          save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        if (pendingCredits > 0) fsUpdates['mp.pendingCredits'] = firebase.firestore.FieldValue.delete();
-        if (pendingFans    > 0) fsUpdates['mp.pendingFans']    = firebase.firestore.FieldValue.delete();
-        profileRef.update(fsUpdates).then(() => {
-          this.remoteSave = sd;
-          this.remoteSaveUpdatedAt = sd.meta.saveTime;
-          // Refresh topbar display
-          if (window.GL_DASHBOARD && GL_DASHBOARD.renderTopbar) GL_DASHBOARD.renderTopbar(state);
-          else if (window.GL_APP && GL_APP.refreshTopbar) GL_APP.refreshTopbar();
-        }).catch(e => console.warn('Failed to apply MP rewards:', e));
+        this._applyMpPending(snap.data(), profileRef);
       });
     },
 

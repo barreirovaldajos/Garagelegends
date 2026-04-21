@@ -201,9 +201,17 @@ async function runRaceForDivision(db, divKey, opts) {
       const bestPos    = (summary && summary.bestPosition) || 99;
       const podiumMult = bestPos === 1 ? 2.2 : bestPos === 2 ? 1.6 : bestPos === 3 ? 1.3 : 1.0;
       const fansGained = Math.round(((FAN_BASE[division] || 50) + points * (FAN_PER_PT[division] || 10)) * podiumMult);
+      // Compact race result for save_data.raceResults (sponsors + finance panel)
+      const raceEntry = {
+        round, points, prizeMoney, fansGained,
+        position: bestPos,
+        circuit: { name: circuit.name, country: circuit.country || '', layout: circuit.layout || '' },
+        weather,
+        ts: Date.now()
+      };
       try {
         const profileRef = db.collection('profiles').doc(pt.userId);
-        const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp() };
+        const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp(), 'mp.pendingRaceResult': raceEntry };
         if (prizeMoney > 0) updates['mp.pendingCredits'] = FieldValue.increment(prizeMoney);
         if (fansGained  > 0) updates['mp.pendingFans']   = FieldValue.increment(fansGained);
         await profileRef.update(updates);
