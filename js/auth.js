@@ -97,6 +97,9 @@
               if (!sd.team) sd.team = {};
               sd.team.fans = (sd.team.fans || 0) + pendingFans;
             }
+            // Bump saveTime so this remote state wins over any local cache
+            if (!sd.meta) sd.meta = {};
+            sd.meta.saveTime = Date.now();
             data.save_data = sd;
             data.mp = Object.assign({}, data.mp, { pendingCredits: 0, pendingFans: 0 });
             const fsUpdates = {
