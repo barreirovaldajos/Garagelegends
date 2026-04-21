@@ -189,65 +189,22 @@ async function runRaceForDivision(db, divKey, opts) {
       nextRaceRound:         isLastRace ? null : calendar[nextUpcomingIdx].round
     });
 
-    // ── 9. Update each player's profile ──────────────────────────────────────
+    // ── 9. Update each player's mp field with pending prize money ────────────
+    // Prize money is stored in mp.pendingCredits (outside save_data) so it
+    // cannot be overwritten when the client saves SP game state.
+    // The client applies pendingCredits to save_data.finances.credits on next load.
     for (const pt of playerTeams) {
-      const summary = result.teamSummaries && result.teamSummaries[pt.userId];
+      const summary = result.teamSummaries && result.teamSummaries[pt.teamId];
+      const prizeMoney = (summary && summary.prizeMoney) || 0;
       try {
-        const profileRef  = db.collection('profiles').doc(pt.userId);
-        const profileSnap = await profileRef.get();
-        if (!profileSnap.exists) continue;
-
-        const profileData = profileSnap.data();
-        const saveData    = profileData.save_data;
-        if (!saveData) continue;
-
-        // --- prize money ---
-        if (summary && summary.prizeMoney > 0) {
-          if (saveData.finances) {
-            saveData.finances.credits = (saveData.finances.credits || 0) + summary.prizeMoney;
-            saveData.finances.lastRaceSettlement = {
-              prizeDelta: summary.prizeMoney,
-              week:       saveData.season ? (saveData.season.week || 0) : 0
-            };
-          }
+        const profileRef = db.collection('profiles').doc(pt.userId);
+        const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp() };
+        if (prizeMoney > 0) {
+          updates['mp.pendingCredits'] = FieldValue.increment(prizeMoney);
         }
-
-        // --- race result record (so client sees history in Mi Equipo) ---
-        const myCars = (result.allCarsResults || []).filter(c => c.teamId === pt.userId);
-        if (myCars.length > 0) {
-          const bestPos = myCars.reduce((best, c) => Math.min(best, c.position || 99), 99);
-          if (!Array.isArray(saveData.raceResults)) saveData.raceResults = [];
-          saveData.raceResults.push({
-            round,
-            circuit:  { name: circuit.name, country: circuit.country || '', layout: circuit.layout || '' },
-            position: bestPos,
-            finishPosition: bestPos,
-            points:   summary ? (summary.points    || 0) : 0,
-            prizeMoney: summary ? (summary.prizeMoney || 0) : 0,
-            weather,
-            usedDefaultStrategy: defaultStratUsers.includes(pt.userId),
-            ts: Date.now()
-          });
-        }
-
-        // --- mark calendar race as completed in player's local save ---
-        if (saveData.season && Array.isArray(saveData.season.calendar)) {
-          const calEntry = saveData.season.calendar.find(r => r.round === round);
-          if (calEntry) {
-            calEntry.status = 'completed';
-            const myCar = myCars.length > 0
-              ? myCars.reduce((best, c) => (c.position || 99) < (best.position || 99) ? c : best, myCars[0])
-              : null;
-            if (myCar) calEntry.result = { position: myCar.position, points: myCar.points || 0 };
-          }
-          // Mark next upcoming as 'next' in player's calendar too
-          const playerNextUpcoming = saveData.season.calendar.find(r => r.status === 'upcoming');
-          if (playerNextUpcoming) playerNextUpcoming.status = 'next';
-        }
-
-        await profileRef.update({ save_data: saveData, save_updated_at: FieldValue.serverTimestamp() });
+        await profileRef.update(updates);
       } catch (profileErr) {
-        require('firebase-functions').logger.error(`Failed to update profile for ${pt.userId}:`, profileErr);
+        require('firebase-functions').logger.error(`Failed to update mp for ${pt.userId}:`, profileErr);
       }
     }
 

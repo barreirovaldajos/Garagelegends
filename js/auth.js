@@ -83,6 +83,22 @@
           if ((data.email || '') !== (this.user.email || '')) {
             await ref.update({ email: this.user.email || '' });
           }
+          // Apply any pending MP prize money before loading state.
+          // pendingCredits lives outside save_data so SP saves cannot overwrite it.
+          if (data.mp && data.mp.pendingCredits > 0 && data.save_data) {
+            const pending = data.mp.pendingCredits;
+            const sd = JSON.parse(JSON.stringify(data.save_data));
+            if (!sd.finances) sd.finances = {};
+            sd.finances.credits = (sd.finances.credits || 0) + pending;
+            data.save_data = sd;
+            data.mp = Object.assign({}, data.mp, { pendingCredits: 0 });
+            // Persist: write updated save_data + clear pendingCredits atomically
+            ref.update({
+              save_data: sd,
+              'mp.pendingCredits': firebase.firestore.FieldValue.delete(),
+              save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(e => console.warn('Failed to persist MP credits:', e));
+          }
           this.profile = data;
           this.role = data.role || 'player';
           this.mp = data.mp || null;
