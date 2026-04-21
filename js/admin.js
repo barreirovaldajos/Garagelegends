@@ -419,10 +419,17 @@ const GL_ADMIN = {
     }
     if (newSlotIndex == null) throw new Error(`Division ${newDivKey} is full (no open or bot slots).`);
 
-    // Build team snapshot from save_data
+    // Build team snapshot from save_data (full snapshot so race engine has pilots/car)
     const teamSnap = {
-      teamName: (saveData.team && saveData.team.name) || 'Team',
-      colors: (saveData.team && saveData.team.colors) || { primary: '#888' }
+      teamName:       (saveData.team && saveData.team.name)            || 'Team',
+      colors:         (saveData.team && saveData.team.colors)          || { primary: '#888', secondary: '#0a0b0f' },
+      logo:           (saveData.team && saveData.team.logo)            || '',
+      pilots:         saveData.pilots || [],
+      car:            { components: (saveData.car && saveData.car.components) || {} },
+      staff:          saveData.staff  || [],
+      hq:             saveData.hq     || { admin:1, wind_tunnel:1, rnd:1, factory:1, academy:1 },
+      engineSupplier: (saveData.team && saveData.team.engineSupplier)  || '',
+      fans:           (saveData.team && saveData.team.fans)            || 1000
     };
     newSlots[String(newSlotIndex)] = {
       type: 'player',

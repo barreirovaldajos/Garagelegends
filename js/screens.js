@@ -3742,9 +3742,40 @@ const SCREENS = {
 
   // ===== POST-RACE SCREEN =====
   renderPostRace() {
-    const result = window._lastRaceResult;
     const el = document.getElementById('screen-postrace');
     if (!el) return;
+
+    // In MP mode, load the last race result from Firestore if not already loaded
+    const isMP = typeof GL_ENGINE !== 'undefined' && GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer();
+    if (isMP && GL_AUTH && GL_AUTH.mp && GL_AUTH._db && GL_AUTH.user) {
+      const mp = GL_AUTH.mp;
+      const uid = GL_AUTH.user.uid;
+      const divSnap = GL_AUTH._db.collection('divisions').doc(mp.divKey);
+      divSnap.get().then(snap => {
+        if (!snap.exists) return;
+        const divData = snap.data();
+        const lastRound = divData.lastRaceRound;
+        if (!lastRound) return;
+        // Avoid re-fetching if already loaded for this round
+        if (window._lastRaceResult && window._lastRaceResult._mpRound === lastRound) {
+          return; // Already loaded, render below will pick it up
+        }
+        el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">Cargando resultado...</p></div>`;
+        snap.ref.collection('raceResults').doc(String(lastRound)).get().then(rSnap => {
+          if (!rSnap.exists) return;
+          const r = rSnap.data();
+          const myCars = (r.allCarsResults || []).filter(c => c.teamId === uid);
+          window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound };
+          GL_SCREENS.renderPostRace();
+        }).catch(() => {});
+      }).catch(() => {});
+      if (!window._lastRaceResult || !window._lastRaceResult._mpRound) {
+        el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">Cargando resultado...</p></div>`;
+        return;
+      }
+    }
+
+    const result = window._lastRaceResult;
     if (!result) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('postrace_no_result')}</p></div>`; return; }
     const playerCars = (Array.isArray(result.playerCars) ? result.playerCars : [])
       .slice()
