@@ -1,4 +1,4 @@
-// ===== CLOUD FUNCTIONS – Garage Legends Multiplayer =====
+// ===== CLOUD FUNCTIONS – Garage Legends Multiplayer (v2) =====
 'use strict';
 
 const functions = require('firebase-functions');
