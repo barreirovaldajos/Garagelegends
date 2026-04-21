@@ -2035,6 +2035,31 @@ const SCREENS = {
   },
 
   openRaceReport(round) {
+    const isMP = typeof GL_ENGINE !== 'undefined' && GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer();
+    if (isMP && GL_AUTH && GL_AUTH.mp && GL_AUTH._db && GL_AUTH.user) {
+      const uid = GL_AUTH.user.uid;
+      GL_AUTH._db.collection('divisions').doc(GL_AUTH.mp.divKey)
+        .collection('raceResults').doc(String(round)).get()
+        .then(snap => {
+          if (!snap.exists) { GL_UI.toast(__('calendar_report_unavailable'), 'info'); return; }
+          const r = snap.data();
+          const ts = (r.teamSummaries && r.teamSummaries[uid]) || {};
+          const myCars = ts.cars || (r.allCarsResults || []).filter(c => c.teamId === uid);
+          const record = {
+            ...r,
+            playerCars: myCars,
+            points: ts.points || 0,
+            prizeMoney: ts.prizeMoney || 0,
+          };
+          const titleSuffix = record.circuit?.name || `R${round}`;
+          GL_UI.openModal({
+            title: `${__('postrace_title')} · ${titleSuffix}`,
+            size: 'xl',
+            content: GL_SCREENS._buildRaceReportModalContent(record, round)
+          });
+        }).catch(() => GL_UI.toast(__('calendar_report_unavailable'), 'info'));
+      return;
+    }
     const record = this.getRaceArchiveRecord(round);
     if (!record) {
       GL_UI.toast(__('calendar_report_unavailable'), 'info');
@@ -2313,9 +2338,8 @@ const SCREENS = {
             </div>
             <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
-              ${isDone && res ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-                <div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div>
-                <div class="calendar-result-pts">+${res.points} ${__('points')}</div>
+              ${isDone ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                ${res && res.position != null ? `<div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div><div class="calendar-result-pts">+${res.points ?? 0} ${__('points')}</div>` : `<div class="calendar-result-pos" style="color:var(--t-secondary)">—</div>`}
                 <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
               </div>` :
               isNext ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">

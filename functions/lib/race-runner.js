@@ -169,7 +169,11 @@ async function runRaceForDivision(db, divKey, opts) {
     calendar[nextRaceIdx].status = 'completed';
     calendar[nextRaceIdx].result = {
       simulatedAt:  new Date().toISOString(),
-      topPositions: (result.finalGrid || []).slice(0, 3).map(c => ({ name: c.name, teamId: c.teamId }))
+      topPositions: (result.finalGrid || []).slice(0, 3).map(c => ({ name: c.name, teamId: c.teamId })),
+      playerPositions: playerTeams.map(pt => {
+        const ts = result.teamSummaries && result.teamSummaries[pt.teamId];
+        return { teamId: pt.teamId, position: ts ? ts.bestPosition : 99, points: ts ? ts.points : 0, prizeMoney: ts ? ts.prizeMoney : 0 };
+      })
     };
 
     const nextUpcomingIdx = calendar.findIndex(r => r.status === 'upcoming');
