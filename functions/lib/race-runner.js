@@ -2,8 +2,8 @@
 'use strict';
 
 const { FieldValue } = require('firebase-admin').firestore;
-const engineCore = require('../shared/engine-core.js');
-const sharedData = require('../shared/data-constants.js');
+const engineCore = require('./shared/engine-core.js');
+const sharedData = require('./shared/data-constants.js');
 
 /**
  * Run a race for a single division group.
