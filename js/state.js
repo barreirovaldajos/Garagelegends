@@ -678,12 +678,16 @@ function syncCalendarFromDivision(divData) {
   localCal.forEach(r => { if (r && r.round) localByRound[r.round] = r; });
 
   // Merge: division owns circuit/status/weather/forecast; player owns result/savedStrategy
+  const uid = window.GL_AUTH && GL_AUTH.user && GL_AUTH.user.uid;
   _state.season.calendar = divCal.map(divRace => {
     const local = localByRound[divRace.round] || {};
-    return Object.assign({}, divRace, {
-      result: local.result || divRace.result || null,
-      savedStrategy: local.savedStrategy || null
-    });
+    // Extract player-specific position from playerPositions if available (MP races)
+    let result = local.result || divRace.result || null;
+    if (uid && divRace.result && Array.isArray(divRace.result.playerPositions)) {
+      const pp = divRace.result.playerPositions.find(p => p.teamId === uid);
+      if (pp) result = Object.assign({}, divRace.result, { position: pp.position, points: pp.points, prizeMoney: pp.prizeMoney });
+    }
+    return Object.assign({}, divRace, { result, savedStrategy: local.savedStrategy || null });
   });
 
   const nextIdx = _state.season.calendar.findIndex(r => r.status === 'next');

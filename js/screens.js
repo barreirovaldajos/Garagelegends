@@ -1817,6 +1817,8 @@ const SCREENS = {
     if (!rows || !rows.length) {
       return `<p style="color:var(--t-secondary);font-size:0.82rem">Sin datos de telemetría disponibles.</p>`;
     }
+    // Detect if timing data is available (server MP races don't generate lap times)
+    const hasTimingData = rows.some(r => r.avgLapMs > 0);
 
     // ── Formatters ─────────────────────────────────────────────────────────
     const fmtLap = (ms) => {
@@ -1866,36 +1868,7 @@ const SCREENS = {
     // ── Best lap overall ───────────────────────────────────────────────────
     const overallBestLapMs = best.bestLapMs;
 
-    // ── Table rows ─────────────────────────────────────────────────────────
-    const tableRows = rows.map((row, i) => {
-      const isPlayer = row.isPlayer;
-      const rowBg = isPlayer ? 'background:var(--c-surface-2);border-left:3px solid var(--c-accent)' : '';
-      const namePart = isPlayer
-        ? `<strong style="color:var(--c-accent)">${row.name}</strong>`
-        : row.name;
-      const posLabel = row.isDNF ? '<span style="color:var(--c-red)">DNF</span>' : `P${row.finishPos}`;
-      const isFastestLap = Number.isFinite(row.bestLapMs) && Math.abs(row.bestLapMs - overallBestLapMs) < 1;
-
-      const cellAvg    = heatStyle(row.avgLapMs, colAvgLap, true);
-      const cellBest   = heatStyle(row.bestLapMs, colBestLap, true);
-      const cellConsis = heatStyle(row.consistencyMs, colConsist, true);
-      const cellPure   = heatStyle(row.pureRaceMs, colPureRace, true);
-      const cellPit    = row.avgPitMs !== null ? heatStyle(row.avgPitMs, colAvgPit, true) : '';
-
-      return `<tr style="${rowBg}">
-        <td style="white-space:nowrap;padding:7px 10px;font-size:0.78rem">
-          <span style="color:var(--t-secondary);margin-right:6px;font-size:0.72rem">${posLabel}</span>${namePart}
-        </td>
-        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellAvg}">${fmtLap(row.avgLapMs)}</td>
-        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellBest}">
-          ${fmtLap(row.bestLapMs)}${isFastestLap ? ' <span title="Vuelta rápida" style="color:#c084fc;font-size:0.7rem">★</span>' : ''}
-        </td>
-        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellConsis}">${fmtConsist(row.consistencyMs)}</td>
-        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellPure}">${fmtPure(row.pureRaceMs)}</td>
-        <td style="text-align:center;padding:6px 8px;font-size:0.78rem;${cellPit}">${fmtSec(row.avgPitMs)}</td>
-        <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtPosGain(row.posGain)}</td>
-      </tr>`;
-    }).join('');
+    // Table rows are rendered inline in the return block below (with hasTimingData guard)
 
     // ── Analyst report ─────────────────────────────────────────────────────
     const playerRows = rows.filter(r => r.isPlayer && !r.isDNF);
@@ -2014,21 +1987,46 @@ const SCREENS = {
         </div>
       </div>
 
+      ${!hasTimingData ? `<div style="font-size:0.72rem;color:var(--t-tertiary);padding:4px 0 8px 0">⚠️ Datos de timing no disponibles para carreras multijugador (columnas de tiempo muestran —)</div>` : ''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:580px">
+        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:${hasTimingData ? '580' : '300'}px">
           <thead>
             <tr style="background:var(--c-surface-2)">
               <th style="${thFirstStyle}">Piloto</th>
+              ${hasTimingData ? `
               <th style="${thStyle}" title="Tiempo promedio por vuelta excluyendo pit stops">Ritmo prom.</th>
               <th style="${thStyle}" title="Vuelta más rápida de la carrera">Vuelta rápida</th>
               <th style="${thStyle}" title="Variabilidad del ritmo — menor es más regular">Consistencia</th>
               <th style="${thStyle}" title="Tiempo total de carrera sin contar pit stops">Tiempo puro</th>
               <th style="${thStyle}" title="Tiempo promedio perdido por parada en boxes">Pits (prom.)</th>
+              ` : ''}
               <th style="${thStyle}" title="Posiciones ganadas o perdidas desde la salida">Δ Pos</th>
             </tr>
           </thead>
           <tbody>
-            ${tableRows}
+            ${rows.map((row, i) => {
+              const isPlayer = row.isPlayer;
+              const rowBg = isPlayer ? 'background:var(--c-surface-2);border-left:3px solid var(--c-accent)' : '';
+              const namePart = isPlayer ? `<strong style="color:var(--c-accent)">${row.name}</strong>` : row.name;
+              const posLabel = row.isDNF ? '<span style="color:var(--c-red)">DNF</span>' : `P${row.finishPos}`;
+              const isFastestLap = Number.isFinite(row.bestLapMs) && Math.abs(row.bestLapMs - best.bestLapMs) < 1;
+              const timingCells = hasTimingData ? `
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtLap(row.avgLapMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">
+                  ${fmtLap(row.bestLapMs)}${isFastestLap ? ' <span title="Vuelta rápida" style="color:#c084fc;font-size:0.7rem">★</span>' : ''}
+                </td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtConsist(row.consistencyMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtPure(row.pureRaceMs)}</td>
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtSec(row.avgPitMs)}</td>
+              ` : '';
+              return `<tr style="${rowBg}">
+                <td style="white-space:nowrap;padding:7px 10px;font-size:0.78rem">
+                  <span style="color:var(--t-secondary);margin-right:6px;font-size:0.72rem">${posLabel}</span>${namePart}
+                </td>
+                ${timingCells}
+                <td style="text-align:center;padding:6px 8px;font-size:0.78rem">${fmtPosGain(row.posGain)}</td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>`;
@@ -2135,16 +2133,27 @@ const SCREENS = {
 
     // Strategy audit rows
     const strategyRows = finalGrid.map((car, idx) => {
-      const summary = this.formatPitStrategySummary(car.strategy || {});
+      let planLabel, stopSummary, tyreSummary;
+      if (car.strategy) {
+        // SP race: full strategy data available
+        const summary = this.formatPitStrategySummary(car.strategy);
+        planLabel = summary.planLabel; stopSummary = summary.stopSummary; tyreSummary = summary.tyreSummary;
+      } else {
+        // MP race: use actual race data (pitStopsDone, tyre)
+        const stops = car.pitStopsDone != null ? car.pitStopsDone : '?';
+        planLabel = stops === 1 ? this.getPitPlanLabel('single') : stops >= 2 ? this.getPitPlanLabel('double') : `${stops} ${__('pit_stops','paradas')}`;
+        stopSummary = `${stops} ${__('pit_stop_count', 'parada(s)')}`;
+        tyreSummary = car.tyre ? this.getCompoundLabel(car.tyre) : '—';
+      }
       return `<div class="postrace-strategy-row ${car.isPlayer ? 'my-car' : ''}">
         <div class="postrace-strategy-main">
           <span class="postrace-strategy-pos">P${idx + 1}</span>
           <span class="postrace-strategy-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
-          <span class="postrace-strategy-plan">${summary.planLabel}</span>
+          <span class="postrace-strategy-plan">${planLabel}</span>
         </div>
         <div class="postrace-strategy-meta">
-          <span>${summary.stopSummary}</span>
-          <span>${summary.tyreSummary}</span>
+          <span>${stopSummary}</span>
+          <span>${tyreSummary}</span>
         </div>
       </div>`;
     }).join('');

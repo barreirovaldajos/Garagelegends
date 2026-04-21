@@ -130,11 +130,51 @@
         this.lastProfileLoadAt = Date.now();
         this.syncStatus = this.remoteSave ? 'synced' : 'ready';
         this.lastSyncError = ''; this.lastSyncErrorAt = 0;
+        // Start real-time listener for MP rewards (applied without requiring page reload)
+        if (!this._mpRewardsListener) this._startMpRewardsListener(ref);
       } catch (e) {
         this.syncStatus = 'error'; this.lastSyncError = e.message || String(e);
         this.lastSyncErrorAt = Date.now();
         console.warn('Profile load warning:', this.lastSyncError);
       }
+    },
+
+    _startMpRewardsListener(profileRef) {
+      this._mpRewardsListener = profileRef.onSnapshot(snap => {
+        if (!snap.exists || !this.user) return;
+        const data = snap.data();
+        const pendingCredits = (data.mp && data.mp.pendingCredits) || 0;
+        const pendingFans    = (data.mp && data.mp.pendingFans)    || 0;
+        if (pendingCredits <= 0 && pendingFans <= 0) return;
+
+        // Apply rewards to local state immediately
+        const state = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
+        if (!state) return;
+        if (pendingCredits > 0 && state.finances) {
+          state.finances.credits = (state.finances.credits || 0) + pendingCredits;
+        }
+        if (pendingFans > 0 && state.team) {
+          state.team.fans = (state.team.fans || 0) + pendingFans;
+        }
+
+        // Persist: write updated save_data + clear pending fields
+        const sd = JSON.parse(JSON.stringify(state));
+        if (!sd.meta) sd.meta = {};
+        sd.meta.saveTime = Date.now();
+        const fsUpdates = {
+          save_data: sd,
+          save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        if (pendingCredits > 0) fsUpdates['mp.pendingCredits'] = firebase.firestore.FieldValue.delete();
+        if (pendingFans    > 0) fsUpdates['mp.pendingFans']    = firebase.firestore.FieldValue.delete();
+        profileRef.update(fsUpdates).then(() => {
+          this.remoteSave = sd;
+          this.remoteSaveUpdatedAt = sd.meta.saveTime;
+          // Refresh topbar display
+          if (window.GL_DASHBOARD && GL_DASHBOARD.renderTopbar) GL_DASHBOARD.renderTopbar(state);
+          else if (window.GL_APP && GL_APP.refreshTopbar) GL_APP.refreshTopbar();
+        }).catch(e => console.warn('Failed to apply MP rewards:', e));
+      });
     },
 
     getSaveTimestamp(snapshot, fallbackValue) {
