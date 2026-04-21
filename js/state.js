@@ -668,6 +668,29 @@ function buildTeamSnapshot() {
   };
 }
 
+function syncCalendarFromDivision(divData) {
+  if (!divData || !Array.isArray(divData.calendar) || !divData.calendar.length) return;
+  const divCal = divData.calendar;
+  const localCal = (_state.season && Array.isArray(_state.season.calendar)) ? _state.season.calendar : [];
+
+  // Index local entries by round to preserve player-specific data
+  const localByRound = {};
+  localCal.forEach(r => { if (r && r.round) localByRound[r.round] = r; });
+
+  // Merge: division owns circuit/status/weather/forecast; player owns result/savedStrategy
+  _state.season.calendar = divCal.map(divRace => {
+    const local = localByRound[divRace.round] || {};
+    return Object.assign({}, divRace, {
+      result: local.result || divRace.result || null,
+      savedStrategy: local.savedStrategy || null
+    });
+  });
+
+  const nextIdx = _state.season.calendar.findIndex(r => r.status === 'next');
+  _state.season.raceIndex = nextIdx >= 0 ? nextIdx : 0;
+  _state.season.totalRaces = _state.season.calendar.length;
+}
+
 function syncTeamSnapshot() {
   if (!window.GL_AUTH || !GL_AUTH.mp || !GL_AUTH.mp.divKey) return Promise.resolve();
   if (!GL_AUTH._db || !GL_AUTH.user) return Promise.resolve();
@@ -706,5 +729,6 @@ window.GL_STATE = {
   setResearch: (rnd) => { _state.car.rnd = rnd; saveState(); },
   // Multiplayer
   buildTeamSnapshot,
-  syncTeamSnapshot
+  syncTeamSnapshot,
+  syncCalendarFromDivision
 };

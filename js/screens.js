@@ -2180,8 +2180,23 @@ const SCREENS = {
 
   // ===== CALENDAR SCREEN =====
   renderCalendar() {
+    const mp = window.GL_AUTH && GL_AUTH.mp;
+    if (GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer() && mp && mp.divKey && GL_AUTH._db) {
+      const el = document.getElementById('screen-calendar');
+      if (el) el.innerHTML = `<div style="padding:32px;color:var(--t-secondary);text-align:center">📡 ${__('loading') || 'Cargando calendario...'}</div>`;
+      GL_AUTH._db.collection('divisions').doc(mp.divKey).get()
+        .then(snap => { if (snap.exists) GL_STATE.syncCalendarFromDivision(snap.data()); })
+        .catch(() => {})
+        .finally(() => this._renderCalendarUI());
+      return;
+    }
+    this._renderCalendarUI();
+  },
+
+  _renderCalendarUI() {
     const state = GL_STATE.getState();
-    if (GL_ENGINE.ensureNextRaceAvailable) {
+    const isMP = GL_ENGINE.isMultiplayer && GL_ENGINE.isMultiplayer();
+    if (!isMP && GL_ENGINE.ensureNextRaceAvailable) {
       GL_ENGINE.ensureNextRaceAvailable();
     }
     const cal = state.season.calendar || [];
