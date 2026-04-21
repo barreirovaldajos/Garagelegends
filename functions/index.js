@@ -214,3 +214,59 @@ exports.adminFillBots = functions.https.onCall(async (data, context) => {
 
   return { success: true, divKey };
 });
+
+// ── 10. Admin Reset Group – Clears players, deletes and recreates the division ─
+exports.adminResetGroup = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+
+  const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
+  if (!profileSnap.exists || profileSnap.data().role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin only');
+  }
+
+  const { divKey } = data;
+  if (!divKey) throw new functions.https.HttpsError('invalid-argument', 'divKey is required');
+
+  const parts = divKey.split('_');
+  const division = parseInt(parts[0], 10);
+  const group = parseInt(parts[1], 10);
+  if (isNaN(division) || isNaN(group)) {
+    throw new functions.https.HttpsError('invalid-argument', `Invalid divKey format: ${divKey}`);
+  }
+
+  const divRef = db.collection('divisions').doc(divKey);
+  const divSnap = await divRef.get();
+
+  // Collect all real players in this group and clear their mp
+  const affectedPlayers = [];
+  if (divSnap.exists) {
+    const slots = divSnap.data().slots || {};
+    for (const slot of Object.values(slots)) {
+      if (slot && slot.type === 'player' && slot.userId) {
+        affectedPlayers.push(slot.userId);
+      }
+    }
+  }
+
+  // Clear mp for affected players in batches (Firestore batch limit: 500)
+  for (let i = 0; i < affectedPlayers.length; i += 500) {
+    const batch = db.batch();
+    for (const userId of affectedPlayers.slice(i, i + 500)) {
+      batch.update(db.collection('profiles').doc(userId), {
+        mp: admin.firestore.FieldValue.delete()
+      });
+    }
+    await batch.commit();
+  }
+
+  // Delete old document
+  if (divSnap.exists) await divRef.delete();
+
+  // Recreate fresh with calendar and bots
+  await divisionManager.createDivisionGroup(db, division, group, divKey);
+  const botFiller = require('./lib/bot-filler.js');
+  await botFiller.fillDivisionBots(db, divKey, division);
+
+  functions.logger.info(`adminResetGroup: ${divKey} reset. Players cleared: ${affectedPlayers.join(', ')}`);
+  return { success: true, divKey, affectedPlayers };
+});

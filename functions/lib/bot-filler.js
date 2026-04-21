@@ -1,8 +1,8 @@
 // ===== BOT-FILLER.JS – Fill empty division slots with AI teams =====
 'use strict';
 
-const sharedData = require('../../shared/data-constants.js');
-const engineCore = require('../../shared/engine-core.js');
+const sharedData = require('../shared/data-constants.js');
+const engineCore = require('../shared/engine-core.js');
 
 const MAX_TEAMS = 10;
 

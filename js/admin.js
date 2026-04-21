@@ -644,21 +644,25 @@ const GL_ADMIN = {
       ? Divisions.divisionLabel(div, group) : `${div}-${group}`;
     const ok = await GL_UI.confirm(
       __('admin_reset_confirm_title'),
-      `${__('admin_reset_confirm_text')} ${groupLabel}?`,
+      `${__('admin_reset_confirm_text')} ${groupLabel}?\n\nEsto eliminará a todos los jugadores del grupo y recreará el grupo con bots. Los jugadores perderán su asignación de división.`,
       __('admin_reset_confirm_ok'),
       __('cancel')
     );
     if (!ok) return;
     const statusEl = document.getElementById('admin-tool-status');
+    if (statusEl) { statusEl.textContent = 'Reiniciando grupo...'; statusEl.style.color = 'var(--t-secondary)'; }
     try {
-      const db = this.db();
-      if (!db) throw new Error('No DB');
       const key = this.divKey(div, group);
-      await db.collection('divisions').doc(key).delete();
-      if (statusEl) { statusEl.textContent = __('admin_group_reset_ok'); statusEl.style.color = 'var(--c-green)'; }
-      GL_UI.toast(__('admin_group_reset_ok'), 'success');
+      const adminResetGroup = firebase.functions().httpsCallable('adminResetGroup');
+      const result = await adminResetGroup({ divKey: key });
+      const affected = (result.data.affectedPlayers || []).length;
+      if (statusEl) {
+        statusEl.textContent = `${__('admin_group_reset_ok')} · ${affected} jugador(es) desasignados`;
+        statusEl.style.color = 'var(--c-green)';
+      }
+      GL_UI.toast(`${__('admin_group_reset_ok')} (${groupLabel})`, 'success');
     } catch (e) {
-      if (statusEl) { statusEl.textContent = __('admin_error') + ': ' + e.message; statusEl.style.color = 'var(--c-red,#e8292a)'; }
+      if (statusEl) { statusEl.textContent = __('admin_error') + ': ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
     }
   },
 

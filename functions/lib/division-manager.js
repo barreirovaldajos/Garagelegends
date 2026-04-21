@@ -1,8 +1,8 @@
 // ===== DIVISION-MANAGER.JS – Division assignment and slot management =====
 'use strict';
 
-const sharedData = require('../../shared/data-constants.js');
-const engineCore = require('../../shared/engine-core.js');
+const sharedData = require('../shared/data-constants.js');
+const engineCore = require('../shared/engine-core.js');
 const botFiller = require('./bot-filler.js');
 
 const MAX_TEAMS_PER_DIVISION = 10;
@@ -197,5 +197,6 @@ async function updateTeamSnapshot(db, userId, teamSnapshot) {
 module.exports = {
   assignPlayerToDivision,
   updateTeamSnapshot,
+  createDivisionGroup: _createDivisionGroup,
   MAX_TEAMS_PER_DIVISION
 };

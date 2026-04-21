@@ -1,8 +1,8 @@
 // ===== SEASON-MANAGER.JS – End-of-season promotion/relegation and new season setup =====
 'use strict';
 
-const sharedData = require('../../shared/data-constants.js');
-const engineCore = require('../../shared/engine-core.js');
+const sharedData = require('../shared/data-constants.js');
+const engineCore = require('../shared/engine-core.js');
 const botFiller = require('./bot-filler.js');
 
 /**
