@@ -2,7 +2,7 @@
   "name": "garage-legends-functions",
   "description": "Cloud Functions for Garage Legends multiplayer racing",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "index.js",
   "dependencies": {
