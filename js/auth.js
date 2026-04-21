@@ -83,21 +83,29 @@
           if ((data.email || '') !== (this.user.email || '')) {
             await ref.update({ email: this.user.email || '' });
           }
-          // Apply any pending MP prize money before loading state.
-          // pendingCredits lives outside save_data so SP saves cannot overwrite it.
-          if (data.mp && data.mp.pendingCredits > 0 && data.save_data) {
-            const pending = data.mp.pendingCredits;
+          // Apply any pending MP rewards (credits, fans) before loading state.
+          // These fields live outside save_data so SP saves cannot overwrite them.
+          const pendingCredits = (data.mp && data.mp.pendingCredits) || 0;
+          const pendingFans    = (data.mp && data.mp.pendingFans)    || 0;
+          if ((pendingCredits > 0 || pendingFans > 0) && data.save_data) {
             const sd = JSON.parse(JSON.stringify(data.save_data));
-            if (!sd.finances) sd.finances = {};
-            sd.finances.credits = (sd.finances.credits || 0) + pending;
+            if (pendingCredits > 0) {
+              if (!sd.finances) sd.finances = {};
+              sd.finances.credits = (sd.finances.credits || 0) + pendingCredits;
+            }
+            if (pendingFans > 0) {
+              if (!sd.team) sd.team = {};
+              sd.team.fans = (sd.team.fans || 0) + pendingFans;
+            }
             data.save_data = sd;
-            data.mp = Object.assign({}, data.mp, { pendingCredits: 0 });
-            // Persist: write updated save_data + clear pendingCredits atomically
-            ref.update({
+            data.mp = Object.assign({}, data.mp, { pendingCredits: 0, pendingFans: 0 });
+            const fsUpdates = {
               save_data: sd,
-              'mp.pendingCredits': firebase.firestore.FieldValue.delete(),
               save_updated_at: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(e => console.warn('Failed to persist MP credits:', e));
+            };
+            if (pendingCredits > 0) fsUpdates['mp.pendingCredits'] = firebase.firestore.FieldValue.delete();
+            if (pendingFans    > 0) fsUpdates['mp.pendingFans']    = firebase.firestore.FieldValue.delete();
+            ref.update(fsUpdates).catch(e => console.warn('Failed to persist MP rewards:', e));
           }
           this.profile = data;
           this.role = data.role || 'player';

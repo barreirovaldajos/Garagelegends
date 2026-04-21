@@ -3382,20 +3382,24 @@ const SCREENS = {
     const db = GL_AUTH && GL_AUTH._db;
     if (GL_ENGINE.isMultiplayer() && mp && mp.divKey && db && GL_AUTH.user) {
       const strategy = GL_STATE.deepClone(next.savedStrategy);
-      db.collection('divisions').doc(mp.divKey)
-        .collection('strategies').doc(GL_AUTH.user.uid)
-        .set({
-          userId: GL_AUTH.user.uid,
+      const uid = GL_AUTH.user.uid;
+      const divRef = db.collection('divisions').doc(mp.divKey);
+      // Read nextRaceRound from Firestore to avoid using stale local calendar round
+      divRef.get().then(divSnap => {
+        const raceRound = divSnap.exists ? (divSnap.data().nextRaceRound || next.round) : next.round;
+        return divRef.collection('strategies').doc(uid).set({
+          userId: uid,
           slotIndex: mp.slotIndex,
-          raceRound: next.round,
+          raceRound: raceRound,
           submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
           strategy: strategy
-        }).then(() => {
-          GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
-          if (GL_STATE.syncTeamSnapshot) GL_STATE.syncTeamSnapshot();
-        }).catch(err => {
-          GL_UI.toast('Error al guardar: ' + (err.message || err), 'error');
         });
+      }).then(() => {
+        GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
+        if (GL_STATE.syncTeamSnapshot) GL_STATE.syncTeamSnapshot();
+      }).catch(err => {
+        GL_UI.toast('Error al guardar: ' + (err.message || err), 'error');
+      });
     } else {
       GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
     }

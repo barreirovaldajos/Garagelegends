@@ -189,19 +189,23 @@ async function runRaceForDivision(db, divKey, opts) {
       nextRaceRound:         isLastRace ? null : calendar[nextUpcomingIdx].round
     });
 
-    // ── 9. Update each player's mp field with pending prize money ────────────
-    // Prize money is stored in mp.pendingCredits (outside save_data) so it
-    // cannot be overwritten when the client saves SP game state.
-    // The client applies pendingCredits to save_data.finances.credits on next load.
+    // ── 9. Update each player's mp field with pending rewards ────────────────
+    // Rewards are stored outside save_data so SP game saves cannot overwrite them.
+    // The client applies pending values to save_data on next profile load.
+    const FAN_BASE    = {1:1200,2:800,3:500,4:320,5:200,6:130,7:80,8:50};
+    const FAN_PER_PT  = {1:110, 2:84, 3:62, 4:45, 5:32, 6:22, 7:15, 8:10};
     for (const pt of playerTeams) {
-      const summary = result.teamSummaries && result.teamSummaries[pt.teamId];
+      const summary    = result.teamSummaries && result.teamSummaries[pt.teamId];
       const prizeMoney = (summary && summary.prizeMoney) || 0;
+      const points     = (summary && summary.points)     || 0;
+      const bestPos    = (summary && summary.bestPosition) || 99;
+      const podiumMult = bestPos === 1 ? 2.2 : bestPos === 2 ? 1.6 : bestPos === 3 ? 1.3 : 1.0;
+      const fansGained = Math.round(((FAN_BASE[division] || 50) + points * (FAN_PER_PT[division] || 10)) * podiumMult);
       try {
         const profileRef = db.collection('profiles').doc(pt.userId);
         const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp() };
-        if (prizeMoney > 0) {
-          updates['mp.pendingCredits'] = FieldValue.increment(prizeMoney);
-        }
+        if (prizeMoney > 0) updates['mp.pendingCredits'] = FieldValue.increment(prizeMoney);
+        if (fansGained  > 0) updates['mp.pendingFans']   = FieldValue.increment(fansGained);
         await profileRef.update(updates);
       } catch (profileErr) {
         require('firebase-functions').logger.error(`Failed to update mp for ${pt.userId}:`, profileErr);
