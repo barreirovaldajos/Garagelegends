@@ -1812,7 +1812,13 @@ const SCREENS = {
     if (!result || !GL_ENGINE.buildRaceComparisonStats) {
       return `<p style="color:var(--t-secondary);font-size:0.82rem">Sin datos de telemetría disponibles.</p>`;
     }
-    const stats = GL_ENGINE.buildRaceComparisonStats(result);
+    // In MP, remap isPlayer to only the viewing player's cars (avoids other players' data)
+    const viewerUid = result._viewerUid || (window.GL_AUTH && GL_AUTH.user && GL_AUTH.user.uid) || null;
+    const resultForStats = viewerUid ? {
+      ...result,
+      finalGrid: (result.finalGrid || []).map(e => ({ ...e, isPlayer: e.teamId === viewerUid }))
+    } : result;
+    const stats = GL_ENGINE.buildRaceComparisonStats(resultForStats);
     const { rows, best } = stats;
     if (!rows || !rows.length) {
       return `<p style="color:var(--t-secondary);font-size:0.82rem">Sin datos de telemetría disponibles.</p>`;
@@ -2050,6 +2056,7 @@ const SCREENS = {
             playerCars: myCars,
             points: ts.points || 0,
             prizeMoney: ts.prizeMoney || 0,
+            _viewerUid: uid,
           };
           const titleSuffix = record.circuit?.name || `R${round}`;
           GL_UI.openModal({
@@ -3804,7 +3811,7 @@ const SCREENS = {
           if (!rSnap.exists) return;
           const r = rSnap.data();
           const myCars = (r.allCarsResults || []).filter(c => c.teamId === uid);
-          window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound };
+          window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound, _viewerUid: uid };
           GL_SCREENS.renderPostRace();
         }).catch(() => {});
       }).catch(() => {});
