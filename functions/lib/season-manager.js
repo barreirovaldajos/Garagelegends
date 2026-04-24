@@ -285,16 +285,17 @@ async function startNewSeason(db) {
  */
 function _buildSnapshotFromProfile(profileData) {
   const save = profileData.save_data || {};
+  // save_data structure mirrors race-runner: team name/colors live under save.team.*
   return {
-    teamName: save.teamName || profileData.teamName || 'Team',
-    colors: save.colors || { primary: '#888888', secondary: '#0a0b0f' },
-    logo: save.logo || '',
-    pilots: save.pilots || [],
-    car: save.car || { components: {} },
-    staff: save.staff || [],
-    hq: save.hq || { admin: 1, wind_tunnel: 1, rnd: 1, factory: 1, academy: 1 },
-    engineSupplier: save.engineSupplier || '',
-    fans: save.fans || 1000
+    teamName:       (save.team && save.team.name)           || profileData.teamName || 'Team',
+    colors:         (save.team && save.team.colors)         || { primary: '#888888', secondary: '#0a0b0f' },
+    logo:           (save.team && save.team.logo)           || '',
+    pilots:         save.pilots                             || [],
+    car:            { components: (save.car && save.car.components) || {} },
+    staff:          save.staff                              || [],
+    hq:             save.hq || { admin: 1, wind_tunnel: 1, rnd: 1, factory: 1, academy: 1 },
+    engineSupplier: (save.team && save.team.engineSupplier) || '',
+    fans:           (save.team && save.team.fans)           || 1000
   };
 }
 
