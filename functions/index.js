@@ -272,7 +272,8 @@ exports.adminResetGroup = functions.https.onCall(async (data, context) => {
 });
 
 // ── 11. Admin Force Season Advance – End stuck seasons, then start new ───────
-exports.adminForceSeasonAdvance = functions.https.onCall(async (_data, context) => {
+// Timeout extendido: procesar 52 divisiones puede tomar varios minutos.
+exports.adminForceSeasonAdvance = functions.runWith({ timeoutSeconds: 300 }).https.onCall(async (_data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
 
   const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
@@ -280,34 +281,45 @@ exports.adminForceSeasonAdvance = functions.https.onCall(async (_data, context) 
     throw new functions.https.HttpsError('permission-denied', 'Admin only');
   }
 
-  // Step 1: End any 'season' divisions that have no remaining upcoming races
+  // Guard: bloquear si quedan carreras pendientes en CUALQUIER división activa.
+  // El avance de temporada solo se permite cuando todas las carreras están completadas.
   const activeSnap = await db.collection('divisions').where('phase', '==', 'season').get();
+  const pendingRaceDivs = [];
+  const finishedDivs = [];
+
+  activeSnap.forEach(doc => {
+    const hasNext = (doc.data().calendar || []).some(r => r.status === 'next');
+    if (hasNext) pendingRaceDivs.push(doc.id);
+    else finishedDivs.push(doc.id);
+  });
+
+  if (pendingRaceDivs.length > 0) {
+    throw new functions.https.HttpsError(
+      'failed-precondition',
+      `No se puede avanzar la temporada: ${pendingRaceDivs.length} división(es) aún tienen carreras pendientes. ` +
+      `Usa "Forzar carrera en todas las divisiones" hasta que todas estén completas.`
+    );
+  }
+
+  // Paso 1: cerrar divisiones en 'season' que ya terminaron (no tienen 'next')
   const endedDivs = [];
-  const skippedDivs = [];
-  for (const doc of activeSnap.docs) {
-    const data = doc.data();
-    const hasNext = (data.calendar || []).some(r => r.status === 'next');
-    if (hasNext) {
-      skippedDivs.push(doc.id);
-      continue;
-    }
+  for (const divId of finishedDivs) {
     try {
-      await seasonManager.endDivisionSeason(db, doc.id);
-      endedDivs.push(doc.id);
-      functions.logger.info(`adminForceSeasonAdvance: ended season for ${doc.id}`);
+      await seasonManager.endDivisionSeason(db, divId);
+      endedDivs.push(divId);
+      functions.logger.info(`adminForceSeasonAdvance: ended season for ${divId}`);
     } catch (err) {
-      functions.logger.error(`adminForceSeasonAdvance: failed to end ${doc.id}:`, err);
+      functions.logger.error(`adminForceSeasonAdvance: failed to end ${divId}:`, err);
     }
   }
 
-  // Step 2: Start new season for all divisions now in 'offseason'
+  // Paso 2: iniciar nueva temporada para todas las divisiones en 'offseason'
   await seasonManager.startNewSeason(db);
 
-  functions.logger.info(`adminForceSeasonAdvance done. Ended: ${endedDivs.length}, skipped (races pending): ${skippedDivs.length}`);
+  functions.logger.info(`adminForceSeasonAdvance done. Ended: ${endedDivs.length}`);
   return {
     success: true,
     endedDivisions: endedDivs,
-    skippedDivisions: skippedDivs,
-    message: `Season advanced. Finalizadas: ${endedDivs.length} división(es). Nueva temporada iniciada.`
+    message: `Temporada avanzada. ${endedDivs.length} división(es) cerradas. Nueva temporada iniciada.`
   };
 });

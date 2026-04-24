@@ -166,10 +166,19 @@ async function startNewSeason(db) {
     });
   });
 
-  // 2. Clear old division docs (set phase to 'archived')
+  // 2. Clear old division docs (set phase to 'archived') and compute next season year
   const oldDivisionsSnap = await db.collection('divisions')
     .where('phase', '==', 'offseason')
     .get();
+
+  // Derive nextSeasonYear from the offseason docs we already have — avoids a
+  // composite-index query (division + phase) that Firestore would reject without
+  // a manual index definition.
+  const seasonYearByDiv = {};
+  oldDivisionsSnap.forEach(doc => {
+    const { division: d, seasonYear: y } = doc.data();
+    if (!seasonYearByDiv[d] || y > seasonYearByDiv[d]) seasonYearByDiv[d] = y || 1;
+  });
 
   const archiveBatch = db.batch();
   oldDivisionsSnap.forEach(doc => {
@@ -184,6 +193,9 @@ async function startNewSeason(db) {
     const maxGroups = divCatalog ? divCatalog.parallelDivisions : 16;
     const teamsPerGroup = 10;
 
+    // nextSeasonYear = max year seen in offseason docs for this div + 1
+    const nextSeasonYear = (seasonYearByDiv[division] || 1) + 1;
+
     // Distribute players across groups (max 10 per group)
     const groups = [];
     for (let i = 0; i < players.length; i += teamsPerGroup) {
@@ -197,19 +209,6 @@ async function startNewSeason(db) {
       const groupNum = gIdx + 1;
       const divKey = `${division}_${groupNum}`;
       const groupPlayers = groups[gIdx];
-
-      // Find next season year from any previous season
-      const prevSeasonSnap = await db.collection('divisions')
-        .where('division', '==', division)
-        .where('phase', '==', 'archived')
-        .limit(1)
-        .get();
-
-      let nextSeasonYear = 2;
-      if (!prevSeasonSnap.empty) {
-        const prevData = prevSeasonSnap.docs[0].data();
-        nextSeasonYear = (prevData.seasonYear || 1) + 1;
-      }
 
       // Generate new calendar
       const calSeed = `cal_${divKey}_s${nextSeasonYear}`;

@@ -689,15 +689,16 @@ const GL_ADMIN = {
       const result = await adminForceSeasonAdvance({});
       const data = result.data || {};
       const ended = (data.endedDivisions || []).length;
-      const skipped = (data.skippedDivisions || []).length;
       if (statusEl) {
-        statusEl.textContent = `✓ ${data.message || 'Hecho'} · Omitidas (carreras pendientes): ${skipped}`;
+        statusEl.textContent = `✓ ${data.message || 'Hecho'}`;
         statusEl.style.color = 'var(--c-green)';
       }
       GL_UI.toast(`Nueva temporada iniciada (${ended} división(es) cerradas)`, 'success');
     } catch (e) {
-      if (statusEl) { statusEl.textContent = __('admin_error') + ': ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
-      GL_UI.toast(__('admin_error') + ': ' + (e.message || e), 'error');
+      // Firebase HttpsError expone el mensaje real en e.message o e.details
+      const msg = (e && e.message) ? e.message : String(e);
+      if (statusEl) { statusEl.textContent = msg; statusEl.style.color = 'var(--c-red,#e8292a)'; }
+      GL_UI.toast(msg, 'error');
     }
   },
 
