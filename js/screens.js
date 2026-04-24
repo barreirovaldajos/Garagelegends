@@ -1224,7 +1224,7 @@ const SCREENS = {
           <button class="btn w-full mt-4 ${canTrain ? 'btn-secondary' : ''}" onclick="GL_ENGINE.trainPilot('${p.id}')" ${canTrain ? '' : 'disabled'}>
             ${canTrain ? '🏋️ ' + (__('pilots_train')||'Train') : '⏳ ' + (__('pilots_trained_today')||'Trained')}
           </button>
-          <button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.dismissPilot('${p.id}')">${__('pilots_dismiss_btn') || 'Despedir piloto'}</button>
+          <button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.dismissPilot('${p.id}')" ${pilots.length <= 2 ? 'disabled title="Necesitas al menos 2 pilotos en el equipo"' : ''}>${__('pilots_dismiss_btn') || 'Despedir piloto'}</button>
         </div>
       </div>`;
   },
@@ -1234,8 +1234,8 @@ const SCREENS = {
     const pilots = state.pilots || [];
     const pilot = pilots.find((p) => p.id === id);
     if (!pilot) return;
-    if (pilots.length <= 1) {
-      GL_UI.toast(__('pilots_dismiss_last_blocked') || 'No puedes despedir al ultimo piloto del equipo.', 'warning');
+    if (pilots.length <= 2) {
+      GL_UI.toast('Necesitas al menos 2 pilotos en el equipo. Contrata uno antes de despedir.', 'warning');
       return;
     }
 
@@ -3349,8 +3349,8 @@ const SCREENS = {
     const selected = window._raceStrategy.selectedPilotIds;
     const idx = selected.indexOf(pid);
     if (idx >= 0) {
-      if (selected.length <= 1) {
-        GL_UI.toast('Debes mantener al menos 1 piloto en carrera.', 'warning');
+      if (selected.length <= 2) {
+        GL_UI.toast('Debes correr con 2 pilotos. No puedes dejar uno sin asignar.', 'warning');
         return;
       }
       selected.splice(idx, 1);
