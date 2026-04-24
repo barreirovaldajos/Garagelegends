@@ -156,6 +156,27 @@
         // Update lastRaceSettlement for finance panel
         if (!state.finances) state.finances = {};
         state.finances.lastRaceSettlement = { prizeDelta: pendingRaceResult.prizeMoney, week: pendingRaceResult.round };
+        // Award I+D points (once per round)
+        const _rndRound = pendingRaceResult.round;
+        if (!state.car) state.car = {};
+        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: [] };
+        if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
+          const _pos = Number(pendingRaceResult.position) || 99;
+          const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
+          const _lv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
+          const _bonus = Math.max(0, _lv - 1);
+          const _earned = _base > 0 ? _base + _bonus : 0;
+          state.car.rnd.lastAwardedRound = _rndRound;
+          if (_earned > 0) {
+            state.car.rnd.points = (state.car.rnd.points || 0) + _earned;
+            if (window.GL_STATE && GL_STATE.addLog) {
+              const _msg = _bonus > 0
+                ? `🔬 +${_earned} pts de I+D (P${_pos}, +${_bonus} bonus I+D Lv${_lv})`
+                : `🔬 +${_earned} pts de I+D (P${_pos})`;
+              GL_STATE.addLog(_msg, 'good');
+            }
+          }
+        }
         // Decrement sponsor/staff contract durations (1 race = 1 week in MP)
         if (window.GL_ENGINE && GL_ENGINE.processWeeklyAgreements) {
           GL_ENGINE.processWeeklyAgreements(state);
