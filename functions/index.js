@@ -76,9 +76,15 @@ exports.adminForceAllRaces = functions.runWith({ timeoutSeconds: 300, memory: '5
 
   const tasks = divisionsSnap.docs
     .filter(doc => {
-      const nextRace = (doc.data().calendar || []).find(r => r.status === 'next');
-      if (!nextRace) return false;
-      if (roundFilter !== null && nextRace.round !== roundFilter) return false;
+      const d = doc.data();
+      const hasNext = (d.calendar || []).some(r => r.status === 'next');
+      if (!hasNext) return false;
+      if (roundFilter !== null) {
+        // lastRaceRound is only written when the full race transaction completes,
+        // so it's the reliable signal — calendar status can be stale after a timeout.
+        const lastRound = d.lastRaceRound || 0;
+        if (lastRound >= roundFilter) return false;
+      }
       return true;
     })
     .map(doc => raceRunner.runRaceForDivision(db, doc.id, { triggeredBy: context.auth.uid })

@@ -2333,7 +2333,7 @@ const SCREENS = {
         <div class="screen-title-group">
           <div class="screen-eyebrow">${__('calendar_eyebrow')} ${state.season.year}</div>
           <div class="screen-title">${__('calendar_title')}</div>
-          <div class="screen-subtitle">${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division} · ${cal.length} ${__('calendar_round').toLowerCase()} · ${__('topbar_week')} ${state.season.week}</div>
+          <div class="screen-subtitle">${__('division')} ${(function(){ const _mp = window.GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.division; const _d = _mp ? GL_AUTH.mp.division : state.season.division; const _g = _mp ? GL_AUTH.mp.divisionGroup : state.season.divisionGroup; return (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(_d, _g) : _d; })()} · ${cal.length} ${__('calendar_round').toLowerCase()} · ${__('topbar_week')} ${state.season.week}</div>
         </div>
         <div class="screen-actions">
           <span class="badge badge-gold" style="font-size:0.85rem;padding:8px 16px">🏆 ${pts} ${__('points')}</span>
@@ -3883,6 +3883,30 @@ const SCREENS = {
           const r = rSnap.data();
           const myCars = (r.allCarsResults || []).filter(c => c.teamId === uid);
           window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound, _viewerUid: uid };
+
+          // Award I+D points for this MP race (once per round)
+          const _mpState = GL_STATE.getState();
+          const _lastAwarded = _mpState.car && _mpState.car.rnd && _mpState.car.rnd.lastAwardedRound;
+          if (!_lastAwarded || _lastAwarded < lastRound) {
+            const _mpBestPos = myCars.length > 0
+              ? myCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
+              : 99;
+            const _rndBase = _mpBestPos === 1 ? 10 : _mpBestPos === 2 ? 8 : _mpBestPos === 3 ? 6 : _mpBestPos <= 10 ? 3 : _mpBestPos <= 20 ? 1 : 0;
+            const _rndLv = (_mpState.hq && _mpState.hq.rnd) ? Number(_mpState.hq.rnd) : 1;
+            const _rndBonus = Math.max(0, _rndLv - 1);
+            const _rndEarned = _rndBase > 0 ? _rndBase + _rndBonus : 0;
+            if (!_mpState.car.rnd) _mpState.car.rnd = { points: 0, active: null, queue: [] };
+            _mpState.car.rnd.lastAwardedRound = lastRound;
+            if (_rndEarned > 0) {
+              _mpState.car.rnd.points = (_mpState.car.rnd.points || 0) + _rndEarned;
+              const _msg = _rndBonus > 0
+                ? `🔬 +${_rndEarned} pts de I+D (P${_mpBestPos}, +${_rndBonus} bonus I+D Lv${_rndLv})`
+                : `🔬 +${_rndEarned} pts de I+D (P${_mpBestPos})`;
+              GL_STATE.addLog(_msg, 'good');
+            }
+            GL_STATE.saveState();
+          }
+
           GL_SCREENS.renderPostRace();
         }).catch(() => {});
       }).catch(() => {});

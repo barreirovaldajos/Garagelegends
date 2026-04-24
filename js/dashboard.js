@@ -257,13 +257,19 @@ const DASHBOARD = {
     }
     if (el('topbar-avatar')) el('topbar-avatar').textContent = (state.team.name||'U')[0].toUpperCase();
     if (el('topbar-season')) {
-      const _divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
+      const _mpActive = window.GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.division;
+      const _div = _mpActive ? GL_AUTH.mp.division : state.season.division;
+      const _divGroup = _mpActive ? GL_AUTH.mp.divisionGroup : state.season.divisionGroup;
+      const _divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(_div, _divGroup) : _div;
       el('topbar-season').textContent = `${__('topbar_season')} ${state.season.year} · ${__('topbar_div')} ${_divLabel}`;
     }
     if (el('sidebar-team-logo')) { el('sidebar-team-logo').textContent = state.team.logo||'🏎️'; el('sidebar-team-logo').style.background = state.team.colors.primary+'22'; }
     if (el('sidebar-team-name')) el('sidebar-team-name').textContent = state.team.name||'Your Team';
     if (el('sidebar-team-div')) {
-      const _divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(state.season.division, state.season.divisionGroup) : state.season.division;
+      const _mpActive = window.GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.division;
+      const _div = _mpActive ? GL_AUTH.mp.division : state.season.division;
+      const _divGroup = _mpActive ? GL_AUTH.mp.divisionGroup : state.season.divisionGroup;
+      const _divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(_div, _divGroup) : _div;
       el('sidebar-team-div').textContent = `${__('division')} ${_divLabel}`;
     }
   },

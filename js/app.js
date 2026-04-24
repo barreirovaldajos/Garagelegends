@@ -279,7 +279,7 @@ const APP = {
           <div class="sidebar-team-logo" id="sidebar-team-logo" style="background:${state.team.colors.primary}22">${state.team.logo||'🏎️'}</div>
           <div>
             <div class="sidebar-team-name" id="sidebar-team-name">${state.team.name||'Your Team'}</div>
-            <div class="sidebar-team-div" id="sidebar-team-div">${__('division')} ${state.season.division}</div>
+            <div class="sidebar-team-div" id="sidebar-team-div">${__('division')} ${(window.GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.division) ? (typeof Divisions !== 'undefined' && Divisions.divisionLabel ? Divisions.divisionLabel(GL_AUTH.mp.division, GL_AUTH.mp.divisionGroup) : GL_AUTH.mp.division) : state.season.division}</div>
           </div>
         </div>
       </div>`;
@@ -397,7 +397,7 @@ const APP = {
         <div style="text-align:center;margin-bottom:var(--s-5)">
           <div style="font-size:3.5rem;margin-bottom:var(--s-2)">${state.team.logo}</div>
           <h3 style="font-size:1.6rem;margin:0;color:var(--t-primary)">${state.team.name}</h3>
-          <p style="color:var(--t-tertiary);margin:var(--s-1) 0 0;font-size:0.9rem">${state.team.origin || state.team.country} · ${__('division')} ${state.season.division}</p>
+          <p style="color:var(--t-tertiary);margin:var(--s-1) 0 0;font-size:0.9rem">${state.team.origin || state.team.country} · ${__('division')} ${(window.GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.division) ? (typeof Divisions !== 'undefined' && Divisions.divisionLabel ? Divisions.divisionLabel(GL_AUTH.mp.division, GL_AUTH.mp.divisionGroup) : GL_AUTH.mp.division) : state.season.division}</p>
         </div>
         ${authEnabled ? `<div style="margin:0 0 var(--s-4);padding:10px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border);font-size:0.8rem;color:var(--t-secondary)">
           <div style="margin-bottom:4px"><strong style="color:var(--t-primary)">${__('profile_account_label', 'Account')}:</strong> ${authEmail}</div>
