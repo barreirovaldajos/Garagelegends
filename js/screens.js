@@ -1976,7 +1976,7 @@ const SCREENS = {
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <div>
-          <div class="postrace-report-title" style="font-size:0.9rem;font-weight:700">📊 Telemetría de Carrera</div>
+          <div class="postrace-report-title" style="font-size:0.9rem;font-weight:700">📊 Información de tiempos de carrera</div>
           <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:2px">Pilotos ordenados por posición final · ★ vuelta rápida</div>
         </div>
         ${hasTimingData ? `<button class="btn btn-secondary" style="font-size:0.76rem;padding:6px 12px" onclick="GL_SCREENS.toggleAnalystReport()">🧠 Informe del Analista</button>` : ''}
