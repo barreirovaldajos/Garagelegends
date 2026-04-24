@@ -60,7 +60,7 @@ exports.adminForceRace = functions.https.onCall(async (data, context) => {
 });
 
 // ── 3. Admin Force All Races – Run races for all active divisions ───────────
-exports.adminForceAllRaces = functions.https.onCall(async (_data, context) => {
+exports.adminForceAllRaces = functions.runWith({ timeoutSeconds: 300, memory: '512MB' }).https.onCall(async (_data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
 
   const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
@@ -72,19 +72,13 @@ exports.adminForceAllRaces = functions.https.onCall(async (_data, context) => {
     .where('phase', '==', 'season')
     .get();
 
-  const results = [];
-  for (const doc of divisionsSnap.docs) {
-    const divKey = doc.id;
-    const hasNext = (doc.data().calendar || []).some(r => r.status === 'next');
-    if (!hasNext) continue;
-
-    try {
-      const result = await raceRunner.runRaceForDivision(db, divKey, { triggeredBy: context.auth.uid });
-      results.push({ divKey, status: 'ok', round: result.round });
-    } catch (err) {
-      results.push({ divKey, status: 'error', error: err.message });
-    }
-  }
+  const tasks = divisionsSnap.docs
+    .filter(doc => (doc.data().calendar || []).some(r => r.status === 'next'))
+    .map(doc => raceRunner.runRaceForDivision(db, doc.id, { triggeredBy: context.auth.uid })
+      .then(result => ({ divKey: doc.id, status: 'ok', round: result.round }))
+      .catch(err   => ({ divKey: doc.id, status: 'error', error: err.message }))
+    );
+  const results = await Promise.all(tasks);
 
   return { processed: results.length, results };
 });
