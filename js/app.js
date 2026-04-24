@@ -293,10 +293,13 @@ const APP = {
     </button>`;
   },
 
-  _validScreenIds: new Set(['dashboard','mi-equipo','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','postrace','admin']),
+  _validScreenIds: new Set(['dashboard','mi-equipo','garage','pilots','staff','car','calendar','standings','finances','market','prerace','race','liverace','postrace','admin']),
 
   navigateTo(screenId, { updateHash = true } = {}) {
     if (!this._validScreenIds.has(screenId)) screenId = 'dashboard';
+    if (this.currentScreen === 'liverace' && screenId !== 'liverace' && window.GL_SCREENS && GL_SCREENS.cleanupLiveRace) {
+      GL_SCREENS.cleanupLiveRace();
+    }
     this.currentScreen = screenId;
 
     // Update URL hash so F5 restores the same screen
@@ -328,6 +331,7 @@ const APP = {
       market:     () => GL_SCREENS.renderMarket(),
       prerace:    () => GL_SCREENS.renderPreRace(),
       race:       () => GL_SCREENS.renderRace(),
+      liverace:   () => GL_SCREENS.renderLiveRace(),
       postrace:   () => GL_SCREENS.renderPostRace(),
       admin:      () => { if (window.GL_ADMIN) GL_ADMIN.renderAdminPanel(); },
     };

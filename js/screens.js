@@ -579,7 +579,7 @@ const SCREENS = {
       </svg>`;
   },
 
-  getRaceTrackStageMarkup(circuit, weather) {
+  getRaceTrackStageMarkup(circuit, weather, idPrefix = 'race') {
     const layout = circuit?.layout || 'mixed';
     const trackKey = circuit?.id || layout;
 
@@ -619,7 +619,7 @@ const SCREENS = {
     const sfAhead = this.getRaceTrackPoint(sfProgress + 0.004, trackKey, 0);
     const sfAngle = Math.atan2(sfAhead.y - sfPt.y, sfAhead.x - sfPt.x) * (180 / Math.PI);
     const sfMarkup = `
-      <rect fill="url(#race-track-sf-pattern)"
+      <rect fill="url(#${idPrefix}-track-sf-pattern)"
         x="${(sfPt.x - 5).toFixed(1)}" y="${(sfPt.y - 46).toFixed(1)}"
         width="10" height="92"
         transform="rotate(${sfAngle.toFixed(1)} ${sfPt.x.toFixed(1)} ${sfPt.y.toFixed(1)})"
@@ -629,13 +629,13 @@ const SCREENS = {
 
     const weatherLabel = this.getWeatherLabel(weather);
     return `
-      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="race-track-stage">
+      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="${idPrefix}-track-stage">
         <svg class="race-track-svg" viewBox="0 0 1000 620" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <filter id="race-track-shadow" x="-20%" y="-20%" width="140%" height="140%">
+            <filter id="${idPrefix}-track-shadow" x="-20%" y="-20%" width="140%" height="140%">
               <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="rgba(0,0,0,0.24)"/>
             </filter>
-            <pattern id="race-track-sf-pattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
+            <pattern id="${idPrefix}-track-sf-pattern" x="0" y="0" width="10" height="10" patternUnits="userSpaceOnUse">
               <rect x="0" y="0" width="5" height="5" fill="white"/>
               <rect x="5" y="5" width="5" height="5" fill="white"/>
               <rect x="5" y="0" width="5" height="5" fill="black"/>
@@ -662,17 +662,17 @@ const SCREENS = {
           ${sfMarkup}
           <text class="race-track-pitlabel" x="${pitLabelPt.x.toFixed(1)}" y="${pitLabelPt.y.toFixed(1)}" transform="rotate(${pitLabelAngle.toFixed(1)} ${pitLabelPt.x.toFixed(1)} ${pitLabelPt.y.toFixed(1)})" text-anchor="middle">PIT</text>
         </svg>
-        <div class="race-track-cars" id="race-track-cars"></div>
+        <div class="race-track-cars" id="${idPrefix}-track-cars"></div>
         <div class="race-track-progress-wrap">
-          <div class="race-track-progress-bar" id="race-track-progress-bar" style="width:0%"></div>
-          <span class="race-track-progress-label" id="race-track-progress-label">V—</span>
+          <div class="race-track-progress-bar" id="${idPrefix}-track-progress-bar" style="width:0%"></div>
+          <span class="race-track-progress-label" id="${idPrefix}-track-progress-label">V—</span>
         </div>
         <div class="race-track-hud">
-          <span class="race-track-chip" id="race-track-chip-layout">${this.getTrackLayoutLabel(layout)}</span>
-          <span class="race-track-chip" id="race-track-chip-weather">${weather === 'wet' ? '🌧️' : '☀️'} ${weatherLabel}</span>
-          <span class="race-track-chip" id="race-track-chip-pit">PIT 0</span>
-          <span class="race-track-chip" id="race-track-chip-player">${__('standings_you')} P—/P—</span>
-          <span class="race-track-chip race-track-chip-gap" id="race-track-chip-gap" title="Gap al auto de adelante">GAP —</span>
+          <span class="race-track-chip" id="${idPrefix}-track-chip-layout">${this.getTrackLayoutLabel(layout)}</span>
+          <span class="race-track-chip" id="${idPrefix}-track-chip-weather">${weather === 'wet' ? '🌧️' : '☀️'} ${weatherLabel}</span>
+          <span class="race-track-chip" id="${idPrefix}-track-chip-pit">PIT 0</span>
+          <span class="race-track-chip" id="${idPrefix}-track-chip-player">${__('standings_you')} P—/P—</span>
+          <span class="race-track-chip race-track-chip-gap" id="${idPrefix}-track-chip-gap" title="Gap al auto de adelante">GAP —</span>
         </div>
       </div>`;
   },
@@ -742,19 +742,19 @@ const SCREENS = {
     }).sort((a, b) => a.pos - b.pos).map((car, idx) => ({ ...car, pos: idx + 1, displayPos: idx + 1 }));
   },
 
-  renderRaceTrackVisualization({ liveOrder, progress, totalLaps, currentLap, circuit, weather }) {
-    const carsLayer = document.getElementById('race-track-cars');
+  renderRaceTrackVisualization({ liveOrder, progress, totalLaps, currentLap, circuit, weather, idPrefix = 'race' }) {
+    const carsLayer = document.getElementById(`${idPrefix}-track-cars`);
     if (!carsLayer) return;
 
-    const trackStage = document.getElementById('race-track-stage');
+    const trackStage = document.getElementById(`${idPrefix}-track-stage`);
     if (trackStage) {
       trackStage.classList.toggle('wet-weather', weather === 'wet');
       trackStage.classList.toggle('dry-weather', weather !== 'wet');
     }
 
-    const weatherChip = document.getElementById('race-track-chip-weather');
-    const pitChip = document.getElementById('race-track-chip-pit');
-    const playerChip = document.getElementById('race-track-chip-player');
+    const weatherChip = document.getElementById(`${idPrefix}-track-chip-weather`);
+    const pitChip = document.getElementById(`${idPrefix}-track-chip-pit`);
+    const playerChip = document.getElementById(`${idPrefix}-track-chip-player`);
     if (weatherChip) weatherChip.textContent = `${weather === 'wet' ? '🌧️' : '☀️'} ${this.getWeatherLabel(weather)}`;
 
     const intraLapProgress = (progress * totalLaps) % 1;
@@ -780,7 +780,7 @@ const SCREENS = {
       }
     }
 
-    const gapChip = document.getElementById('race-track-chip-gap');
+    const gapChip = document.getElementById(`${idPrefix}-track-chip-gap`);
     if (gapChip && teamCars.length) {
       const leader = teamCars[0];
       const leaderIdx = cars.findIndex((c) => c.id === leader.id);
@@ -801,8 +801,8 @@ const SCREENS = {
       }
     }
 
-    const progBar = document.getElementById('race-track-progress-bar');
-    const progLabel = document.getElementById('race-track-progress-label');
+    const progBar = document.getElementById(`${idPrefix}-track-progress-bar`);
+    const progLabel = document.getElementById(`${idPrefix}-track-progress-label`);
     if (progBar && totalLaps > 0) {
       const pct = Math.min(100, Math.round((currentLap / totalLaps) * 100));
       progBar.style.width = `${pct}%`;
@@ -2425,7 +2425,8 @@ const SCREENS = {
               </div>` :
               isNext ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
                 ${r.savedStrategy ? `<span style="font-size:0.72rem;color:var(--c-green)">✔ ${__('calendar_strat_ready')}</span>` : `<span style="font-size:0.72rem;color:var(--c-orange)">${__('calendar_strategy_missing')}</span>`}
-                <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">${__('calendar_race_arrow')}</button>
+                <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">Preparar Carrera</button>
+                <button class="btn btn-secondary btn-sm" onclick="GL_APP.navigateTo('liverace')">Ver Carrera en Vivo</button>
               </div>` :
               `<div style="font-size:0.78rem;color:var(--t-tertiary)">${__('calendar_upcoming')}</div>`}
             </div>
@@ -3864,6 +3865,227 @@ const SCREENS = {
     };
 
     liveAnimationFrame = requestAnimationFrame(runLivePlayback);
+  },
+
+  // ===== LIVE RACE SCREEN =====
+  cleanupLiveRace() {
+    if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
+    if (window._liveRaceCountdownInterval) { clearInterval(window._liveRaceCountdownInterval); window._liveRaceCountdownInterval = null; }
+    if (window._liveRaceAnimFrame) { cancelAnimationFrame(window._liveRaceAnimFrame); window._liveRaceAnimFrame = null; }
+    this._raceVisualState = {};
+    this._retiredSlotMap = {};
+  },
+
+  renderLiveRace() {
+    this.cleanupLiveRace();
+    const el = document.getElementById('screen-liverace');
+    if (!el) return;
+
+    const mp = window.GL_AUTH && GL_AUTH.mp;
+    if (!mp || !mp.divKey) {
+      el.innerHTML = `<div class="screen-header"><div class="screen-title-group"><div class="screen-title">Sin división asignada</div></div><div class="screen-actions"><button class="btn btn-secondary" onclick="GL_APP.navigateTo('calendar')">← Calendario</button></div></div>`;
+      return;
+    }
+
+    const state = GL_STATE.getState();
+    const cal = state.season.calendar || [];
+    const next = cal.find(r => r.status === 'next');
+    const circuit = next?.circuit || GL_DATA.CIRCUITS[0];
+    const weather = next?.weather || 'dry';
+    el.innerHTML = `
+      <div class="screen-header">
+        <div class="screen-title-group">
+          <div class="screen-eyebrow">Carrera en Vivo · Ronda ${next?.round || '–'}</div>
+          <div class="screen-title">${circuit.name}</div>
+          <div class="screen-subtitle">${weather === 'wet' ? '🌧️' : '☀️'} ${weather} · Esperando inicio</div>
+        </div>
+        <div class="screen-actions">
+          <button class="btn btn-secondary" onclick="GL_APP.navigateTo('calendar')">← Calendario</button>
+        </div>
+      </div>
+      <div class="race-layout">
+        <div class="race-track-view">
+          <div class="race-track-bg"></div>
+          <div class="race-status-bar" id="liverace-status-bar">
+            <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
+            <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
+          </div>
+          ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace')}
+          <div class="race-event-log" id="liverace-event-log">
+            <div class="race-event" style="border-color:var(--c-border)">
+              <span class="race-event-text">⏳ Esperando que el administrador inicie la carrera...</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex flex-col gap-4">
+          <div class="card">
+            <div class="section-eyebrow">Grilla en Vivo</div>
+            <div class="race-grid-list" id="liverace-grid-list">
+              <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    this.renderRaceTrackVisualization({ liveOrder: [], progress: 0, totalLaps: circuit.laps || 1, currentLap: 1, circuit, weather, idPrefix: 'liverace' });
+
+    const divRef = GL_AUTH._db.collection('divisions').doc(mp.divKey);
+    window._liveRaceListener = divRef.onSnapshot(snap => {
+      if (!snap.exists) return;
+      const liveState = snap.data().liveRaceState;
+      if (!liveState || liveState.status !== 'live' || !liveState.startTime) return;
+      if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
+      this._startLiveRaceCountdown(liveState, mp.divKey);
+    });
+  },
+
+  _startLiveRaceCountdown(liveState, divKey) {
+    const startTimeMs = liveState.startTime.toMillis ? liveState.startTime.toMillis() : Number(liveState.startTime);
+    const raceStartMs = startTimeMs + 10000;
+    const durationMode = liveState.durationMode || 'real';
+    const lapEl = document.getElementById('liverace-lap');
+    const log = document.getElementById('liverace-event-log');
+
+    const tick = () => {
+      const remaining = raceStartMs - Date.now();
+      if (remaining <= 0) {
+        clearInterval(window._liveRaceCountdownInterval);
+        window._liveRaceCountdownInterval = null;
+        if (lapEl) lapEl.textContent = '🏁 ¡Arrancamos!';
+        if (log) {
+          const div = document.createElement('div');
+          div.className = 'race-event';
+          div.innerHTML = '<span class="race-event-text">🏁 ¡Comienza la carrera!</span>';
+          log.innerHTML = '';
+          log.appendChild(div);
+        }
+        this._fetchAndStartLiveRace(divKey, liveState.round, raceStartMs, durationMode);
+      } else {
+        const secs = Math.ceil(remaining / 1000);
+        if (lapEl) lapEl.textContent = `🚦 Salida en ${secs}...`;
+      }
+    };
+
+    tick();
+    if (raceStartMs > Date.now()) {
+      window._liveRaceCountdownInterval = setInterval(tick, 200);
+    }
+  },
+
+  async _fetchAndStartLiveRace(divKey, round, raceStartMs, durationMode) {
+    try {
+      const resultSnap = await GL_AUTH._db
+        .collection('divisions').doc(divKey)
+        .collection('raceResults').doc(String(round))
+        .get();
+      if (!resultSnap.exists) { GL_UI.toast('Error: resultado de carrera no encontrado.', 'warning'); return; }
+      const result = resultSnap.data();
+      const uid = GL_AUTH.user && GL_AUTH.user.uid;
+      const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
+      this._runLiveRaceVisualization({ ...result, viewerCars }, raceStartMs, durationMode);
+    } catch (e) {
+      GL_UI.toast('Error al cargar la carrera en vivo.', 'warning');
+    }
+  },
+
+  _runLiveRaceVisualization(result, raceStartMs, durationMode = 'real') {
+    const log = document.getElementById('liverace-event-log');
+    const lapEl = document.getElementById('liverace-lap');
+    if (log) log.innerHTML = '';
+
+    const LIVE_RACE_DURATION_MS = durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+    const allEvents = Array.isArray(result.events) ? result.events : [];
+    const totalLaps = result.totalLaps || 30;
+    const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
+    const finalGrid = Array.isArray(result.finalGrid) ? result.finalGrid : [];
+    const lapSnapshots = Array.isArray(result.lapSnapshots) ? result.lapSnapshots : [];
+    const circuit = result.circuit || GL_DATA.CIRCUITS[0];
+    const weather = result.weather || 'dry';
+    const playerEventPilotNames = this.getPlayerEventPilotNames(result.viewerCars || []);
+
+    const startPosMap = {};
+    const finalPosMap = {};
+    gridStart.forEach((car, idx) => { startPosMap[car.id] = idx + 1; });
+    finalGrid.forEach((car, idx) => { finalPosMap[car.id] = idx + 1; });
+
+    let eventCursor = 0;
+    let tick = 0;
+    let finished = false;
+
+    const formatRemaining = (ms) => {
+      const sec = Math.max(0, Math.ceil(ms / 1000));
+      return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    };
+
+    const renderLiveGrid = (live) => {
+      const gl = document.getElementById('liverace-grid-list');
+      if (!gl) return;
+      gl.innerHTML = live.slice(0, 20).map((car, idx) => {
+        const gapToLeader = idx === 0 ? __('race_leader') : (Number.isFinite(car.gapMs) ? `+${(car.gapMs / 1000).toFixed(1)}s` : `+${(idx * 0.9).toFixed(1)}s`);
+        const aheadCar = idx > 0 ? live[idx - 1] : null;
+        const intervalMs = (aheadCar && Number.isFinite(car.gapMs) && Number.isFinite(aheadCar.gapMs)) ? (car.gapMs - aheadCar.gapMs) : null;
+        const intervalStr = (idx > 0 && intervalMs !== null) ? `▲${(Math.max(0, intervalMs) / 1000).toFixed(1)}s` : '';
+        const dotColor = car.color || '#888';
+        const tyreMeta = this.getTyreMeta(car.tyre);
+        const status = car.retired ? 'DNF' : car.pit ? `BOX ${Number.isFinite(car.pitLossMs) && car.pitLossMs > 0 ? `· -${(car.pitLossMs / 1000).toFixed(1)}s` : ''}` : gapToLeader;
+        return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}">
+          <span class="race-pos-num">${car.pos || (idx + 1)}</span>
+          <span class="race-pos-teamdot" style="background:${dotColor}"></span>
+          <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
+          <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>
+          <span class="race-pos-gap" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1">
+            <span>${status}</span>
+            ${intervalStr && !car.retired && !car.pit ? `<span style="font-size:0.68rem;color:var(--t-secondary);font-weight:500">${intervalStr}</span>` : ''}
+          </span>
+        </div>`;
+      }).join('');
+    };
+
+    const finishRace = () => {
+      if (finished) return;
+      finished = true;
+      if (lapEl) lapEl.textContent = '🏁 ¡Carrera finalizada!';
+      setTimeout(() => GL_APP.navigateTo('postrace'), 1500);
+    };
+
+    const runTick = () => {
+      tick += 1;
+      const elapsed = Date.now() - raceStartMs;
+      if (elapsed < 0) { window._liveRaceAnimFrame = requestAnimationFrame(runTick); return; }
+
+      const progress = Math.max(0, Math.min(1, elapsed / LIVE_RACE_DURATION_MS));
+      const lapProgress = progress * totalLaps;
+      const currentLap = Math.max(1, Math.min(totalLaps, Math.floor(lapProgress) + 1));
+      const lapBlend = lapProgress % 1;
+      const remaining = LIVE_RACE_DURATION_MS - elapsed;
+
+      const liveOrder = this.buildLiveRaceOrder({ lapSnapshots, currentLap, lapBlend, finalGrid, startPosMap, finalPosMap, progress, tick });
+      const liveWeather = lapSnapshots[currentLap - 1]?.weather || weather;
+
+      if (lapEl) lapEl.textContent = `🏁 Vuelta ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;
+
+      const shouldShowEvents = Math.floor(progress * allEvents.length);
+      while (eventCursor < shouldShowEvents) {
+        const ev = allEvents[eventCursor];
+        if (log) {
+          const div = document.createElement('div');
+          const teamHighlightClass = this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : '';
+          div.className = `race-event ${ev.type || ''} ${teamHighlightClass}`.trim();
+          div.innerHTML = `<span class="race-event-lap">${__('race_lap_short')} ${ev.lap}</span><span class="race-event-text">${ev.text}</span>`;
+          log.appendChild(div);
+          log.scrollTop = log.scrollHeight;
+        }
+        eventCursor += 1;
+      }
+
+      renderLiveGrid(liveOrder);
+      this.renderRaceTrackVisualization({ liveOrder, progress, totalLaps, currentLap, circuit, weather: liveWeather, idPrefix: 'liverace' });
+
+      if (progress >= 1) { finishRace(); return; }
+      window._liveRaceAnimFrame = requestAnimationFrame(runTick);
+    };
+
+    window._liveRaceAnimFrame = requestAnimationFrame(runTick);
   },
 
   // ===== POST-RACE SCREEN =====

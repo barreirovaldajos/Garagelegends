@@ -109,6 +109,37 @@ const GL_ADMIN = {
         <div id="admin-tool-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
 
+      <!-- Live Race Control -->
+      <div class="card" style="margin-bottom:var(--s-4)">
+        <div class="section-title" style="margin-bottom:4px">📺 Carrera en Vivo</div>
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Inicia la transmisión en vivo para todos los jugadores. Primero fuerza la carrera, luego selecciona la división y presiona Iniciar.</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">División</label>
+            <select id="admin-live-div" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              ${divOptions.map(d => `<option value="${d.div}">${d.div} – ${d.name || ''}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Grupo</label>
+            <select id="admin-live-group" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              ${this._buildGroupOptions(divOptions[0])}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Duración</label>
+            <select id="admin-live-mode" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              <option value="real">REAL · 8 min</option>
+              <option value="qa">QA · 2 min</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="GL_ADMIN.handleCheckLiveRaceStatus()">🔍 Ver estado</button>
+          <button class="btn btn-primary" onclick="GL_ADMIN.handleStartLiveRace()" style="background:var(--c-accent)">▶ Iniciar Carrera en Vivo</button>
+          <button class="btn btn-ghost" onclick="GL_ADMIN.handleResetLiveRace()">✕ Resetear</button>
+        </div>
+        <div id="admin-live-status" style="font-size:0.72rem;color:var(--t-tertiary)"></div>
+      </div>
+
       <!-- Season Control -->
       <div class="card" style="margin-bottom:var(--s-4)">
         <div class="section-title" style="margin-bottom:4px">📅 Control de Temporada</div>
@@ -120,8 +151,9 @@ const GL_ADMIN = {
       </div>
     `;
 
-    // Wire up division select → group select sync (solo para Division Tools)
+    // Wire up division select → group select sync
     this._wireGroupSync('admin-tool-div', 'admin-tool-group');
+    this._wireGroupSync('admin-live-div', 'admin-live-group');
 
     // Load current system message
     this.loadSystemMessageIntoInput();
@@ -811,6 +843,81 @@ const GL_ADMIN = {
         GL_STATE.saveState();
       }
     } catch (_) { /* silent */ }
+  },
+
+  // ==========================================
+  //  LIVE RACE CONTROL
+  // ==========================================
+
+  async handleCheckLiveRaceStatus() {
+    const divEl = document.getElementById('admin-live-div');
+    const groupEl = document.getElementById('admin-live-group');
+    const statusEl = document.getElementById('admin-live-status');
+    if (!divEl || !groupEl) return;
+    const divKey = `${divEl.value}_${groupEl.value}`;
+    try {
+      const db = this.db();
+      if (!db) throw new Error('No hay conexión a Firestore');
+      const snap = await db.collection('divisions').doc(divKey).get();
+      if (!snap.exists) { if (statusEl) { statusEl.textContent = `División ${divKey} no encontrada`; statusEl.style.color = 'var(--c-red,#e8292a)'; } return; }
+      const lrs = snap.data().liveRaceState;
+      if (!lrs) {
+        if (statusEl) { statusEl.textContent = `${divKey}: Sin estado (carrera no forzada aún)`; statusEl.style.color = 'var(--c-orange,#f59e0b)'; }
+      } else {
+        const statusLabel = { waiting: '⏳ Esperando', ready: '✅ Lista para iniciar', live: '▶ En vivo', finished: '🏁 Finalizada' }[lrs.status] || lrs.status;
+        if (statusEl) { statusEl.textContent = `${divKey}: ${statusLabel} · Ronda ${lrs.round || '?'}${lrs.startTime ? ` · Inicio: ${new Date(lrs.startTime.toMillis()).toLocaleTimeString()}` : ''}`; statusEl.style.color = lrs.status === 'ready' ? 'var(--c-green)' : 'var(--t-secondary)'; }
+      }
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = 'Error: ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
+    }
+  },
+
+  async handleStartLiveRace() {
+    const divEl = document.getElementById('admin-live-div');
+    const groupEl = document.getElementById('admin-live-group');
+    const modeEl = document.getElementById('admin-live-mode');
+    const statusEl = document.getElementById('admin-live-status');
+    if (!divEl || !groupEl) return;
+    const divKey = `${divEl.value}_${groupEl.value}`;
+    const durationMode = modeEl ? modeEl.value : 'real';
+    const durationLabel = durationMode === 'qa' ? '2 min (QA)' : '8 min (REAL)';
+
+    const ok = await GL_UI.confirm('Iniciar Carrera en Vivo', `¿Iniciar carrera en vivo para ${divKey}? Duración: ${durationLabel}. Los jugadores verán el contador en 10 segundos.`, 'Iniciar', 'Cancelar');
+    if (!ok) return;
+
+    try {
+      if (statusEl) { statusEl.textContent = 'Iniciando...'; statusEl.style.color = 'var(--t-secondary)'; }
+      const db = this.db();
+      if (!db) throw new Error('No hay conexión a Firestore');
+      await db.collection('divisions').doc(divKey).update({
+        'liveRaceState.status': 'live',
+        'liveRaceState.startTime': firebase.firestore.FieldValue.serverTimestamp(),
+        'liveRaceState.durationMode': durationMode
+      });
+      if (statusEl) { statusEl.textContent = `✓ Carrera en vivo iniciada para ${divKey} · ${durationLabel}`; statusEl.style.color = 'var(--c-green)'; }
+      GL_UI.toast(`Carrera en vivo iniciada para ${divKey} · ${durationLabel}`, 'success');
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = 'Error: ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
+    }
+  },
+
+  async handleResetLiveRace() {
+    const divEl = document.getElementById('admin-live-div');
+    const groupEl = document.getElementById('admin-live-group');
+    const statusEl = document.getElementById('admin-live-status');
+    if (!divEl || !groupEl) return;
+    const divKey = `${divEl.value}_${groupEl.value}`;
+
+    try {
+      const db = this.db();
+      if (!db) throw new Error('No hay conexión a Firestore');
+      await db.collection('divisions').doc(divKey).update({
+        liveRaceState: { status: 'waiting', round: null, startTime: null }
+      });
+      if (statusEl) { statusEl.textContent = `✓ Estado reseteado para ${divKey}`; statusEl.style.color = 'var(--t-tertiary)'; }
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = 'Error: ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
+    }
   }
 };
 
