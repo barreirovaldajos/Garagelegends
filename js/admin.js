@@ -69,6 +69,11 @@ const GL_ADMIN = {
         <div class="section-title" style="margin-bottom:4px">🏁 ${__('admin_race_control')}</div>
         <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Simula la próxima carrera pendiente en <strong>todas</strong> las divisiones y grupos activos simultáneamente.</div>
         <button class="btn btn-primary" onclick="GL_ADMIN.handleForceAllRaces()" style="background:var(--c-red,#e8292a)">🏁 Forzar carrera en todas las divisiones</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+          <input id="admin-race-round-filter" type="number" min="1" max="52" placeholder="Ronda (opcional)" style="width:160px;background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 8px;font-size:0.82rem" />
+          <button class="btn btn-secondary" onclick="GL_ADMIN.handleForceAllRaces(true)">🔁 Equiparar divisiones atrasadas</button>
+        </div>
+        <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:4px">Ingresá el número de ronda para correr <em>solo</em> las divisiones que tienen esa ronda pendiente.</div>
         <div id="admin-race-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
 
@@ -743,20 +748,23 @@ const GL_ADMIN = {
     }
   },
 
-  async handleForceAllRaces() {
-    const ok = await GL_UI.confirm(
-      'Force All Races',
-      'Simulate the next race for ALL active divisions?',
-      'Run All',
-      __('cancel')
-    );
+  async handleForceAllRaces(useRoundFilter = false) {
+    const roundFilterEl = document.getElementById('admin-race-round-filter');
+    const roundFilter = useRoundFilter && roundFilterEl && roundFilterEl.value.trim()
+      ? parseInt(roundFilterEl.value.trim(), 10)
+      : null;
+
+    const confirmMsg = roundFilter
+      ? `Correr ronda ${roundFilter} solo para divisiones que aún la tienen pendiente?`
+      : 'Simulate the next race for ALL active divisions?';
+    const ok = await GL_UI.confirm('Force All Races', confirmMsg, 'Run All', __('cancel'));
     if (!ok) return;
 
     const statusEl = document.getElementById('admin-race-status');
     try {
       if (statusEl) { statusEl.textContent = 'Running all races...'; statusEl.style.color = 'var(--t-secondary)'; }
       const adminForceAllRaces = firebase.functions().httpsCallable('adminForceAllRaces');
-      const result = await adminForceAllRaces({});
+      const result = await adminForceAllRaces(roundFilter ? { roundFilter } : {});
       const data = result.data || {};
       if (statusEl) {
         statusEl.textContent = `Done: ${data.processed || 0} divisions processed`;
