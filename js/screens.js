@@ -90,14 +90,15 @@ const SCREENS = {
   driverSliderHtml(pid, field, label, val, updateFn) {
     const hint = this.getSliderHint(field, val);
     const intensity = val <= 30 ? 'low' : val <= 65 ? 'mid' : 'high';
+    const accentColor = val <= 30 ? 'var(--c-green)' : val <= 65 ? 'var(--c-gold)' : 'var(--c-red)';
     return `
       <div class="ds-block">
         <div class="ds-header">
           <span class="ds-label">${label}</span>
           <span class="ds-val ds-val--${intensity}" id="ds-val-${field}-${pid}">${val}</span>
         </div>
-        <input type="range" min="0" max="100" value="${val}" class="ds-range"
-          oninput="const v=+this.value; const i=v<=30?'low':v<=65?'mid':'high'; const vEl=document.getElementById('ds-val-${field}-${pid}'); vEl.textContent=v; vEl.className='ds-val ds-val--'+i; document.getElementById('ds-hint-${field}-${pid}').textContent=GL_SCREENS.getSliderHint('${field}',v); ${updateFn}">
+        <input type="range" min="0" max="100" value="${val}" class="ds-range" style="accent-color:${accentColor}"
+          oninput="const v=+this.value; const i=v<=30?'low':v<=65?'mid':'high'; const c=v<=30?'var(--c-green)':v<=65?'var(--c-gold)':'var(--c-red)'; this.style.accentColor=c; const vEl=document.getElementById('ds-val-${field}-${pid}'); vEl.textContent=v; vEl.className='ds-val ds-val--'+i; document.getElementById('ds-hint-${field}-${pid}').textContent=GL_SCREENS.getSliderHint('${field}',v); ${updateFn}">
         <div class="ds-hint" id="ds-hint-${field}-${pid}">${hint}</div>
       </div>`;
   },
@@ -105,14 +106,15 @@ const SCREENS = {
   driverPitSliderHtml(pid, idx, val, disabled) {
     const stopLabel = idx === 0 ? 'Parada 1' : 'Parada 2';
     const hint = val < 35 ? 'Parada temprana · buena para undercut y neutralizar Safety Car' : val < 60 ? 'Parada media · equilibrio entre frescura de neumático y tiempo en pista' : 'Parada tardía · extiende el stint, útil para cubrir a rivales';
+    const pitAccent = val < 35 ? 'var(--c-green)' : val < 60 ? 'var(--c-gold)' : 'var(--c-red)';
     return `
       <div class="ds-block">
         <div class="ds-header">
           <span class="ds-label">${stopLabel}</span>
           <span class="ds-val" id="ds-val-iv${idx}-${pid}">${val}%</span>
         </div>
-        <input type="range" min="10" max="95" value="${val}" class="ds-range" ${disabled ? 'disabled' : ''}
-          oninput="const v=+this.value; document.getElementById('ds-val-iv${idx}-${pid}').textContent=v+'%'; document.getElementById('ds-hint-iv${idx}-${pid}').textContent=v<35?'Parada temprana · buena para undercut y neutralizar Safety Car':v<60?'Parada media · equilibrio entre frescura de neumático y tiempo en pista':'Parada tardía · extiende el stint, útil para cubrir a rivales'; GL_SCREENS.updateDriverIntervention('${pid}',${idx},'lapPct',v,true)">
+        <input type="range" min="10" max="95" value="${val}" class="ds-range" style="accent-color:${pitAccent}" ${disabled ? 'disabled' : ''}
+          oninput="const v=+this.value; const c=v<35?'var(--c-green)':v<60?'var(--c-gold)':'var(--c-red)'; this.style.accentColor=c; document.getElementById('ds-val-iv${idx}-${pid}').textContent=v+'%'; document.getElementById('ds-hint-iv${idx}-${pid}').textContent=v<35?'Parada temprana · buena para undercut y neutralizar Safety Car':v<60?'Parada media · equilibrio entre frescura de neumático y tiempo en pista':'Parada tardía · extiende el stint, útil para cubrir a rivales'; GL_SCREENS.updateDriverIntervention('${pid}',${idx},'lapPct',v,true)">
         <div class="ds-hint ${disabled ? 'ds-hint--disabled' : ''}" id="ds-hint-iv${idx}-${pid}">${disabled ? 'Solo activo con dos paradas' : hint}</div>
       </div>`;
   },

@@ -76,10 +76,50 @@ const Academy = {
   generateScoutingPool(state) {
     // Genera un pool semanal de 3-5 pilotos candidatos con stats variados
     const pool = [];
-    const names = ['Alex', 'Jordan', 'Casey', 'Morgan', 'Taylor', 'Riley', 'Sam', 'Jamie', 'Robin', 'Drew'];
+    const firstNames = [
+      'Alex','Jordan','Casey','Morgan','Taylor','Riley','Sam','Jamie','Robin','Drew',
+      'Kai','Noa','Sasha','Avery','Quinn','Reese','Blake','Emery','Skyler','Dakota',
+      'Luca','Mika','Tariq','Soren','Zara','Nico','Yael','Cleo','Ezra','Remy',
+      'Finn','Sage','Beau','Cruz','Juno','Ren','Briar','Dani','Mace','Shay',
+      'Ara','Rex','Vito','Sol','Ines','Kofi','Tao','Lexi','Rafe','Gael'
+    ];
+    const lastNames = [
+      'Vega','Park','Diaz','Chen','Müller','Rossi','Novak','Obi','Souza','Patel',
+      'Kowalski','Nakamura','Ferreira','Costa','Ibarra','Johansson','Okafor','Yıldız',
+      'Santos','Berg','Reis','Kato','Flores','Andersen','Mensah','Rivera','Dubois',
+      'Moreau','Tremblay','Hoffman','Walsh','Reyes','Kim','Sato','Gomez','Nkosi'
+    ];
+
+    // Collect all names already in use across the whole game
+    const usedNames = new Set();
+    const staticPool = (typeof GL_DATA !== 'undefined' && GL_DATA.PILOT_POOL) || [];
+    staticPool.forEach(p => usedNames.add(p.name));
+    (state.pilots || []).forEach(p => usedNames.add(p.name));
+    (state.scoutingPool || []).forEach(p => usedNames.add(p.name));
+
+    const generateUniqueName = () => {
+      let attempts = 0;
+      while (attempts < 200) {
+        const first = firstNames[Math.floor(Math.random() * firstNames.length)];
+        const last = lastNames[Math.floor(Math.random() * lastNames.length)];
+        const candidate = `${first} ${last}`;
+        if (!usedNames.has(candidate)) {
+          usedNames.add(candidate);
+          return candidate;
+        }
+        attempts++;
+      }
+      // Fallback: append a number to guarantee uniqueness
+      const base = firstNames[Math.floor(Math.random() * firstNames.length)] + ' ' + lastNames[Math.floor(Math.random() * lastNames.length)];
+      let n = 2;
+      while (usedNames.has(`${base} ${n}`)) n++;
+      usedNames.add(`${base} ${n}`);
+      return `${base} ${n}`;
+    };
+
     for (let i = 0; i < 3 + Math.floor(Math.random() * 3); i++) {
       const id = 'scout_' + Date.now() + '_' + i + '_' + Math.floor(Math.random()*1000);
-      const name = names[Math.floor(Math.random() * names.length)] + ' ' + String.fromCharCode(65 + Math.floor(Math.random()*26)) + '.';
+      const name = generateUniqueName();
       const attrs = {
         pace: 50 + Math.floor(Math.random() * 30),
         racePace: 50 + Math.floor(Math.random() * 30),
