@@ -4,6 +4,8 @@
 const TEAM_PROFILE = {
   // Temp storage for standings so onclick callbacks can reference by index (avoids escaping issues)
   _divStandings: null,
+  // Standings fetched by the division browser
+  _browserStandings: null,
 
   // ===== PANTALLA COMPLETA: MI EQUIPO =====
   renderMyTeam() {
@@ -158,8 +160,38 @@ const TEAM_PROFILE = {
       <div class="section-header" style="margin-bottom:var(--s-2)">
         <span class="section-title" style="font-size:0.85rem">${__('season_history_title', 'Temporadas anteriores')}</span>
       </div>
-      <div class="card">
+      <div class="card mb-4">
         ${historyHtml}
+      </div>
+
+      <!-- Buscador de divisiones -->
+      <div class="section-header" style="margin-bottom:var(--s-2)">
+        <span class="section-title" style="font-size:0.85rem">🔍 ${__('division_browser_title', 'Explorar Divisiones')}</span>
+      </div>
+      <div class="card">
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:10px">${__('division_browser_hint', 'Consulta las clasificaciones de cualquier grupo. Útil para seguir a amigos o rivales.')}</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+          <div>
+            <label style="font-size:0.68rem;color:var(--t-tertiary);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.05em">${__('division', 'División')}</label>
+            <select id="tp-browser-div" onchange="GL_TEAM_PROFILE._onBrowserDivChange()" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              ${(window.GL_DATA && GL_DATA.DIVISIONS ? GL_DATA.DIVISIONS.slice().sort((a,b) => a.div - b.div) : []).map(d =>
+                `<option value="${d.div}">${d.div} – ${d.name || ''}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.68rem;color:var(--t-tertiary);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:0.05em">${__('admin_group', 'Grupo')}</label>
+            <select id="tp-browser-group" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              ${this._buildBrowserGroupOptions(1)}
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="GL_TEAM_PROFILE.loadDivisionBrowser()" style="height:34px">
+            ${__('division_browser_search', 'Ver clasificación')}
+          </button>
+        </div>
+        <div id="tp-browser-results" style="font-size:0.82rem;color:var(--t-tertiary)">
+          ${__('division_browser_empty', 'Selecciona una división y pulsa "Ver clasificación".')}
+        </div>
       </div>
     `;
   },
@@ -168,6 +200,128 @@ const TEAM_PROFILE = {
   openTeamByIndex(idx) {
     if (!this._divStandings) return;
     const s = this._divStandings[idx];
+    if (!s) return;
+    this.openTeamModal(s);
+  },
+
+  // ===== BUSCADOR DE DIVISIONES =====
+
+  _buildBrowserGroupOptions(divNum) {
+    const catalog = (window.GL_DATA && GL_DATA.DIVISIONS) ? GL_DATA.DIVISIONS : [];
+    const entry = catalog.find(d => d.div === Number(divNum));
+    const parallel = (entry && entry.parallelDivisions > 1) ? entry.parallelDivisions : 1;
+    let html = '';
+    for (let i = 1; i <= parallel; i++) {
+      const lbl = (typeof Divisions !== 'undefined' && Divisions.groupLabel) ? Divisions.groupLabel(i) : i;
+      html += `<option value="${i}">${lbl}</option>`;
+    }
+    return html;
+  },
+
+  _onBrowserDivChange() {
+    const divSel   = document.getElementById('tp-browser-div');
+    const groupSel = document.getElementById('tp-browser-group');
+    if (!divSel || !groupSel) return;
+    groupSel.innerHTML = this._buildBrowserGroupOptions(Number(divSel.value));
+  },
+
+  async loadDivisionBrowser() {
+    const divSel   = document.getElementById('tp-browser-div');
+    const groupSel = document.getElementById('tp-browser-group');
+    const results  = document.getElementById('tp-browser-results');
+    if (!divSel || !groupSel || !results) return;
+
+    const divNum   = Number(divSel.value);
+    const groupNum = Number(groupSel.value);
+    const divKey   = `${divNum}_${groupNum}`;
+    const divLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel)
+      ? Divisions.divisionLabel(divNum, groupNum)
+      : `${divNum}-${groupNum}`;
+
+    results.innerHTML = `<div style="color:var(--t-tertiary)">Cargando División ${divLabel}…</div>`;
+
+    try {
+      const db = window.GL_AUTH && GL_AUTH._db;
+      if (!db) throw new Error('Sin conexión a base de datos');
+
+      const snap = await db.collection('divisions').doc(divKey).get();
+      if (!snap.exists) {
+        results.innerHTML = `<div style="color:var(--t-tertiary)">División ${divLabel} no encontrada.</div>`;
+        return;
+      }
+
+      const data     = snap.data();
+      const standings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
+      this._browserStandings = standings;
+
+      const catalog  = (typeof Divisions !== 'undefined') ? Divisions.getDivisionConfig(divNum) : null;
+      const promoN   = catalog ? catalog.promotions  : 0;
+      const relegN   = catalog ? catalog.relegations : 0;
+      const total    = standings.length;
+      const phase    = data.phase || 'season';
+      const seasonY  = data.seasonYear || 1;
+      const round    = data.lastRaceRound || 0;
+      const calendar = data.calendar || [];
+      const totalRaces = calendar.length;
+
+      const uid = window.GL_AUTH && GL_AUTH.user && GL_AUTH.user.uid;
+
+      const rows = standings.map((s, idx) => {
+        const pos      = s.position || (idx + 1);
+        const posClass = pos <= 3 ? `pos-${pos}` : 'pos-n';
+        const isMe     = s.isPlayer && s.teamId === uid;
+        const isPlayer = s.isPlayer && !isMe;
+
+        let zoneBg = '';
+        if (promoN > 0 && pos <= promoN)              zoneBg = 'background:rgba(46,196,182,0.07)';
+        if (relegN > 0 && pos > total - relegN)        zoneBg = 'background:rgba(232,41,42,0.07)';
+
+        return `<tr style="${zoneBg}" onclick="GL_TEAM_PROFILE.openBrowserTeamByIdx(${idx})" style="cursor:pointer">
+          <td><div class="pos-badge ${posClass}">${pos}</div></td>
+          <td style="display:flex;align-items:center;gap:7px;padding:6px 4px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${s.color || '#888'};flex-shrink:0"></div>
+            <span style="color:${isMe ? 'var(--c-accent)' : 'var(--t-primary)'};font-weight:${isMe ? '700' : '400'}">
+              ${s.teamName || '—'}${isMe ? ' ⭐' : ''}${isPlayer ? ' 👤' : ''}${!s.isPlayer ? ' 🤖' : ''}
+            </span>
+          </td>
+          <td style="font-weight:700;color:var(--c-gold)">${s.points || 0}</td>
+          <td style="color:var(--t-secondary)">${s.wins || 0}</td>
+          <td style="color:var(--t-tertiary)">${s.podiums || 0}</td>
+          <td style="color:var(--t-tertiary);font-size:0.72rem">${s.bestResult ? 'P' + s.bestResult : '—'}</td>
+        </tr>`;
+      }).join('');
+
+      const promoFooter = promoN > 0
+        ? `<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:0.72rem;color:var(--c-green)"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(46,196,182,0.3)"></span>Top ${promoN} ascienden</div>` : '';
+      const relegFooter = relegN > 0
+        ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:0.72rem;color:var(--c-red,#e8292a)"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(232,41,42,0.2)"></span>Últimos ${relegN} descienden</div>` : '';
+
+      results.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:4px">
+          <span style="font-weight:700;color:var(--t-primary)">División ${divLabel}</span>
+          <span style="font-size:0.72rem;color:var(--t-tertiary)">Temporada ${seasonY} · Ronda ${round}/${totalRaces} · ${phase === 'offseason' ? '🏁 Finalizada' : '🟢 En curso'}</span>
+        </div>
+        <table class="standings-table-full" style="cursor:default">
+          <thead><tr>
+            <th style="width:36px">Pos</th>
+            <th>Equipo</th>
+            <th>Pts</th>
+            <th>V</th>
+            <th>Pod</th>
+            <th>Mejor</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${promoFooter}${relegFooter}
+      `;
+    } catch (err) {
+      results.innerHTML = `<div style="color:var(--c-red,#e8292a)">Error: ${err.message}</div>`;
+    }
+  },
+
+  openBrowserTeamByIdx(idx) {
+    if (!this._browserStandings) return;
+    const s = this._browserStandings[idx];
     if (!s) return;
     this.openTeamModal(s);
   },

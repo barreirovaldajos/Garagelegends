@@ -66,22 +66,9 @@ const GL_ADMIN = {
 
       <!-- Race Control -->
       <div class="card" style="margin-bottom:var(--s-4)">
-        <div class="section-title" style="margin-bottom:12px">🏁 ${__('admin_race_control')}</div>
-        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <div>
-            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">${__('division')}</label>
-            <select id="admin-race-div" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
-              ${divOptions.map(d => `<option value="${d.div}">${d.div} – ${d.name || ''}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">${__('admin_group')}</label>
-            <select id="admin-race-group" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
-              ${this._buildGroupOptions(divOptions[0])}
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="GL_ADMIN.handleForceStartRace()" style="background:var(--c-red,#e8292a)">🏁 ${__('admin_force_start')}</button>
-        </div>
+        <div class="section-title" style="margin-bottom:4px">🏁 ${__('admin_race_control')}</div>
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Simula la próxima carrera pendiente en <strong>todas</strong> las divisiones y grupos activos simultáneamente.</div>
+        <button class="btn btn-primary" onclick="GL_ADMIN.handleForceAllRaces()" style="background:var(--c-red,#e8292a)">🏁 Forzar carrera en todas las divisiones</button>
         <div id="admin-race-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
 
@@ -116,10 +103,19 @@ const GL_ADMIN = {
         </div>
         <div id="admin-tool-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
+
+      <!-- Season Control -->
+      <div class="card" style="margin-bottom:var(--s-4)">
+        <div class="section-title" style="margin-bottom:4px">📅 Control de Temporada</div>
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Fuerza el cierre de la temporada actual y arranca la siguiente. Solo actúa sobre divisiones cuyas carreras ya han terminado; las que aún tienen carreras pendientes se omiten.</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="GL_ADMIN.handleForceSeasonAdvance()" style="background:var(--c-gold,#f4c430);color:#000;border-color:var(--c-gold,#f4c430)">🔁 Avanzar a siguiente temporada</button>
+        </div>
+        <div id="admin-season-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
+      </div>
     `;
 
-    // Wire up division select → group select sync
-    this._wireGroupSync('admin-race-div', 'admin-race-group');
+    // Wire up division select → group select sync (solo para Division Tools)
     this._wireGroupSync('admin-tool-div', 'admin-tool-group');
 
     // Load current system message
@@ -670,6 +666,38 @@ const GL_ADMIN = {
       GL_UI.toast(`${__('admin_group_reset_ok')} (${groupLabel})`, 'success');
     } catch (e) {
       if (statusEl) { statusEl.textContent = __('admin_error') + ': ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
+    }
+  },
+
+  // ==========================================
+  //  SEASON CONTROL
+  // ==========================================
+
+  async handleForceSeasonAdvance() {
+    const statusEl = document.getElementById('admin-season-status');
+    const ok = await GL_UI.confirm(
+      'Avanzar a siguiente temporada',
+      'Esto cerrará todas las divisiones que ya terminaron sus carreras (aplicando ascensos y descensos) y creará la nueva temporada.\n\nLas divisiones con carreras pendientes NO se verán afectadas.\n\n¿Continuar?',
+      '🔁 Avanzar',
+      __('cancel')
+    );
+    if (!ok) return;
+
+    if (statusEl) { statusEl.textContent = 'Procesando temporada...'; statusEl.style.color = 'var(--t-secondary)'; }
+    try {
+      const adminForceSeasonAdvance = firebase.functions().httpsCallable('adminForceSeasonAdvance');
+      const result = await adminForceSeasonAdvance({});
+      const data = result.data || {};
+      const ended = (data.endedDivisions || []).length;
+      const skipped = (data.skippedDivisions || []).length;
+      if (statusEl) {
+        statusEl.textContent = `✓ ${data.message || 'Hecho'} · Omitidas (carreras pendientes): ${skipped}`;
+        statusEl.style.color = 'var(--c-green)';
+      }
+      GL_UI.toast(`Nueva temporada iniciada (${ended} división(es) cerradas)`, 'success');
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = __('admin_error') + ': ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
+      GL_UI.toast(__('admin_error') + ': ' + (e.message || e), 'error');
     }
   },
 

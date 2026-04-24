@@ -270,3 +270,44 @@ exports.adminResetGroup = functions.https.onCall(async (data, context) => {
   functions.logger.info(`adminResetGroup: ${divKey} reset. Players cleared: ${affectedPlayers.join(', ')}`);
   return { success: true, divKey, affectedPlayers };
 });
+
+// ── 11. Admin Force Season Advance – End stuck seasons, then start new ───────
+exports.adminForceSeasonAdvance = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+
+  const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
+  if (!profileSnap.exists || profileSnap.data().role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin only');
+  }
+
+  // Step 1: End any 'season' divisions that have no remaining upcoming races
+  const activeSnap = await db.collection('divisions').where('phase', '==', 'season').get();
+  const endedDivs = [];
+  const skippedDivs = [];
+  for (const doc of activeSnap.docs) {
+    const data = doc.data();
+    const hasNext = (data.calendar || []).some(r => r.status === 'next');
+    if (hasNext) {
+      skippedDivs.push(doc.id);
+      continue;
+    }
+    try {
+      await seasonManager.endDivisionSeason(db, doc.id);
+      endedDivs.push(doc.id);
+      functions.logger.info(`adminForceSeasonAdvance: ended season for ${doc.id}`);
+    } catch (err) {
+      functions.logger.error(`adminForceSeasonAdvance: failed to end ${doc.id}:`, err);
+    }
+  }
+
+  // Step 2: Start new season for all divisions now in 'offseason'
+  await seasonManager.startNewSeason(db);
+
+  functions.logger.info(`adminForceSeasonAdvance done. Ended: ${endedDivs.length}, skipped (races pending): ${skippedDivs.length}`);
+  return {
+    success: true,
+    endedDivisions: endedDivs,
+    skippedDivisions: skippedDivs,
+    message: `Season advanced. Finalizadas: ${endedDivs.length} división(es). Nueva temporada iniciada.`
+  };
+});

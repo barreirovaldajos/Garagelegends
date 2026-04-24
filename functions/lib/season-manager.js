@@ -19,8 +19,26 @@ async function endDivisionSeason(db, divKey) {
   const division = divData.division;
   const group = divData.group;
   const seasonYear = divData.seasonYear || 1;
-  const standings = divData.standings || [];
   const slots = divData.slots || {};
+
+  // Rebuild standings from slots to guard against missing bot entries
+  // (e.g. botFiller failed during setup or bots were added after some races ran)
+  const rawStandings = divData.standings || [];
+  const standingsMap = {};
+  rawStandings.forEach(s => { if (s && s.teamId) standingsMap[s.teamId] = s; });
+  Object.values(slots).forEach(slot => {
+    if (!slot) return;
+    const tid = slot.type === 'player' ? slot.userId : slot.botTeamId;
+    if (!tid || standingsMap[tid]) return;
+    standingsMap[tid] = {
+      teamId: tid,
+      teamName: (slot.teamSnapshot && slot.teamSnapshot.teamName) || 'Team',
+      points: 0, wins: 0, podiums: 0, bestResult: 0,
+      isPlayer: slot.type === 'player',
+      position: 99
+    };
+  });
+  const standings = Object.values(standingsMap);
 
   const divCatalog = sharedData.DIVISIONS.find(d => d.div === division);
   if (!divCatalog) throw new Error(`Unknown division ${division}`);
@@ -28,11 +46,28 @@ async function endDivisionSeason(db, divKey) {
   const promoCount = divCatalog.promotions || 0;
   const relegCount = divCatalog.relegations || 0;
 
-  // Sort standings by points desc, then wins desc
+  // Guard: if no meaningful race data exists, archive without promotions/relegations.
+  // This prevents a lone player from being auto-promoted when bots never raced.
+  const anyRaceData = standings.some(s => s.points > 0 || s.wins > 0 || s.bestResult > 0);
+  if (!anyRaceData) {
+    require('firebase-functions').logger.warn(
+      `endDivisionSeason(${divKey}): no race data found, archiving without promotion/relegation`
+    );
+    await divRef.update({
+      phase: 'offseason',
+      seasonEndedAt: require('firebase-admin').firestore.FieldValue.serverTimestamp()
+    });
+    return;
+  }
+
+  // Sort: points DESC → wins DESC → bestResult ASC (lower car position = better finish)
+  // bestResult=0 means uninitialized (never raced) → treat as worst possible (9999)
   const sorted = standings.slice().sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.wins !== a.wins) return b.wins - a.wins;
-    return (a.bestResult || 99) - (b.bestResult || 99);
+    const aBest = a.bestResult > 0 ? a.bestResult : 9999;
+    const bBest = b.bestResult > 0 ? b.bestResult : 9999;
+    return aBest - bBest;
   });
 
   // Tag promotion/relegation zones
