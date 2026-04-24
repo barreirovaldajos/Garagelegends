@@ -257,15 +257,18 @@ const GL_ADMIN = {
     snap.forEach(doc => {
       const data = doc.data();
       const save = data.save_data || {};
+      const mp   = data.mp || {};
+      // Division/group comes from mp (MP assignment), not save_data.season (SP legacy field)
       players.push({
         id: doc.id,
         email: data.email || '',
         role: data.role || 'player',
         teamName: (save.team && save.team.name) || '',
         teamColor: (save.team && save.team.colors && save.team.colors.primary) || '#888',
-        division: (save.season && save.season.division) || 8,
-        divisionGroup: (save.season && save.season.divisionGroup) || 1,
-        year: (save.season && save.season.year) || 1,
+        division:      mp.division      || (save.season && save.season.division)      || 8,
+        divisionGroup: mp.divisionGroup || (save.season && save.season.divisionGroup) || 1,
+        divKey:        mp.divKey        || null,
+        year:          mp.seasonYear    || (save.season && save.season.year)           || 1,
         hasTeam: !!(save.team && save.team.name)
       });
     });
