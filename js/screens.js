@@ -56,6 +56,67 @@ const SCREENS = {
     return map[plan] || map.single;
   },
 
+  getSliderHint(field, val) {
+    const hints = {
+      aggression: [
+        { max: 25, text: 'Conservador · pocas maniobras, mínimo desgaste de neumáticos' },
+        { max: 50, text: 'Equilibrado · ritmo estable con desgaste moderado' },
+        { max: 75, text: 'Agresivo · más adelantamientos, mayor desgaste de neumáticos' },
+        { max: 100, text: 'Muy agresivo · máximo ritmo, alto riesgo de pinchazo' },
+      ],
+      riskLevel: [
+        { max: 25, text: 'Seguro · protege de incidentes, evita maniobras comprometidas' },
+        { max: 50, text: 'Calculado · balance entre oportunidad y seguridad' },
+        { max: 75, text: 'Arriesgado · más oportunidades, posibles incidentes en pista' },
+        { max: 100, text: 'Temerario · todo o nada, alto riesgo de abandono' },
+      ],
+      aeroBalance: [
+        { max: 30, text: 'Alta carga aerodinámica · mejor grip en curvas, rectas más lentas' },
+        { max: 60, text: 'Balance neutro · equilibrio entre velocidad y adherencia' },
+        { max: 80, text: 'Baja carga · más velocidad en rectas, menos grip en curvas' },
+        { max: 100, text: 'Configuración de recta · velocidad máxima, poco agarre' },
+      ],
+      wetBias: [
+        { max: 25, text: 'Setup seco · óptimo para pista seca, penaliza en lluvia' },
+        { max: 50, text: 'Setup mixto · adaptable a condiciones cambiantes' },
+        { max: 75, text: 'Setup mojado · mejor en lluvia, penaliza en pista seca' },
+        { max: 100, text: 'Full lluvia · máximo rendimiento bajo lluvia intensa' },
+      ],
+    };
+    const list = hints[field] || [];
+    return list.find(h => val <= h.max)?.text || list[list.length - 1]?.text || '';
+  },
+
+  driverSliderHtml(pid, field, label, val, updateFn) {
+    const hint = this.getSliderHint(field, val);
+    const intensity = val <= 30 ? 'low' : val <= 65 ? 'mid' : 'high';
+    return `
+      <div class="ds-block">
+        <div class="ds-header">
+          <span class="ds-label">${label}</span>
+          <span class="ds-val ds-val--${intensity}" id="ds-val-${field}-${pid}">${val}</span>
+        </div>
+        <input type="range" min="0" max="100" value="${val}" class="ds-range"
+          oninput="const v=+this.value; const i=v<=30?'low':v<=65?'mid':'high'; const vEl=document.getElementById('ds-val-${field}-${pid}'); vEl.textContent=v; vEl.className='ds-val ds-val--'+i; document.getElementById('ds-hint-${field}-${pid}').textContent=GL_SCREENS.getSliderHint('${field}',v); ${updateFn}">
+        <div class="ds-hint" id="ds-hint-${field}-${pid}">${hint}</div>
+      </div>`;
+  },
+
+  driverPitSliderHtml(pid, idx, val, disabled) {
+    const stopLabel = idx === 0 ? 'Parada 1' : 'Parada 2';
+    const hint = val < 35 ? 'Parada temprana · buena para undercut y neutralizar Safety Car' : val < 60 ? 'Parada media · equilibrio entre frescura de neumático y tiempo en pista' : 'Parada tardía · extiende el stint, útil para cubrir a rivales';
+    return `
+      <div class="ds-block">
+        <div class="ds-header">
+          <span class="ds-label">${stopLabel}</span>
+          <span class="ds-val" id="ds-val-iv${idx}-${pid}">${val}%</span>
+        </div>
+        <input type="range" min="10" max="95" value="${val}" class="ds-range" ${disabled ? 'disabled' : ''}
+          oninput="const v=+this.value; document.getElementById('ds-val-iv${idx}-${pid}').textContent=v+'%'; document.getElementById('ds-hint-iv${idx}-${pid}').textContent=v<35?'Parada temprana · buena para undercut y neutralizar Safety Car':v<60?'Parada media · equilibrio entre frescura de neumático y tiempo en pista':'Parada tardía · extiende el stint, útil para cubrir a rivales'; GL_SCREENS.updateDriverIntervention('${pid}',${idx},'lapPct',v,true)">
+        <div class="ds-hint ${disabled ? 'ds-hint--disabled' : ''}" id="ds-hint-iv${idx}-${pid}">${disabled ? 'Solo activo con dos paradas' : hint}</div>
+      </div>`;
+  },
+
   getCompoundLabel(tyre) {
     const map = {
       soft: __('compound_soft', 'Soft'),
@@ -1526,20 +1587,20 @@ const SCREENS = {
         <div class="flex flex-col gap-4">
           <div class="card">
             <div class="section-eyebrow">${__('car_quick_upgrades')}</div>
-            <div class="section-title mb-4" style="font-size:1rem">Créditos + 5 pts de I+D por mejora</div>
+            <div class="section-title mb-4" style="font-size:1rem">Créditos + 10 pts de I+D por mejora</div>
             ${Object.entries(car.components).map(([key, c]) => {
               const labels = { engine:__('car_engine'),chassis:__('car_chassis'),aero:__('car_aero'),tyreManage:__('car_tyre_manage'),brakes:__('car_brakes'),gearbox:__('car_gearbox'),reliability:__('car_reliability'),efficiency:__('car_efficiency') };
               const cost = 5000 + c.level * 3000;
               return `<div class="finance-row">
                 <span class="finance-row-label">${labels[key]}</span>
-                <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.upgradeCarComp('${key}')">+3 · ${GL_UI.fmtCR(cost)} CR · 5 pts</button>
+                <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.upgradeCarComp('${key}')">+3 · ${GL_UI.fmtCR(cost)} CR · 10 pts</button>
               </div>`;
             }).join('')}
           </div>
           <div class="card">
             <div class="section-eyebrow">${__('car_rnd_points')}</div>
-            <div class="stat-card-value" style="font-size:1.4rem;color:${(car.rnd.points||0) >= 5 ? 'var(--c-gold)' : 'inherit'}">${car.rnd.points || 0}</div>
-            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">P1 +5 · P2 +3 · P3 +2. Se usan en mejoras rápidas (5 pts) e I+D (5 pts/proyecto).</div>
+            <div class="stat-card-value" style="font-size:1.4rem;color:${(car.rnd.points||0) >= 10 ? 'var(--c-gold)' : 'inherit'}">${car.rnd.points || 0}</div>
+            <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:4px">P1 +10 · P2 +8 · P3 +6 · P4–10 +3 · P11–20 +1. Bonus +1 pt por nivel adicional de I+D. Se usan en mejoras rápidas (10 pts) e I+D (5 pts/proyecto).</div>
             ${(car.rnd.points||0) >= 5
               ? `<button class="btn btn-ghost btn-sm w-full" style="margin-top:8px" onclick="GL_SCREENS.showRnD()">🔬 Usar en I+D</button>`
               : `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px">Necesitas 5 pts para iniciar una investigación.</div>`
@@ -1552,7 +1613,7 @@ const SCREENS = {
   upgradeCarComp(key) {
     const car = GL_STATE.getCar();
     const cost = 5000 + car.components[key].level * 3000;
-    const rndCost = 5;
+    const rndCost = 10;
     if ((car.rnd.points || 0) < rndCost) { GL_UI.toast(`Puntos de I+D insuficientes (necesitas ${rndCost} pts)`, 'warning'); return; }
     if (!GL_STATE.spendCredits(cost)) { GL_UI.toast('Créditos insuficientes', 'warning'); return; }
     car.rnd.points = (car.rnd.points || 0) - rndCost;
@@ -2738,6 +2799,9 @@ const SCREENS = {
     if (state.pilots.length >= 3) { GL_UI.toast(__('market_max_pilots'), 'warning'); return; }
     const p = GL_DATA.PILOT_POOL.find(x=>x.id===id);
     if (!p) return;
+    if ((state.pilots || []).some(existing => existing.id === p.id || existing.name === p.name)) {
+      GL_UI.toast(__('market_pilot_already_signed', 'Este piloto ya está en tu equipo.'), 'warning'); return;
+    }
     state.pilots.push({
       ...GL_STATE.deepClone(p),
       salary: this.computePilotMarketSalary(p),
@@ -3076,85 +3140,88 @@ const SCREENS = {
               <button class="btn btn-sm ${selected ? 'btn-primary' : 'btn-secondary'}" data-pilot-btn="${p.id}" style="margin-left:auto" onclick="GL_SCREENS.toggleRacePilot('${p.id}')">${selected ? 'En carrera' : 'Reserva'}</button>
             </div>
             ${selected ? `
-              <div class="card" style="margin:-8px 0 10px 0;padding:10px;background:var(--c-surface-2)">
-                <div style="font-size:0.72rem;color:var(--t-secondary);margin-bottom:6px">Estrategia de ${p.name}</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;font-size:0.72rem">
-                  <span class="badge" style="background:${tyreMeta.color}22;color:${tyreMeta.color};border:1px solid ${tyreMeta.color}55">${tyreMeta.label}</span>
-                  <span style="color:var(--t-secondary)">${tyreMeta.paceText}</span>
-                  <span style="color:var(--t-secondary)">${tyreMeta.durabilityText}</span>
+              <div class="ds-card">
+                <div class="ds-card-header">
+                  <span class="ds-card-title">🎯 Táctica de carrera</span>
+                  <span class="ds-card-pilot">${p.name}</span>
                 </div>
-                <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">
-                  <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','tyre',this.value)">
-                    <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_soft', 'Soft')}</option>
-                    <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_medium', 'Medium')}</option>
-                    <option value="hard" ${cfg.tyre === 'hard' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_hard', 'Hard')}</option>
-                    <option value="intermediate" ${cfg.tyre === 'intermediate' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_intermediate', 'Intermediate')}</option>
-                    <option value="wet" ${cfg.tyre === 'wet' ? 'selected' : ''}>${__('prerace_tyre_label', 'Tyre')}: ${__('compound_wet', 'Wet')}</option>
-                  </select>
-                  <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','engineMode',this.value)">
-                    <option value="eco" ${cfg.engineMode === 'eco' ? 'selected' : ''}>${__('prerace_engine_label', 'Engine')}: ${this.getEngineModeLabel('eco')}</option>
-                    <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>${__('prerace_engine_label', 'Engine')}: ${this.getEngineModeLabel('normal')}</option>
-                    <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>${__('prerace_engine_label', 'Engine')}: ${this.getEngineModeLabel('push')}</option>
-                  </select>
-                  <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','pitPlan',this.value)">
-                    <option value="single" ${cfg.pitPlan === 'single' || !cfg.pitPlan ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('single')}</option>
-                    <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>${__('prerace_pit_plan_label', 'Pit Plan')}: ${this.getPitPlanLabel('double')}</option>
-                  </select>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px">
-                  <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
-                    <option value="soft" ${cfg.pitTyres?.[0] === 'soft' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_soft', 'Soft')}</option>
-                    <option value="medium" ${cfg.pitTyres?.[0] === 'medium' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_medium', 'Medium')}</option>
-                    <option value="hard" ${cfg.pitTyres?.[0] === 'hard' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_hard', 'Hard')}</option>
-                    <option value="intermediate" ${cfg.pitTyres?.[0] === 'intermediate' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_intermediate', 'Intermediate')}</option>
-                    <option value="wet" ${cfg.pitTyres?.[0] === 'wet' ? 'selected' : ''}>${__('prerace_pit_1', 'Pit 1')}: ${__('compound_wet', 'Wet')}</option>
-                  </select>
-                  <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',1,this.value)" ${cfg.pitPlan === 'single' ? 'disabled' : ''}>
-                    <option value="soft" ${cfg.pitTyres?.[1] === 'soft' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_soft', 'Soft')}</option>
-                    <option value="medium" ${cfg.pitTyres?.[1] === 'medium' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_medium', 'Medium')}</option>
-                    <option value="hard" ${cfg.pitTyres?.[1] === 'hard' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_hard', 'Hard')}</option>
-                    <option value="intermediate" ${cfg.pitTyres?.[1] === 'intermediate' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_intermediate', 'Intermediate')}</option>
-                    <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>${__('prerace_pit_2', 'Pit 2')}: ${__('compound_wet', 'Wet')}</option>
-                  </select>
-                </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
-                  <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_aggression_label', 'Aggression')}: <strong id="driver-aggression-label-${p.id}">${cfg.aggression}</strong></div>
-                    <input type="range" min="0" max="100" value="${cfg.aggression}" oninput="document.getElementById('driver-aggression-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverStrategy('${p.id}','aggression',+this.value,true)">
+
+                <div class="ds-section">
+                  <div class="ds-section-label">Neumático de salida</div>
+                  <div class="ds-tyre-row">
+                    <span class="badge" style="background:${tyreMeta.color}22;color:${tyreMeta.color};border:1px solid ${tyreMeta.color}55;padding:3px 10px">${tyreMeta.label}</span>
+                    <span class="ds-tyre-meta">${tyreMeta.paceText} · ${tyreMeta.durabilityText}</span>
                   </div>
-                  <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_risk_label', 'Risk')}: <strong id="driver-risk-label-${p.id}">${cfg.riskLevel}</strong></div>
-                    <input type="range" min="0" max="100" value="${cfg.riskLevel}" oninput="document.getElementById('driver-risk-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverStrategy('${p.id}','riskLevel',+this.value,true)">
-                  </div>
-                </div>
-                <div class="divider"></div>
-                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_car_setup', 'Car Setup')}</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                  <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_aero_balance', 'Aero Balance')}: <strong id="driver-aero-label-${p.id}">${cfg.setup.aeroBalance}</strong></div>
-                    <input type="range" min="0" max="100" value="${cfg.setup.aeroBalance}" oninput="document.getElementById('driver-aero-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverSetup('${p.id}','aeroBalance',+this.value,true)">
-                  </div>
-                  <div>
-                    <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('prerace_weather_bias', 'Weather Bias')}: <strong id="driver-wetbias-label-${p.id}">${cfg.setup.wetBias}</strong></div>
-                    <input type="range" min="0" max="100" value="${cfg.setup.wetBias}" oninput="document.getElementById('driver-wetbias-label-${p.id}').textContent=this.value; GL_SCREENS.updateDriverSetup('${p.id}','wetBias',+this.value,true)">
-                  </div>
-                </div>
-                <div class="divider"></div>
-                <div style="font-size:0.72rem;font-weight:700;margin-bottom:6px">${__('prerace_stop_schedule', 'Stop schedule')}</div>
-                <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:8px">${cfg.pitPlan === 'single' ? __('prerace_stop_2_hint', 'Used only for two-stop plans') : __('prerace_tactical_calls', 'Tactical Calls')}</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-                  ${[0, 1].map((idx) => `
-                    ${(() => {
-                      const stopLabel = idx === 0 ? __('prerace_pit_1', 'Pit 1') : __('prerace_pit_2', 'Pit 2');
-                      const disabled = idx === 1 && cfg.pitPlan === 'single';
-                      return `
-                    <div>
-                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:4px">${stopLabel}: <strong id="driver-iv-${idx}-label-${p.id}">${cfg.interventions[idx].lapPct}%</strong></div>
-                      <input type="range" min="10" max="95" value="${cfg.interventions[idx].lapPct}" oninput="document.getElementById('driver-iv-${idx}-label-${p.id}').textContent=this.value+'%'; GL_SCREENS.updateDriverIntervention('${p.id}',${idx},'lapPct',+this.value,true)" style="width:100%" ${disabled ? 'disabled' : ''}>
+                  <div class="ds-selects-row">
+                    <div class="ds-select-wrap">
+                      <label class="ds-select-label">Neumático</label>
+                      <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','tyre',this.value)">
+                        <option value="soft" ${cfg.tyre === 'soft' ? 'selected' : ''}>Blando</option>
+                        <option value="medium" ${cfg.tyre === 'medium' || !cfg.tyre ? 'selected' : ''}>Medio</option>
+                        <option value="hard" ${cfg.tyre === 'hard' ? 'selected' : ''}>Duro</option>
+                        <option value="intermediate" ${cfg.tyre === 'intermediate' ? 'selected' : ''}>Intermedio</option>
+                        <option value="wet" ${cfg.tyre === 'wet' ? 'selected' : ''}>Lluvia</option>
+                      </select>
                     </div>
-                      `;
-                    })()}
-                  `).join('')}
+                    <div class="ds-select-wrap">
+                      <label class="ds-select-label">Modo motor</label>
+                      <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','engineMode',this.value)">
+                        <option value="eco" ${cfg.engineMode === 'eco' ? 'selected' : ''}>${this.getEngineModeLabel('eco')}</option>
+                        <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>${this.getEngineModeLabel('normal')}</option>
+                        <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>${this.getEngineModeLabel('push')}</option>
+                      </select>
+                    </div>
+                    <div class="ds-select-wrap">
+                      <label class="ds-select-label">Plan de boxes</label>
+                      <select onchange="GL_SCREENS.updateDriverStrategy('${p.id}','pitPlan',this.value)">
+                        <option value="single" ${cfg.pitPlan === 'single' || !cfg.pitPlan ? 'selected' : ''}>${this.getPitPlanLabel('single')}</option>
+                        <option value="double" ${cfg.pitPlan === 'double' ? 'selected' : ''}>${this.getPitPlanLabel('double')}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="ds-selects-row ds-selects-2col" style="margin-top:6px">
+                    <div class="ds-select-wrap">
+                      <label class="ds-select-label">Neumático tras parada 1</label>
+                      <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',0,this.value)">
+                        <option value="soft" ${cfg.pitTyres?.[0] === 'soft' ? 'selected' : ''}>Blando</option>
+                        <option value="medium" ${cfg.pitTyres?.[0] === 'medium' ? 'selected' : ''}>Medio</option>
+                        <option value="hard" ${cfg.pitTyres?.[0] === 'hard' ? 'selected' : ''}>Duro</option>
+                        <option value="intermediate" ${cfg.pitTyres?.[0] === 'intermediate' ? 'selected' : ''}>Intermedio</option>
+                        <option value="wet" ${cfg.pitTyres?.[0] === 'wet' ? 'selected' : ''}>Lluvia</option>
+                      </select>
+                    </div>
+                    <div class="ds-select-wrap">
+                      <label class="ds-select-label">Neumático tras parada 2</label>
+                      <select onchange="GL_SCREENS.updateDriverPitTyre('${p.id}',1,this.value)" ${cfg.pitPlan === 'single' ? 'disabled' : ''}>
+                        <option value="soft" ${cfg.pitTyres?.[1] === 'soft' ? 'selected' : ''}>Blando</option>
+                        <option value="medium" ${cfg.pitTyres?.[1] === 'medium' ? 'selected' : ''}>Medio</option>
+                        <option value="hard" ${cfg.pitTyres?.[1] === 'hard' ? 'selected' : ''}>Duro</option>
+                        <option value="intermediate" ${cfg.pitTyres?.[1] === 'intermediate' ? 'selected' : ''}>Intermedio</option>
+                        <option value="wet" ${cfg.pitTyres?.[1] === 'wet' ? 'selected' : ''}>Lluvia</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ds-divider"></div>
+                <div class="ds-section-label" style="margin-bottom:8px">🏎️ Comportamiento en pista</div>
+                <div class="ds-sliders-grid">
+                  ${this.driverSliderHtml(p.id, 'aggression', 'Agresividad', cfg.aggression, `GL_SCREENS.updateDriverStrategy('${p.id}','aggression',v,true)`)}
+                  ${this.driverSliderHtml(p.id, 'riskLevel', 'Nivel de riesgo', cfg.riskLevel, `GL_SCREENS.updateDriverStrategy('${p.id}','riskLevel',v,true)`)}
+                </div>
+
+                <div class="ds-divider"></div>
+                <div class="ds-section-label" style="margin-bottom:8px">⚙️ Puesta a punto</div>
+                <div class="ds-sliders-grid">
+                  ${this.driverSliderHtml(p.id, 'aeroBalance', 'Balance aerodinámico', cfg.setup.aeroBalance, `GL_SCREENS.updateDriverSetup('${p.id}','aeroBalance',v,true)`)}
+                  ${this.driverSliderHtml(p.id, 'wetBias', 'Ajuste para clima', cfg.setup.wetBias, `GL_SCREENS.updateDriverSetup('${p.id}','wetBias',v,true)`)}
+                </div>
+
+                <div class="ds-divider"></div>
+                <div class="ds-section-label" style="margin-bottom:8px">🏁 Programación de paradas</div>
+                <div class="ds-sliders-grid">
+                  ${this.driverPitSliderHtml(p.id, 0, cfg.interventions[0].lapPct, false)}
+                  ${this.driverPitSliderHtml(p.id, 1, cfg.interventions[1].lapPct, cfg.pitPlan === 'single')}
                 </div>
               </div>
             ` : ''}`;
@@ -3706,10 +3773,14 @@ const SCREENS = {
       const _bestPos = Array.isArray(result.playerCars) && result.playerCars.length > 0
         ? result.playerCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
         : (result.position || 99);
-      const _rndEarned = _bestPos === 1 ? 5 : _bestPos === 2 ? 3 : _bestPos === 3 ? 2 : 0;
+      const _rndBasePoints = _bestPos === 1 ? 10 : _bestPos === 2 ? 8 : _bestPos === 3 ? 6 : _bestPos <= 10 ? 3 : _bestPos <= 20 ? 1 : 0;
+      const _rndBuildingLv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
+      const _rndBonus = Math.max(0, _rndBuildingLv - 1);
+      const _rndEarned = _rndBasePoints > 0 ? _rndBasePoints + _rndBonus : 0;
       if (_rndEarned > 0) {
         state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
-        GL_STATE.addLog(`🔬 +${_rndEarned} pts de I+D (P${_bestPos})`, 'good');
+        const _rndMsg = _rndBonus > 0 ? `🔬 +${_rndEarned} pts de I+D (P${_bestPos}, +${_rndBonus} bonus I+D Lv${_rndBuildingLv})` : `🔬 +${_rndEarned} pts de I+D (P${_bestPos})`;
+        GL_STATE.addLog(_rndMsg, 'good');
       }
       if (archiveRecord && GL_ENGINE.upsertRaceArchiveRecord) {
         GL_ENGINE.upsertRaceArchiveRecord(state, archiveRecord);
