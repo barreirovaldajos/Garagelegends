@@ -3132,19 +3132,26 @@ const SCREENS = {
           <div class="prerace-block-title">${__('prerace_driver_assign')}</div>
           <div style="font-size:0.74rem;color:var(--t-secondary);margin-bottom:10px">Selecciona hasta 2 pilotos para correr. Cada coche usa su propio compuesto, motor, plan de pit, setup y llamadas tácticas.</div>
           ${state.pilots.map(p => {
-            const selected = (window._raceStrategy?.selectedPilotIds || []).includes(p.id);
+            const selectedIds = window._raceStrategy?.selectedPilotIds || [];
+            const selected = selectedIds.includes(p.id);
+            const pilotSlot = selectedIds.indexOf(p.id); // 0 = P1, 1 = P2
+            const slotLabel = pilotSlot === 0 ? 'Piloto 1' : pilotSlot === 1 ? 'Piloto 2' : null;
+            const slotColor = pilotSlot === 0 ? 'var(--c-accent)' : '#a78bfa';
             const cfg = this.getDriverStrategyDefaults(window._raceStrategy || baseStrategy, window._raceStrategy?.driverConfigs?.[p.id] || {});
             const tyreMeta = this.getTyreMeta(cfg.tyre);
             return `
-            <div class="morale-pill" style="margin-bottom:var(--s-3)">
+            <div class="morale-pill" style="margin-bottom:var(--s-3);${selected ? `border:1.5px solid ${slotColor}55;` : ''}">
               <div class="morale-avatar" style="font-size:1.2rem">${p.emoji||'🧑'}</div>
-              <div class="morale-info"><div class="morale-name">${p.name}</div><div style="font-size:0.7rem;color:var(--t-secondary)">Base igualada · la diferencia la hace la estrategia individual</div></div>
+              <div class="morale-info">
+                <div class="morale-name">${p.name}${slotLabel ? ` <span style="font-size:0.65rem;font-weight:700;color:${slotColor};background:${slotColor}18;border:1px solid ${slotColor}44;border-radius:4px;padding:1px 6px;vertical-align:middle;margin-left:4px">${slotLabel}</span>` : ''}</div>
+                <div style="font-size:0.7rem;color:var(--t-secondary)">Base igualada · la diferencia la hace la estrategia individual</div>
+              </div>
               <button class="btn btn-sm ${selected ? 'btn-primary' : 'btn-secondary'}" data-pilot-btn="${p.id}" style="margin-left:auto" onclick="GL_SCREENS.toggleRacePilot('${p.id}')">${selected ? 'En carrera' : 'Reserva'}</button>
             </div>
             ${selected ? `
-              <div class="ds-card">
+              <div class="ds-card" style="border-left:3px solid ${slotColor};margin-bottom:var(--s-4)">
                 <div class="ds-card-header">
-                  <span class="ds-card-title">🎯 Táctica de carrera</span>
+                  <span class="ds-card-title">🎯 Táctica de carrera <span style="font-size:0.7rem;font-weight:700;color:${slotColor};background:${slotColor}18;border:1px solid ${slotColor}44;border-radius:4px;padding:1px 7px;margin-left:6px;vertical-align:middle">${slotLabel}</span></span>
                   <span class="ds-card-pilot">${p.name}</span>
                 </div>
 
