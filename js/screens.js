@@ -3977,11 +3977,18 @@ const SCREENS = {
 
   async _fetchAndStartLiveRace(divKey, round, raceStartMs, durationMode) {
     try {
+      // Use lastRaceRound from the division doc as the authoritative round number
+      const divSnap = await GL_AUTH._db.collection('divisions').doc(divKey).get();
+      const effectiveRound = (divSnap.exists && divSnap.data().lastRaceRound) || round;
+
       const resultSnap = await GL_AUTH._db
         .collection('divisions').doc(divKey)
-        .collection('raceResults').doc(String(round))
+        .collection('raceResults').doc(String(effectiveRound))
         .get();
-      if (!resultSnap.exists) { GL_UI.toast('Error: resultado de carrera no encontrado.', 'warning'); return; }
+      if (!resultSnap.exists) {
+        GL_UI.toast(`Error: raceResults/${effectiveRound} no encontrado en división ${divKey}`, 'warning');
+        return;
+      }
       const result = resultSnap.data();
       const uid = GL_AUTH.user && GL_AUTH.user.uid;
       const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
