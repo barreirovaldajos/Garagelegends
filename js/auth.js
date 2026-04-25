@@ -90,7 +90,10 @@
           const pendingCredits    = (data.mp && data.mp.pendingCredits)    || 0;
           const pendingFans       = (data.mp && data.mp.pendingFans)       || 0;
           const pendingRaceResult = (data.mp && data.mp.pendingRaceResult) || null;
-          if ((pendingCredits > 0 || pendingFans > 0 || pendingRaceResult) && data.save_data) {
+          const _revealAt = data.mp && data.mp.rewardsRevealAt;
+          const _revealMs = _revealAt ? (_revealAt.toMillis ? _revealAt.toMillis() : Number(_revealAt)) : 0;
+          const _rewardsReady = !_revealMs || _revealMs <= Date.now();
+          if (_rewardsReady && (pendingCredits > 0 || pendingFans > 0 || pendingRaceResult) && data.save_data) {
             const sd = data.save_data;
             if (pendingCredits > 0) { if (!sd.finances) sd.finances = {}; sd.finances.credits = (sd.finances.credits || 0) + pendingCredits; }
             if (pendingFans    > 0) { if (!sd.team)     sd.team     = {}; sd.team.fans         = (sd.team.fans     || 0) + pendingFans; }
@@ -137,6 +140,17 @@
       const pendingFans       = (data.mp && data.mp.pendingFans)       || 0;
       const pendingRaceResult = (data.mp && data.mp.pendingRaceResult) || null;
       if (pendingCredits <= 0 && pendingFans <= 0 && !pendingRaceResult) return false;
+
+      // Bloquea la aplicación de resultados hasta que termine la carrera en vivo
+      const revealAt = data.mp && data.mp.rewardsRevealAt;
+      if (revealAt) {
+        const revealMs = revealAt.toMillis ? revealAt.toMillis() : Number(revealAt);
+        const remaining = revealMs - Date.now();
+        if (remaining > 0) {
+          setTimeout(() => this._applyMpPending(data, profileRef), remaining + 500);
+          return false;
+        }
+      }
 
       const state = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
       if (!state) return false;
@@ -198,6 +212,7 @@
       if (pendingCredits    > 0) fsUpdates['mp.pendingCredits']    = firebase.firestore.FieldValue.delete();
       if (pendingFans       > 0) fsUpdates['mp.pendingFans']       = firebase.firestore.FieldValue.delete();
       if (pendingRaceResult)     fsUpdates['mp.pendingRaceResult'] = firebase.firestore.FieldValue.delete();
+      fsUpdates['mp.rewardsRevealAt'] = firebase.firestore.FieldValue.delete();
       profileRef.update(fsUpdates).then(() => {
         this.remoteSave = sd;
         this.remoteSaveUpdatedAt = sd.meta.saveTime;

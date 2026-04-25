@@ -1,7 +1,7 @@
 // ===== RACE-RUNNER.JS – Server-side race simulation =====
 'use strict';
 
-const { FieldValue } = require('firebase-admin').firestore;
+const { FieldValue, Timestamp } = require('firebase-admin').firestore;
 const engineCore = require('./shared/engine-core.js');
 const sharedData = require('./shared/data-constants.js');
 
@@ -217,7 +217,10 @@ async function runRaceForDivision(db, divKey, opts) {
       };
       try {
         const profileRef = db.collection('profiles').doc(pt.userId);
-        const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp(), 'mp.pendingRaceResult': raceEntry };
+        // rewardsRevealAt: bloquea que el cliente aplique los resultados hasta que termine la carrera en vivo
+        // 8 min 30 seg = countdown 10s + carrera 8min + buffer 20s
+        const rewardsRevealAt = Timestamp.fromMillis(Date.now() + (8 * 60 + 30) * 1000);
+        const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp(), 'mp.pendingRaceResult': raceEntry, 'mp.rewardsRevealAt': rewardsRevealAt };
         if (prizeMoney > 0) updates['mp.pendingCredits'] = FieldValue.increment(prizeMoney);
         if (fansGained  > 0) updates['mp.pendingFans']   = FieldValue.increment(fansGained);
         await profileRef.update(updates);
