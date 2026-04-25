@@ -3935,6 +3935,21 @@ const SCREENS = {
       if (!snap.exists) return;
       const liveState = snap.data().liveRaceState;
       if (!liveState || liveState.status !== 'live') return;
+      // Reject stale liveRaceState: must match the player's next race round, and be within the animation window
+      if (liveState.round && next?.round && liveState.round !== next.round) {
+        const lapEl = document.getElementById('liverace-lap');
+        if (lapEl) lapEl.textContent = '⏳ Esperando inicio de la carrera...';
+        return;
+      }
+      const MAX_RACE_MS = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
+      const startMs = liveState.startTime
+        ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : Number(liveState.startTime))
+        : 0;
+      if (startMs > 0 && Date.now() > startMs + 10000 + MAX_RACE_MS) {
+        const lapEl = document.getElementById('liverace-lap');
+        if (lapEl) lapEl.textContent = '⏳ Esperando inicio de la carrera...';
+        return;
+      }
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       this._startLiveRaceCountdown(liveState, mp.divKey);
     });
