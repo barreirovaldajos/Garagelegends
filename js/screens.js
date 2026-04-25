@@ -3992,6 +3992,9 @@ const SCREENS = {
       const result = resultSnap.data();
       const uid = GL_AUTH.user && GL_AUTH.user.uid;
       const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
+      const playerCars = viewerCars.length ? viewerCars : (result.playerCars || []).filter(c => c.teamId === uid);
+      // Pre-cargar el resultado en window._lastRaceResult para que renderPostRace no tenga que re-fetcharlo
+      window._lastRaceResult = { ...result, playerCars, _mpRound: effectiveRound, _viewerUid: uid };
       this._runLiveRaceVisualization({ ...result, viewerCars }, raceStartMs, durationMode);
     } catch (e) {
       GL_UI.toast('Error al cargar la carrera en vivo.', 'warning');
@@ -4116,11 +4119,15 @@ const SCREENS = {
         if (!lastRound) return;
         // Avoid re-fetching if already loaded for this round
         if (window._lastRaceResult && window._lastRaceResult._mpRound === lastRound) {
-          return; // Already loaded, render below will pick it up
+          GL_SCREENS.renderPostRace();
+          return;
         }
         el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">Cargando resultado...</p></div>`;
         snap.ref.collection('raceResults').doc(String(lastRound)).get().then(rSnap => {
-          if (!rSnap.exists) return;
+          if (!rSnap.exists) {
+            el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">No se encontró el resultado de la carrera (ronda ${lastRound}).</p></div>`;
+            return;
+          }
           const r = rSnap.data();
           const myCars = (r.allCarsResults || []).filter(c => c.teamId === uid);
           window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound, _viewerUid: uid };
