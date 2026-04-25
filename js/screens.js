@@ -3934,14 +3934,16 @@ const SCREENS = {
     window._liveRaceListener = divRef.onSnapshot(snap => {
       if (!snap.exists) return;
       const liveState = snap.data().liveRaceState;
-      if (!liveState || liveState.status !== 'live' || !liveState.startTime) return;
+      if (!liveState || liveState.status !== 'live') return;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       this._startLiveRaceCountdown(liveState, mp.divKey);
     });
   },
 
   _startLiveRaceCountdown(liveState, divKey) {
-    const startTimeMs = liveState.startTime.toMillis ? liveState.startTime.toMillis() : Number(liveState.startTime);
+    const startTimeMs = liveState.startTime
+      ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : Number(liveState.startTime))
+      : Date.now();
     const raceStartMs = startTimeMs + 10000;
     const durationMode = liveState.durationMode || 'real';
     const lapEl = document.getElementById('liverace-lap');

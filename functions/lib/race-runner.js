@@ -187,12 +187,10 @@ async function runRaceForDivision(db, divKey, opts) {
       lastRaceCompletedAt:   FieldValue.serverTimestamp(),
       lastRaceRound:         round,
       nextRaceRound:         isLastRace ? null : calendar[nextUpcomingIdx].round,
-      liveRaceState: {
-        status:       'live',
-        round,
-        startTime:    FieldValue.serverTimestamp(),
-        durationMode: 'real'
-      }
+      'liveRaceState.status':       'live',
+      'liveRaceState.round':        round,
+      'liveRaceState.startTime':    FieldValue.serverTimestamp(),
+      'liveRaceState.durationMode': 'real'
     });
 
     // ── 9. Update each player's mp field with pending rewards ────────────────
