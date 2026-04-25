@@ -147,6 +147,7 @@ function statRow(label, val, icon = '') {
 
 // ---- Format credits ----
 function fmtCR(n) {
+  if (n == null || isNaN(n)) return '0';
   if (Math.abs(n) >= 1000000) return (n/1000000).toFixed(2) + 'M';
   if (Math.abs(n) >= 1000) return (n/1000).toFixed(1) + 'k';
   return n.toString();
