@@ -1187,6 +1187,7 @@ const SCREENS = {
   },
 
   fullPilotCard(p, state) {
+    const pilots = state.pilots || [];
     const overall = GL_ENGINE.pilotScore(p);
     const bgColor = state.team.colors.primary;
     const now = (window.GL_ENGINE && typeof window.GL_ENGINE.getNowDate === 'function') ? window.GL_ENGINE.getNowDate() : new Date();
