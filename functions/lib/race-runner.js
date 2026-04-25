@@ -188,9 +188,10 @@ async function runRaceForDivision(db, divKey, opts) {
       lastRaceRound:         round,
       nextRaceRound:         isLastRace ? null : calendar[nextUpcomingIdx].round,
       liveRaceState: {
-        status:    'ready',
+        status:       'live',
         round,
-        startTime: null
+        startTime:    FieldValue.serverTimestamp(),
+        durationMode: 'real'
       }
     });
 
