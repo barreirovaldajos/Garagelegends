@@ -112,7 +112,7 @@ const GL_ADMIN = {
       <!-- Live Race Control -->
       <div class="card" style="margin-bottom:var(--s-4)">
         <div class="section-title" style="margin-bottom:4px">📺 Carrera en Vivo</div>
-        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">La carrera en vivo se inicia automáticamente al forzar la carrera. Usa este panel solo para re-disparar manualmente (QA, pruebas o si algo falló).</div>
+        <div style="font-size:0.75rem;color:var(--c-orange,#f59e0b);margin-bottom:12px;font-weight:600">⚠️ SOLO para re-disparar visualización si algo falló. La carrera se corre automáticamente al usar "Forzar carrera" arriba — ese botón inicia TODO. Este panel NO corre la carrera.</div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
           <div>
             <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">División</label>

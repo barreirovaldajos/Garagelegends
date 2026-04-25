@@ -4058,6 +4058,13 @@ const SCREENS = {
       if (finished) return;
       finished = true;
       if (lapEl) lapEl.textContent = '🏁 ¡Carrera finalizada!';
+      // Sincronizar calendario desde Firestore para que el jugador vea la carrera como completada
+      const mp = window.GL_AUTH && GL_AUTH.mp;
+      if (mp && mp.divKey && GL_AUTH._db) {
+        GL_AUTH._db.collection('divisions').doc(mp.divKey).get()
+          .then(snap => { if (snap.exists && GL_STATE.syncCalendarFromDivision) GL_STATE.syncCalendarFromDivision(snap.data()); })
+          .catch(() => {});
+      }
       setTimeout(() => GL_APP.navigateTo('postrace'), 1500);
     };
 
@@ -4119,8 +4126,7 @@ const SCREENS = {
         if (!lastRound) return;
         // Avoid re-fetching if already loaded for this round
         if (window._lastRaceResult && window._lastRaceResult._mpRound === lastRound) {
-          GL_SCREENS.renderPostRace();
-          return;
+          return; // render below will pick it up
         }
         el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">Cargando resultado...</p></div>`;
         snap.ref.collection('raceResults').doc(String(lastRound)).get().then(rSnap => {
