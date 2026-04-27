@@ -3934,9 +3934,23 @@ const SCREENS = {
 
     const divRef = GL_AUTH._db.collection('divisions').doc(mp.divKey);
 
-    const tryStartRace = (liveState) => {
+    // divData es el objeto completo del documento de división
+    const tryStartRace = (divData) => {
+      const liveState = divData && divData.liveRaceState;
       if (window._liveRaceStarted) return false;
       if (!liveState || liveState.status !== 'live') return false;
+      // Validar frescura: liveRaceState.round debe coincidir con lastRaceRound del mismo doc
+      // Ambos son escritos en el mismo update() por la CF, así que siempre coinciden para una carrera nueva.
+      // Esto evita que un liveRaceState de una ronda anterior dispare la visualización equivocada.
+      const lastRaceRound = divData.lastRaceRound;
+      if (liveState.round && lastRaceRound && liveState.round !== lastRaceRound) return false;
+      // Validar ventana temporal: no iniciar si la ventana de visualización ya expiró
+      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
+      const tsMs = liveState.startTime
+        ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : 0))
+        : 0;
+      if (tsMs > 0 && Date.now() > tsMs + maxMs) return false;
+
       window._liveRaceStarted = true;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
@@ -3945,7 +3959,7 @@ const SCREENS = {
     };
 
     const pollOnce = () => divRef.get()
-      .then(snap => { if (snap.exists) tryStartRace(snap.data().liveRaceState); })
+      .then(snap => { if (snap.exists) tryStartRace(snap.data()); })
       .catch(() => {});
 
     // Check inmediato al entrar a la pantalla
@@ -3953,7 +3967,7 @@ const SCREENS = {
 
     // onSnapshot para actualizaciones en tiempo real
     window._liveRaceListener = divRef.onSnapshot(snap => {
-      if (snap.exists) tryStartRace(snap.data().liveRaceState);
+      if (snap.exists) tryStartRace(snap.data());
     });
 
     // Polling cada 3s como red de seguridad
