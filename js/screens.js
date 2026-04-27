@@ -3870,6 +3870,7 @@ const SCREENS = {
 
   // ===== LIVE RACE SCREEN =====
   cleanupLiveRace() {
+    window._liveRaceStarted = false;
     if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
     if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
     if (window._liveRaceCountdownInterval) { clearInterval(window._liveRaceCountdownInterval); window._liveRaceCountdownInterval = null; }
@@ -3934,6 +3935,7 @@ const SCREENS = {
     const divRef = GL_AUTH._db.collection('divisions').doc(mp.divKey);
 
     const tryStartRace = (liveState) => {
+      if (window._liveRaceStarted) return false;
       if (!liveState || liveState.status !== 'live') return false;
       // Rechazar estado stale: la ronda debe coincidir con la próxima del jugador
       if (liveState.round && next?.round && liveState.round !== next.round) return false;
@@ -3943,7 +3945,8 @@ const SCREENS = {
         ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : Number(liveState.startTime)))
         : 0;
       if (tsMs > 0 && Date.now() > tsMs + 10000 + maxMs) return false;
-      // Detener listeners/polling antes de iniciar
+      // Marcar como iniciado y detener listeners/polling
+      window._liveRaceStarted = true;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
       this._startLiveRaceCountdown(liveState, mp.divKey);
