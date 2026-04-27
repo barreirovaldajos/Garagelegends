@@ -3937,15 +3937,6 @@ const SCREENS = {
     const tryStartRace = (liveState) => {
       if (window._liveRaceStarted) return false;
       if (!liveState || liveState.status !== 'live') return false;
-      // Rechazar estado stale: la ronda debe coincidir con la próxima del jugador
-      if (liveState.round && next?.round && liveState.round !== next.round) return false;
-      // Rechazar si la ventana de visualización ya expiró
-      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
-      const tsMs = liveState.startTime
-        ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : Number(liveState.startTime)))
-        : 0;
-      if (tsMs > 0 && Date.now() > tsMs + 10000 + maxMs) return false;
-      // Marcar como iniciado y detener listeners/polling
       window._liveRaceStarted = true;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
@@ -3953,18 +3944,20 @@ const SCREENS = {
       return true;
     };
 
-    // onSnapshot como trigger inmediato
+    const pollOnce = () => divRef.get()
+      .then(snap => { if (snap.exists) tryStartRace(snap.data().liveRaceState); })
+      .catch(() => {});
+
+    // Check inmediato al entrar a la pantalla
+    pollOnce();
+
+    // onSnapshot para actualizaciones en tiempo real
     window._liveRaceListener = divRef.onSnapshot(snap => {
       if (snap.exists) tryStartRace(snap.data().liveRaceState);
     });
 
-    // Polling cada 3s como mecanismo principal (más confiable que onSnapshot solo)
-    window._liveRacePollInterval = setInterval(async () => {
-      try {
-        const snap = await divRef.get();
-        if (snap.exists) tryStartRace(snap.data().liveRaceState);
-      } catch (_) {}
-    }, 3000);
+    // Polling cada 3s como red de seguridad
+    window._liveRacePollInterval = setInterval(pollOnce, 3000);
   },
 
   _startLiveRaceCountdown(liveState, divKey) {
