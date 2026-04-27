@@ -1381,7 +1381,7 @@
 
   function generateCalendar(division, circuits, rng) {
     var RACE_STATUS = { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
-    var count = Math.min(8 + (8 - division), 12);
+    var count = 8;
     var shuffled = rng.shuffle(circuits);
     var selectedCircuits = shuffled.slice(0, count);
 
