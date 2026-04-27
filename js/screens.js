@@ -3871,6 +3871,7 @@ const SCREENS = {
   // ===== LIVE RACE SCREEN =====
   cleanupLiveRace() {
     if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
+    if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
     if (window._liveRaceCountdownInterval) { clearInterval(window._liveRaceCountdownInterval); window._liveRaceCountdownInterval = null; }
     if (window._liveRaceAnimFrame) { cancelAnimationFrame(window._liveRaceAnimFrame); window._liveRaceAnimFrame = null; }
     this._raceVisualState = {};
@@ -3931,28 +3932,36 @@ const SCREENS = {
     this.renderRaceTrackVisualization({ liveOrder: [], progress: 0, totalLaps: circuit.laps || 1, currentLap: 1, circuit, weather, idPrefix: 'liverace' });
 
     const divRef = GL_AUTH._db.collection('divisions').doc(mp.divKey);
-    window._liveRaceListener = divRef.onSnapshot(snap => {
-      if (!snap.exists) return;
-      const liveState = snap.data().liveRaceState;
-      if (!liveState || liveState.status !== 'live') return;
-      // Reject stale liveRaceState: must match the player's next race round, and be within the animation window
-      if (liveState.round && next?.round && liveState.round !== next.round) {
-        const lapEl = document.getElementById('liverace-lap');
-        if (lapEl) lapEl.textContent = '⏳ Esperando inicio de la carrera...';
-        return;
-      }
-      const MAX_RACE_MS = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
-      const startMs = liveState.startTime
-        ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : Number(liveState.startTime))
+
+    const tryStartRace = (liveState) => {
+      if (!liveState || liveState.status !== 'live') return false;
+      // Rechazar estado stale: la ronda debe coincidir con la próxima del jugador
+      if (liveState.round && next?.round && liveState.round !== next.round) return false;
+      // Rechazar si la ventana de visualización ya expiró
+      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
+      const tsMs = liveState.startTime
+        ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : Number(liveState.startTime)))
         : 0;
-      if (startMs > 0 && Date.now() > startMs + 10000 + MAX_RACE_MS) {
-        const lapEl = document.getElementById('liverace-lap');
-        if (lapEl) lapEl.textContent = '⏳ Esperando inicio de la carrera...';
-        return;
-      }
+      if (tsMs > 0 && Date.now() > tsMs + 10000 + maxMs) return false;
+      // Detener listeners/polling antes de iniciar
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
+      if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
       this._startLiveRaceCountdown(liveState, mp.divKey);
+      return true;
+    };
+
+    // onSnapshot como trigger inmediato
+    window._liveRaceListener = divRef.onSnapshot(snap => {
+      if (snap.exists) tryStartRace(snap.data().liveRaceState);
     });
+
+    // Polling cada 3s como mecanismo principal (más confiable que onSnapshot solo)
+    window._liveRacePollInterval = setInterval(async () => {
+      try {
+        const snap = await divRef.get();
+        if (snap.exists) tryStartRace(snap.data().liveRaceState);
+      } catch (_) {}
+    }, 3000);
   },
 
   _startLiveRaceCountdown(liveState, divKey) {

@@ -17,6 +17,7 @@ const sharedData = require('./shared/data-constants.js');
  */
 async function runRaceForDivision(db, divKey, opts) {
   opts = opts || {};
+  const durationMode = opts.durationMode || 'real';
   const divRef  = db.collection('divisions').doc(divKey);
   const divSnap = await divRef.get();
   if (!divSnap.exists) throw new Error(`Division ${divKey} not found`);
@@ -190,7 +191,7 @@ async function runRaceForDivision(db, divKey, opts) {
       'liveRaceState.status':       'live',
       'liveRaceState.round':        round,
       'liveRaceState.startTime':    FieldValue.serverTimestamp(),
-      'liveRaceState.durationMode': 'real'
+      'liveRaceState.durationMode': durationMode
     });
 
     // ── 9. Update each player's mp field with pending rewards ────────────────
@@ -216,8 +217,8 @@ async function runRaceForDivision(db, divKey, opts) {
       try {
         const profileRef = db.collection('profiles').doc(pt.userId);
         // rewardsRevealAt: bloquea que el cliente aplique los resultados hasta que termine la carrera en vivo
-        // 8 min 30 seg = countdown 10s + carrera 8min + buffer 20s
-        const rewardsRevealAt = Timestamp.fromMillis(Date.now() + (8 * 60 + 30) * 1000);
+        const revealDelaySec = durationMode === 'qa' ? (2 * 60 + 30) : (8 * 60 + 30);
+        const rewardsRevealAt = Timestamp.fromMillis(Date.now() + revealDelaySec * 1000);
         const updates = { 'mp.lastActiveAt': FieldValue.serverTimestamp(), 'mp.pendingRaceResult': raceEntry, 'mp.rewardsRevealAt': rewardsRevealAt };
         if (prizeMoney > 0) updates['mp.pendingCredits'] = FieldValue.increment(prizeMoney);
         if (fansGained  > 0) updates['mp.pendingFans']   = FieldValue.increment(fansGained);

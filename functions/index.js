@@ -69,6 +69,7 @@ exports.adminForceAllRaces = functions.runWith({ timeoutSeconds: 300, memory: '5
   }
 
   const roundFilter = (data && data.roundFilter) ? Number(data.roundFilter) : null;
+  const durationMode = (data && data.durationMode) || 'real';
 
   const divisionsSnap = await db.collection('divisions')
     .where('phase', '==', 'season')
@@ -87,7 +88,7 @@ exports.adminForceAllRaces = functions.runWith({ timeoutSeconds: 300, memory: '5
       }
       return true;
     })
-    .map(doc => raceRunner.runRaceForDivision(db, doc.id, { triggeredBy: context.auth.uid })
+    .map(doc => raceRunner.runRaceForDivision(db, doc.id, { triggeredBy: context.auth.uid, durationMode })
       .then(result => ({ divKey: doc.id, status: 'ok', round: result.round }))
       .catch(err   => ({ divKey: doc.id, status: 'error', error: err.message }))
     );

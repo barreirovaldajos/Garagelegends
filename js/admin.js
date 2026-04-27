@@ -64,16 +64,25 @@ const GL_ADMIN = {
         <div id="admin-sysmsg-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:6px"></div>
       </div>
 
-      <!-- Race Control -->
+      <!-- Race + Live Control (unified) -->
       <div class="card" style="margin-bottom:var(--s-4)">
-        <div class="section-title" style="margin-bottom:4px">🏁 ${__('admin_race_control')}</div>
-        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Simula la próxima carrera pendiente en <strong>todas</strong> las divisiones y grupos activos simultáneamente.</div>
-        <button class="btn btn-primary" onclick="GL_ADMIN.handleForceAllRaces()" style="background:var(--c-red,#e8292a)">🏁 Forzar carrera en todas las divisiones</button>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <div class="section-title" style="margin-bottom:4px">🏁 Control de Carrera en Vivo</div>
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Corre la carrera para <strong>todas</strong> las divisiones e inicia la transmisión en vivo para todos los jugadores simultáneamente. Los resultados se revelan al finalizar la carrera.</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Duración</label>
+            <select id="admin-race-duration" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              <option value="real">REAL · 8 min</option>
+              <option value="qa">QA · 2 min</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="GL_ADMIN.handleForceAllRaces()" style="background:var(--c-red,#e8292a);font-size:0.9rem;padding:8px 18px">🏁 Iniciar Carrera en Vivo</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
           <input id="admin-race-round-filter" type="number" min="1" max="52" placeholder="Ronda (opcional)" style="width:160px;background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 8px;font-size:0.82rem" />
           <button class="btn btn-secondary" onclick="GL_ADMIN.handleForceAllRaces(true)">🔁 Equiparar divisiones atrasadas</button>
         </div>
-        <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:4px">Ingresá el número de ronda para correr <em>solo</em> las divisiones que tienen esa ronda pendiente.</div>
+        <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:4px">Ronda opcional: corre solo divisiones que tienen esa ronda pendiente.</div>
         <div id="admin-race-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
 
@@ -109,36 +118,6 @@ const GL_ADMIN = {
         <div id="admin-tool-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
 
-      <!-- Live Race Control -->
-      <div class="card" style="margin-bottom:var(--s-4)">
-        <div class="section-title" style="margin-bottom:4px">📺 Carrera en Vivo</div>
-        <div style="font-size:0.75rem;color:var(--c-orange,#f59e0b);margin-bottom:12px;font-weight:600">⚠️ SOLO para re-disparar visualización si algo falló. La carrera se corre automáticamente al usar "Forzar carrera" arriba — ese botón inicia TODO. Este panel NO corre la carrera.</div>
-        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px">
-          <div>
-            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">División</label>
-            <select id="admin-live-div" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
-              ${divOptions.map(d => `<option value="${d.div}">${d.div} – ${d.name || ''}</option>`).join('')}
-            </select>
-          </div>
-          <div>
-            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Grupo</label>
-            <select id="admin-live-group" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
-              ${this._buildGroupOptions(divOptions[0])}
-            </select>
-          </div>
-          <div>
-            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Duración</label>
-            <select id="admin-live-mode" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
-              <option value="real">REAL · 8 min</option>
-              <option value="qa">QA · 2 min</option>
-            </select>
-          </div>
-          <button class="btn btn-secondary" onclick="GL_ADMIN.handleCheckLiveRaceStatus()">🔍 Ver estado</button>
-          <button class="btn btn-primary" onclick="GL_ADMIN.handleStartLiveRace()" style="background:var(--c-accent)">▶ Iniciar Carrera en Vivo</button>
-          <button class="btn btn-ghost" onclick="GL_ADMIN.handleResetLiveRace()">✕ Resetear</button>
-        </div>
-        <div id="admin-live-status" style="font-size:0.72rem;color:var(--t-tertiary)"></div>
-      </div>
 
       <!-- Season Control -->
       <div class="card" style="margin-bottom:var(--s-4)">
@@ -151,9 +130,7 @@ const GL_ADMIN = {
       </div>
     `;
 
-    // Wire up division select → group select sync
     this._wireGroupSync('admin-tool-div', 'admin-tool-group');
-    this._wireGroupSync('admin-live-div', 'admin-live-group');
 
     // Load current system message
     this.loadSystemMessageIntoInput();
@@ -785,26 +762,32 @@ const GL_ADMIN = {
     const roundFilter = useRoundFilter && roundFilterEl && roundFilterEl.value.trim()
       ? parseInt(roundFilterEl.value.trim(), 10)
       : null;
+    const durationEl = document.getElementById('admin-race-duration');
+    const durationMode = durationEl ? durationEl.value : 'real';
+    const durationLabel = durationMode === 'qa' ? '2 min (QA)' : '8 min (REAL)';
 
     const confirmMsg = roundFilter
-      ? `Correr ronda ${roundFilter} solo para divisiones que aún la tienen pendiente?`
-      : 'Simulate the next race for ALL active divisions?';
-    const ok = await GL_UI.confirm('Force All Races', confirmMsg, 'Run All', __('cancel'));
+      ? `Correr ronda ${roundFilter} e iniciar carrera en vivo (${durationLabel})?`
+      : `Iniciar carrera en vivo para TODAS las divisiones (${durationLabel})?`;
+    const ok = await GL_UI.confirm('Iniciar Carrera en Vivo', confirmMsg, '🏁 Iniciar', __('cancel'));
     if (!ok) return;
 
     const statusEl = document.getElementById('admin-race-status');
     try {
-      if (statusEl) { statusEl.textContent = 'Running all races...'; statusEl.style.color = 'var(--t-secondary)'; }
+      if (statusEl) { statusEl.textContent = 'Corriendo carrera e iniciando transmisión...'; statusEl.style.color = 'var(--t-secondary)'; }
       const adminForceAllRaces = firebase.functions().httpsCallable('adminForceAllRaces');
-      const result = await adminForceAllRaces(roundFilter ? { roundFilter } : {});
+      const payload = { durationMode };
+      if (roundFilter) payload.roundFilter = roundFilter;
+      const result = await adminForceAllRaces(payload);
       const data = result.data || {};
+      const errors = (data.results || []).filter(r => r.status === 'error');
       if (statusEl) {
-        statusEl.textContent = `Done: ${data.processed || 0} divisions processed`;
-        statusEl.style.color = 'var(--c-green)';
+        statusEl.textContent = `✓ ${data.processed || 0} divisiones procesadas${errors.length ? ` · ${errors.length} errores` : ''} · Carrera en vivo iniciada (${durationLabel})`;
+        statusEl.style.color = errors.length ? 'var(--c-orange,#f59e0b)' : 'var(--c-green)';
       }
-      GL_UI.toast(`All races completed (${data.processed || 0} divisions)`, 'success');
+      GL_UI.toast(`Carrera iniciada en ${data.processed || 0} divisiones (${durationLabel})`, 'success');
     } catch (e) {
-      if (statusEl) { statusEl.textContent = __('admin_error') + ': ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
+      if (statusEl) { statusEl.textContent = 'Error: ' + (e.message || e); statusEl.style.color = 'var(--c-red,#e8292a)'; }
     }
   },
 

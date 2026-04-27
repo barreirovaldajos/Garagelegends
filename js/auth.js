@@ -91,7 +91,9 @@
           const pendingFans       = (data.mp && data.mp.pendingFans)       || 0;
           const pendingRaceResult = (data.mp && data.mp.pendingRaceResult) || null;
           const _revealAt = data.mp && data.mp.rewardsRevealAt;
-          const _revealMs = _revealAt ? (_revealAt.toMillis ? _revealAt.toMillis() : Number(_revealAt)) : 0;
+          const _revealMs = _revealAt
+            ? (typeof _revealAt.toMillis === 'function' ? _revealAt.toMillis() : (typeof _revealAt.seconds === 'number' ? _revealAt.seconds * 1000 + Math.floor((_revealAt.nanoseconds || 0) / 1e6) : Number(_revealAt) || 0))
+            : 0;
           const _rewardsReady = !_revealMs || _revealMs <= Date.now();
           if (_rewardsReady && (pendingCredits > 0 || pendingFans > 0 || pendingRaceResult) && data.save_data) {
             const sd = data.save_data;
@@ -144,7 +146,9 @@
       // Bloquea la aplicación de resultados hasta que termine la carrera en vivo
       const revealAt = data.mp && data.mp.rewardsRevealAt;
       if (revealAt) {
-        const revealMs = revealAt.toMillis ? revealAt.toMillis() : Number(revealAt);
+        const revealMs = typeof revealAt.toMillis === 'function'
+          ? revealAt.toMillis()
+          : (typeof revealAt.seconds === 'number' ? revealAt.seconds * 1000 + Math.floor((revealAt.nanoseconds || 0) / 1e6) : Number(revealAt) || 0);
         const remaining = revealMs - Date.now();
         if (remaining > 0) {
           setTimeout(() => this._applyMpPending(data, profileRef), remaining + 500);
