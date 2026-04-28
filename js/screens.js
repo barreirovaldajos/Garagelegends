@@ -3903,6 +3903,7 @@ const SCREENS = {
           <div class="screen-subtitle">${weather === 'wet' ? '🌧️' : '☀️'} ${weather} · Esperando inicio</div>
         </div>
         <div class="screen-actions">
+          <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.verifyLiveRace()">🔍 Verificar</button>
           <button class="btn btn-secondary" onclick="GL_APP.navigateTo('calendar')">← Calendario</button>
         </div>
       </div>
@@ -3932,19 +3933,37 @@ const SCREENS = {
 
     this.renderRaceTrackVisualization({ liveOrder: [], progress: 0, totalLaps: circuit.laps || 1, currentLap: 1, circuit, weather, idPrefix: 'liverace' });
 
+    if (!GL_AUTH._db) {
+      const lapEl = document.getElementById('liverace-lap');
+      if (lapEl) lapEl.textContent = '❌ Error: base de datos no disponible';
+      return;
+    }
+
     const divRef = GL_AUTH._db.collection('divisions').doc(mp.divKey);
+    let pollCount = 0;
+
+    const updateDebug = (status, extra) => {
+      const lapEl = document.getElementById('liverace-lap');
+      if (lapEl && !window._liveRaceStarted) {
+        lapEl.textContent = `⏳ Esperando... | ${mp.divKey} | ${status}${extra ? ' | ' + extra : ''} | poll#${pollCount}`;
+      }
+    };
 
     const tryStartRace = (divData) => {
       const liveState = divData && divData.liveRaceState;
       if (window._liveRaceStarted) return false;
-      if (!liveState || liveState.status !== 'live') return false;
-      // Validar ventana temporal: rechazar si la carrera ya expiró
+      if (!liveState || liveState.status !== 'live') {
+        updateDebug(liveState ? liveState.status || 'sin status' : 'sin liveRaceState');
+        return false;
+      }
       const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
       const tsMs = liveState.startTime
         ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : 0))
         : 0;
-      if (tsMs > 0 && Date.now() > tsMs + maxMs) return false;
-
+      if (tsMs > 0 && Date.now() > tsMs + maxMs) {
+        updateDebug('live-expirado', `startTime hace ${Math.round((Date.now()-tsMs)/1000)}s`);
+        return false;
+      }
       window._liveRaceStarted = true;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
@@ -3952,22 +3971,46 @@ const SCREENS = {
       return true;
     };
 
-    // { source: 'server' } fuerza datos frescos del servidor, evita disparar con caché obsoleta
-    const pollOnce = () => divRef.get({ source: 'server' })
-      .then(snap => { if (snap.exists) tryStartRace(snap.data()); })
-      .catch(() => {});
+    const pollOnce = () => {
+      pollCount++;
+      return divRef.get({ source: 'server' })
+        .then(snap => {
+          if (snap.exists) tryStartRace(snap.data());
+        })
+        .catch(err => {
+          updateDebug('error-poll', String(err).slice(0, 40));
+        });
+    };
 
-    // Check inmediato al entrar a la pantalla (desde servidor, no caché)
     pollOnce();
 
-    // onSnapshot: solo procesar datos confirmados por el servidor, ignorar snapshots de caché
     window._liveRaceListener = divRef.onSnapshot({ includeMetadataChanges: true }, snap => {
       if (!snap.exists || snap.metadata.fromCache) return;
       tryStartRace(snap.data());
     });
 
-    // Polling cada 3s como red de seguridad
     window._liveRacePollInterval = setInterval(pollOnce, 3000);
+  },
+
+  verifyLiveRace() {
+    const mp = window.GL_AUTH && GL_AUTH.mp;
+    if (!mp || !mp.divKey || !GL_AUTH._db) { GL_UI.toast('Sin división asignada', 'warning'); return; }
+    const lapEl = document.getElementById('liverace-lap');
+    if (lapEl) lapEl.textContent = '🔍 Verificando...';
+    GL_AUTH._db.collection('divisions').doc(mp.divKey).get({ source: 'server' }).then(snap => {
+      if (!snap.exists) { GL_UI.toast('División no encontrada', 'warning'); return; }
+      const d = snap.data();
+      const ls = d.liveRaceState;
+      const msg = ls ? `status=${ls.status} ronda=${ls.round} modo=${ls.durationMode}` : 'Sin liveRaceState en Firestore';
+      GL_UI.toast(`${mp.divKey}: ${msg}`, ls && ls.status === 'live' ? 'success' : 'info');
+      if (lapEl) lapEl.textContent = `🔍 ${msg}`;
+      if (ls && ls.status === 'live' && !window._liveRaceStarted) {
+        window._liveRaceStarted = true;
+        if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
+        if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
+        this._startLiveRaceCountdown(ls, mp.divKey);
+      }
+    }).catch(e => GL_UI.toast('Error: ' + e.message, 'warning'));
   },
 
   _startLiveRaceCountdown(liveState, divKey) {
@@ -4174,30 +4217,8 @@ const SCREENS = {
           const r = rSnap.data();
           const myCars = (r.allCarsResults || []).filter(c => c.teamId === uid);
           window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound, _viewerUid: uid };
-
-          // Award I+D points for this MP race (once per round)
-          const _mpState = GL_STATE.getState();
-          const _lastAwarded = _mpState.car && _mpState.car.rnd && _mpState.car.rnd.lastAwardedRound;
-          if (!_lastAwarded || _lastAwarded < lastRound) {
-            const _mpBestPos = myCars.length > 0
-              ? myCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
-              : 99;
-            const _rndBase = _mpBestPos === 1 ? 10 : _mpBestPos === 2 ? 8 : _mpBestPos === 3 ? 6 : _mpBestPos <= 10 ? 3 : _mpBestPos <= 20 ? 1 : 0;
-            const _rndLv = (_mpState.hq && _mpState.hq.rnd) ? Number(_mpState.hq.rnd) : 1;
-            const _rndBonus = Math.max(0, _rndLv - 1);
-            const _rndEarned = _rndBase > 0 ? _rndBase + _rndBonus : 0;
-            if (!_mpState.car.rnd) _mpState.car.rnd = { points: 0, active: null, queue: [] };
-            _mpState.car.rnd.lastAwardedRound = lastRound;
-            if (_rndEarned > 0) {
-              _mpState.car.rnd.points = (_mpState.car.rnd.points || 0) + _rndEarned;
-              const _msg = _rndBonus > 0
-                ? `🔬 +${_rndEarned} pts de I+D (P${_mpBestPos}, +${_rndBonus} bonus I+D Lv${_rndLv})`
-                : `🔬 +${_rndEarned} pts de I+D (P${_mpBestPos})`;
-              GL_STATE.addLog(_msg, 'good');
-            }
-            GL_STATE.saveState();
-          }
-
+          // I+D points son otorgados exclusivamente por _applyMpPending (auth.js)
+          // para garantizar el orden correcto con rewardsRevealAt
           GL_SCREENS.renderPostRace();
         }).catch(() => {});
       }).catch(() => {});
