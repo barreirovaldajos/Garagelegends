@@ -2285,6 +2285,23 @@ const SCREENS = {
       </div>`;
   },
 
+  // Extrae campos de economía MP (points, prizeMoney, fans, credits) de las fuentes disponibles
+  _buildMpEconomy(uid, r, lastRound) {
+    const teamSummary = (r.teamSummaries && r.teamSummaries[uid]) || {};
+    const mpPending   = GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.pendingRaceResult;
+    const state       = GL_STATE && GL_STATE.getState && GL_STATE.getState();
+    const savedEntry  = ((state && state.raceResults) || []).find(e => e.round === lastRound);
+    const src         = (mpPending && mpPending.round === lastRound) ? mpPending : (savedEntry || {});
+    const points      = src.points     != null ? src.points     : (teamSummary.points     || 0);
+    const prizeMoney  = src.prizeMoney != null ? src.prizeMoney : (teamSummary.prizeMoney || 0);
+    const fansGained  = src.fansGained || 0;
+    const mpPendingCredits = (GL_AUTH && GL_AUTH.mp && GL_AUTH.mp.pendingCredits) || 0;
+    const currentCredits   = (state && state.finances && state.finances.credits) || 0;
+    const creditsBefore      = mpPendingCredits > 0 ? currentCredits : Math.max(0, currentCredits - prizeMoney);
+    const creditsAfterWeekly = creditsBefore + prizeMoney;
+    return { points, prizeMoney, economySummary: { prizeDelta: prizeMoney, fansGained, weeklyNetDelta: prizeMoney, totalDelta: prizeMoney, creditsBefore, creditsAfterWeekly } };
+  },
+
   // Retorna los ms restantes de la carrera en vivo, o 0 si no está activa
   _liveRaceRemainingMs(divData) {
     const ls = divData && divData.liveRaceState;
@@ -4110,7 +4127,8 @@ const SCREENS = {
       const uid = GL_AUTH.user && GL_AUTH.user.uid;
       const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
       const playerCars = viewerCars.length ? viewerCars : (result.playerCars || []).filter(c => c.teamId === uid);
-      window._lastRaceResult = { ...result, playerCars, _mpRound: effectiveRound, _viewerUid: uid };
+      const mpEcon = uid ? this._buildMpEconomy(uid, result, effectiveRound) : {};
+      window._lastRaceResult = { ...result, playerCars, _mpRound: effectiveRound, _viewerUid: uid, ...mpEcon };
       this._runLiveRaceVisualization({ ...result, viewerCars }, raceStartMs, durationMode);
     } catch (e) {
       GL_UI.toast('Error al cargar la carrera en vivo.', 'warning');
@@ -4275,7 +4293,8 @@ const SCREENS = {
           }
           const r = rSnap.data();
           const myCars = (r.allCarsResults || []).filter(c => c.teamId === uid);
-          window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound, _viewerUid: uid };
+          const mpEcon = this._buildMpEconomy(uid, r, lastRound);
+          window._lastRaceResult = { ...r, playerCars: myCars, _mpRound: lastRound, _viewerUid: uid, ...mpEcon };
           // I+D points son otorgados exclusivamente por _applyMpPending (auth.js)
           // para garantizar el orden correcto con rewardsRevealAt
           GL_SCREENS.renderPostRace();
