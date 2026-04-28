@@ -4146,6 +4146,7 @@ const SCREENS = {
     const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
     const finalGrid = Array.isArray(result.finalGrid) ? result.finalGrid : [];
     const lapSnapshots = Array.isArray(result.lapSnapshots) ? result.lapSnapshots : [];
+    const viewerUid = result._viewerUid || (window.GL_AUTH && GL_AUTH.user && GL_AUTH.user.uid) || null;
     const circuit = result.circuit || GL_DATA.CIRCUITS[0];
     const weather = result.weather || 'dry';
     const playerEventPilotNames = this.getPlayerEventPilotNames(result.viewerCars || []);
@@ -4214,7 +4215,10 @@ const SCREENS = {
       const lapBlend = lapProgress % 1;
       const remaining = LIVE_RACE_DURATION_MS - elapsed;
 
-      const liveOrder = this.buildLiveRaceOrder({ lapSnapshots, currentLap, lapBlend, finalGrid, startPosMap, finalPosMap, progress, tick });
+      const liveOrderRaw = this.buildLiveRaceOrder({ lapSnapshots, currentLap, lapBlend, finalGrid, startPosMap, finalPosMap, progress, tick });
+      const liveOrder = viewerUid && liveOrderRaw.some(c => c.teamId)
+        ? liveOrderRaw.map(c => ({ ...c, isPlayer: c.teamId === viewerUid }))
+        : liveOrderRaw;
       const liveWeather = lapSnapshots[currentLap - 1]?.weather || weather;
 
       if (lapEl) lapEl.textContent = `🏁 Vuelta ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;

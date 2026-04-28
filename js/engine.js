@@ -851,11 +851,11 @@ const TYRE_COMPOUNDS = {
   },
   intermediate: {
     dry: { durabilityPct: [0.10, 0.25], paceDeltaMs: 4200 },
-    wet: { durabilityPct: [0.40, 0.70], paceDeltaMs: 0 }
+    wet: { durabilityPct: [0.40, 0.70], paceDeltaMs: 800 }
   },
   wet: {
     dry: { durabilityPct: [0.05, 0.15], paceDeltaMs: 6500 },
-    wet: { durabilityPct: [0.20, 0.40], paceDeltaMs: 1000 }
+    wet: { durabilityPct: [0.20, 0.40], paceDeltaMs: 0 }
   }
 };
 
