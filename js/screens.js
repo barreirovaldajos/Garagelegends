@@ -2285,6 +2285,28 @@ const SCREENS = {
       </div>`;
   },
 
+  // Retorna los ms restantes de la carrera en vivo, o 0 si no está activa
+  _liveRaceRemainingMs(divData) {
+    const ls = divData && divData.liveRaceState;
+    if (!ls || ls.status !== 'live' || !ls.startTime) return 0;
+    const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+    const startMs = ls.startTime.toMillis ? ls.startTime.toMillis() : (ls.startTime.seconds ? ls.startTime.seconds * 1000 : 0);
+    if (!startMs) return 0;
+    return Math.max(0, startMs + 10000 + durMs - Date.now());
+  },
+
+  _liveRaceBlockHtml(remainingMs) {
+    const remSec = Math.ceil(remainingMs / 1000);
+    const mm = String(Math.floor(remSec / 60)).padStart(2, '0');
+    const ss = String(remSec % 60).padStart(2, '0');
+    return `<div class="card" style="text-align:center;padding:40px 24px">
+      <div style="font-size:2.5rem;margin-bottom:10px">🏁</div>
+      <div style="font-size:1rem;font-weight:700;margin-bottom:6px">Carrera en vivo en progreso</div>
+      <div style="color:var(--t-secondary);font-size:0.85rem;margin-bottom:14px">Los resultados estarán disponibles cuando termine la carrera.</div>
+      <div style="font-size:1.8rem;font-weight:800;color:var(--c-accent)">${mm}:${ss}</div>
+    </div>`;
+  },
+
   // ===== CALENDAR SCREEN =====
   renderCalendar() {
     const mp = window.GL_AUTH && GL_AUTH.mp;
@@ -2292,7 +2314,13 @@ const SCREENS = {
       const el = document.getElementById('screen-calendar');
       if (el) el.innerHTML = `<div style="padding:32px;color:var(--t-secondary);text-align:center">📡 ${__('loading') || 'Cargando calendario...'}</div>`;
       GL_AUTH._db.collection('divisions').doc(mp.divKey).get()
-        .then(snap => { if (snap.exists) GL_STATE.syncCalendarFromDivision(snap.data()); })
+        .then(snap => {
+          if (snap.exists) {
+            const d = snap.data();
+            GL_STATE.syncCalendarFromDivision(d);
+            window._divLiveRaceState = d.liveRaceState; // guardar para _renderCalendarUI
+          }
+        })
         .catch(() => {})
         .finally(() => this._renderCalendarUI());
       return;
@@ -2397,6 +2425,8 @@ const SCREENS = {
         ${cal.map(r => {
           const isDone = r.status === (window.RACE_STATUS ? RACE_STATUS.COMPLETED : 'completed');
           const isNext = r.status === (window.RACE_STATUS ? RACE_STATUS.NEXT : 'next');
+          const liveRemMs = isDone ? this._liveRaceRemainingMs({ liveRaceState: window._divLiveRaceState }) : 0;
+          const isLiveBlocked = liveRemMs > 0 && isDone; // ocultar resultado si la carrera en vivo sigue activa
           const res = r.result;
           const weatherIndicator = this.getCalendarWeatherIndicator(r);
           const raceArchive = this.getRaceArchiveRecord(r.round);
@@ -2420,10 +2450,10 @@ const SCREENS = {
             </div>
             <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
-              ${isDone ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              ${isDone ? (isLiveBlocked ? `<div style="color:var(--t-tertiary);font-size:0.78rem">🏁 En vivo...</div>` : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
                 ${res && res.position != null ? `<div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div><div class="calendar-result-pts">+${res.points ?? 0} ${__('points')}</div>` : `<div class="calendar-result-pos" style="color:var(--t-secondary)">—</div>`}
                 <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
-              </div>` :
+              </div>`) :
               isNext ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
                 ${r.savedStrategy ? `<span style="font-size:0.72rem;color:var(--c-green)">✔ ${__('calendar_strat_ready')}</span>` : `<span style="font-size:0.72rem;color:var(--c-orange)">${__('calendar_strategy_missing')}</span>`}
                 <button class="btn btn-primary btn-sm" onclick="GL_APP.navigateTo('prerace')">Preparar Carrera</button>
@@ -3009,6 +3039,13 @@ const SCREENS = {
         return;
       }
       const data = snap.data();
+      // Bloquear standings mientras la carrera en vivo está activa
+      const liveRem = this._liveRaceRemainingMs(data);
+      if (liveRem > 0 && tableEl) {
+        tableEl.innerHTML = this._liveRaceBlockHtml(liveRem);
+        setTimeout(() => { if (document.getElementById('screen-standings')?.classList.contains('active')) this._renderMpStandings(); }, 10000);
+        return;
+      }
       const standings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
       if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = standings;
       const divInfo  = GL_DATA.DIVISIONS.find(d => d.div === data.division);
