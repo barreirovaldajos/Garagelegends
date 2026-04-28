@@ -4204,6 +4204,28 @@ const SCREENS = {
         const divData = snap.data();
         const lastRound = divData.lastRaceRound;
         if (!lastRound) return;
+
+        // Bloquear postrace mientras la carrera en vivo sigue corriendo
+        const ls = divData.liveRaceState;
+        if (ls && ls.status === 'live' && ls.startTime) {
+          const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+          const startMs = ls.startTime.toMillis ? ls.startTime.toMillis() : (ls.startTime.seconds ? ls.startTime.seconds * 1000 : 0);
+          const raceEndMs = startMs + 10000 + durMs;
+          if (startMs > 0 && Date.now() < raceEndMs) {
+            const remSec = Math.ceil((raceEndMs - Date.now()) / 1000);
+            const mm = String(Math.floor(remSec / 60)).padStart(2, '0');
+            const ss = String(remSec % 60).padStart(2, '0');
+            el.innerHTML = `<div class="card" style="text-align:center;padding:48px 24px">
+              <div style="font-size:3rem;margin-bottom:12px">🏁</div>
+              <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px">Carrera en vivo en progreso</div>
+              <div style="color:var(--t-secondary);font-size:0.88rem;margin-bottom:16px">Los resultados estarán disponibles cuando termine la carrera.</div>
+              <div style="font-size:2rem;font-weight:800;color:var(--c-accent)">${mm}:${ss}</div>
+            </div>`;
+            setTimeout(() => { if (document.getElementById('screen-postrace')?.classList.contains('active')) GL_SCREENS.renderPostRace(); }, 10000);
+            return;
+          }
+        }
+
         // Avoid re-fetching if already loaded for this round
         if (window._lastRaceResult && window._lastRaceResult._mpRound === lastRound) {
           return; // render below will pick it up
