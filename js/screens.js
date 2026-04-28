@@ -4008,14 +4008,21 @@ const SCREENS = {
   async _fetchAndStartLiveRace(divKey, round, raceStartMs, durationMode) {
     try {
       // Use lastRaceRound from the division doc as the authoritative round number
-      const divSnap = await GL_AUTH._db.collection('divisions').doc(divKey).get();
+      const divSnap = await GL_AUTH._db.collection('divisions').doc(divKey).get({ source: 'server' });
       const effectiveRound = (divSnap.exists && divSnap.data().lastRaceRound) || round;
 
-      const resultSnap = await GL_AUTH._db
-        .collection('divisions').doc(divKey)
-        .collection('raceResults').doc(String(effectiveRound))
-        .get();
-      if (!resultSnap.exists) {
+      // Retry hasta 4 veces con 2s de espera: Firestore puede tener lag de replicación
+      // entre la subcollección raceResults y el documento de división
+      let resultSnap = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+        resultSnap = await GL_AUTH._db
+          .collection('divisions').doc(divKey)
+          .collection('raceResults').doc(String(effectiveRound))
+          .get({ source: 'server' });
+        if (resultSnap.exists) break;
+      }
+      if (!resultSnap || !resultSnap.exists) {
         GL_UI.toast(`Error: raceResults/${effectiveRound} no encontrado en división ${divKey}`, 'warning');
         return;
       }
@@ -4023,7 +4030,6 @@ const SCREENS = {
       const uid = GL_AUTH.user && GL_AUTH.user.uid;
       const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
       const playerCars = viewerCars.length ? viewerCars : (result.playerCars || []).filter(c => c.teamId === uid);
-      // Pre-cargar el resultado en window._lastRaceResult para que renderPostRace no tenga que re-fetcharlo
       window._lastRaceResult = { ...result, playerCars, _mpRound: effectiveRound, _viewerUid: uid };
       this._runLiveRaceVisualization({ ...result, viewerCars }, raceStartMs, durationMode);
     } catch (e) {
@@ -4084,16 +4090,17 @@ const SCREENS = {
       }).join('');
     };
 
-    const finishRace = () => {
+    const finishRace = async () => {
       if (finished) return;
       finished = true;
       if (lapEl) lapEl.textContent = '🏁 ¡Carrera finalizada!';
-      // Sincronizar calendario desde Firestore para que el jugador vea la carrera como completada
+      // Sincronizar calendario desde Firestore y esperar antes de navegar a postrace
       const mp = window.GL_AUTH && GL_AUTH.mp;
       if (mp && mp.divKey && GL_AUTH._db) {
-        GL_AUTH._db.collection('divisions').doc(mp.divKey).get()
-          .then(snap => { if (snap.exists && GL_STATE.syncCalendarFromDivision) GL_STATE.syncCalendarFromDivision(snap.data()); })
-          .catch(() => {});
+        try {
+          const snap = await GL_AUTH._db.collection('divisions').doc(mp.divKey).get({ source: 'server' });
+          if (snap.exists && GL_STATE.syncCalendarFromDivision) GL_STATE.syncCalendarFromDivision(snap.data());
+        } catch (_) {}
       }
       setTimeout(() => GL_APP.navigateTo('postrace'), 1500);
     };
