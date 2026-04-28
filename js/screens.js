@@ -3934,17 +3934,11 @@ const SCREENS = {
 
     const divRef = GL_AUTH._db.collection('divisions').doc(mp.divKey);
 
-    // divData es el objeto completo del documento de división
     const tryStartRace = (divData) => {
       const liveState = divData && divData.liveRaceState;
       if (window._liveRaceStarted) return false;
       if (!liveState || liveState.status !== 'live') return false;
-      // Validar frescura: liveRaceState.round debe coincidir con lastRaceRound del mismo doc
-      // Ambos son escritos en el mismo update() por la CF, así que siempre coinciden para una carrera nueva.
-      // Esto evita que un liveRaceState de una ronda anterior dispare la visualización equivocada.
-      const lastRaceRound = divData.lastRaceRound;
-      if (liveState.round && lastRaceRound && liveState.round !== lastRaceRound) return false;
-      // Validar ventana temporal: no iniciar si la ventana de visualización ya expiró
+      // Validar ventana temporal: rechazar si la carrera ya expiró
       const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
       const tsMs = liveState.startTime
         ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : 0))
@@ -3958,16 +3952,18 @@ const SCREENS = {
       return true;
     };
 
-    const pollOnce = () => divRef.get()
+    // { source: 'server' } fuerza datos frescos del servidor, evita disparar con caché obsoleta
+    const pollOnce = () => divRef.get({ source: 'server' })
       .then(snap => { if (snap.exists) tryStartRace(snap.data()); })
       .catch(() => {});
 
-    // Check inmediato al entrar a la pantalla
+    // Check inmediato al entrar a la pantalla (desde servidor, no caché)
     pollOnce();
 
-    // onSnapshot para actualizaciones en tiempo real
-    window._liveRaceListener = divRef.onSnapshot(snap => {
-      if (snap.exists) tryStartRace(snap.data());
+    // onSnapshot: solo procesar datos confirmados por el servidor, ignorar snapshots de caché
+    window._liveRaceListener = divRef.onSnapshot({ includeMetadataChanges: true }, snap => {
+      if (!snap.exists || snap.metadata.fromCache) return;
+      tryStartRace(snap.data());
     });
 
     // Polling cada 3s como red de seguridad
