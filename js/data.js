@@ -194,16 +194,13 @@ const CIRCUITS = [
   { id:'c13', name:'Standard Circuit',        country:'🏁',  laps:65, layout:'mixed',      weather:70, length:'4.650 km' },
 ];
 
-// ---- CALENDAR per season (8 rounds for Div 8) ----
+// ---- CALENDAR per season (8 rounds, all divisions) ----
 function clampNumber(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function getSeasonWetRaceTarget(raceCount) {
-  if (raceCount <= 8) {
-    return 2 + (Math.random() < 0.45 ? 1 : 0);
-  }
-  return clampNumber(Math.round(raceCount * 0.3), 3, 4);
+function getSeasonWetRaceTarget() {
+  return 2 + (Math.random() < 0.45 ? 1 : 0);
 }
 
 function generateCalendar(division) {
@@ -212,10 +209,10 @@ function generateCalendar(division) {
     try { window.RACE_STATUS = require('./game_constants.js').RACE_STATUS; } catch(e) {}
   }
   const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
-  const count = Math.min(8 + (8 - division), 12);
+  const count = 8;
   const shuffled = [...CIRCUITS].sort(() => Math.random() - 0.5);
   const selectedCircuits = shuffled.slice(0, count);
-  const targetWetRaces = getSeasonWetRaceTarget(selectedCircuits.length);
+  const targetWetRaces = getSeasonWetRaceTarget();
   const wetRaceIds = new Set(
     selectedCircuits
       .map((c) => ({
