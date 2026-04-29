@@ -199,7 +199,7 @@ const OB = {
         </div>
       </div>`;
     
-    document.getElementById('ob-hint').textContent = 'Tu base determina la base de fans regional y las oportunidades de patrocinio.';
+    document.getElementById('ob-hint').textContent = __('ob_s1_hint');
     document.getElementById('ob-next-btn').textContent = __('ob_continue');
 
     inner.querySelector('#ob-name').oninput = e => { this.data.name = e.target.value; };

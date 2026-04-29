@@ -27,6 +27,12 @@
     lastProfileLoadAt: 0,
     _unsubscribeAuth: null,
 
+    // Auto-logout after 1h of inactivity
+    _inactivityMs: 60 * 60 * 1000,
+    _inactivityTimer: null,
+    _inactivityHandlers: null,
+    _inactivityLastReset: 0,
+
     isConfigured() {
       return Boolean(
         window.GL_FIREBASE_CONFIG &&
@@ -47,7 +53,7 @@
       await new Promise(resolve => {
         const unsub = this._auth.onAuthStateChanged(async user => {
           unsub();
-          if (user) { await this.adoptUser(user); this.hideGate(); }
+          if (user) { await this.adoptUser(user); this.hideGate(); this._startInactivityTracking(); }
           else { this.renderGate(); }
           this.fireReady();
           resolve();
@@ -58,10 +64,12 @@
           if (this.user && this.user.uid === user.uid && this.readyFired) { this.user = user; return; }
           await this.adoptUser(user);
           this.hideGate();
+          this._startInactivityTracking();
           if (this.readyFired && window.GL_APP && typeof GL_APP.resumeAuthenticatedSession === 'function') {
             GL_APP.resumeAuthenticatedSession();
           }
         } else {
+          this._stopInactivityTracking();
           this.user = null; this.profile = null; this.role = 'player';
           this.mp = null; this.remoteSave = null; this.remoteSaveUpdatedAt = 0;
           this.storageKeySuffix = ''; this.pendingRemoteSave = null;
@@ -349,7 +357,7 @@
     },
 
     gateElement() { return document.getElementById('auth-gate'); },
-    hideGate()    { const g = this.gateElement(); if (g) g.remove(); },
+    hideGate()    { const g = this.gateElement(); if (g) g.remove(); this._closeAuthModal(); },
     fireReady()   { if (this.readyFired) return; this.readyFired = true; if (typeof this.readyCallback === 'function') this.readyCallback(); },
 
     renderGate() {
@@ -357,40 +365,212 @@
       document.getElementById('app').style.display = 'none';
       const onboarding = document.getElementById('onboarding-screen');
       if (onboarding) onboarding.style.display = 'none';
+
       const gate = document.createElement('div');
-      gate.id = 'auth-gate'; gate.className = 'auth-gate';
-      gate.innerHTML = "<div class=\"auth-card\">\n          <h2 class=\"auth-title\">Garage Legends Access</h2>\n          <p class=\"auth-subtitle\">Closed beta access. Accounts are created manually by admin.</p>\n          <div class=\"auth-tabs\">\n            <button class=\"auth-tab active\" data-mode=\"login\">Login</button>\n            <button class=\"auth-tab\" data-mode=\"register\" disabled>Register</button>\n          </div>\n          <form class=\"auth-form\" id=\"auth-form\">\n            <label class=\"auth-label\" for=\"auth-email\">Email</label>\n            <input class=\"auth-input\" id=\"auth-email\" type=\"email\" required autocomplete=\"email\" />\n            <label class=\"auth-label\" for=\"auth-password\">Password</label>\n            <input class=\"auth-input\" id=\"auth-password\" type=\"password\" required autocomplete=\"current-password\" minlength=\"6\" />\n            <div class=\"auth-row\">\n              <button class=\"btn btn-primary\" id=\"auth-submit\" type=\"submit\" style=\"justify-content:center;flex:1\">Login</button>\n              <button class=\"btn btn-ghost\" id=\"auth-reset\" type=\"button\">Reset password</button>\n            </div>\n          </form>\n          <div class=\"auth-msg\" id=\"auth-msg\"></div>\n        </div>";
+      gate.id = 'auth-gate';
+      gate.className = 'auth-gate auth-landing-gate';
+      gate.innerHTML = this._landingHTML();
       document.body.appendChild(gate);
 
-      const msg      = gate.querySelector('#auth-msg');
-      const form     = gate.querySelector('#auth-form');
-      const resetBtn = gate.querySelector('#auth-reset');
+      gate.querySelector('#auth-cta-login').addEventListener('click', () => this._openLoginModal());
+      gate.querySelector('#auth-cta-signup').addEventListener('click', () => this._openSignupModal());
+      const loginTop = gate.querySelector('#auth-cta-login-top');
+      if (loginTop) loginTop.addEventListener('click', () => this._openLoginModal());
+      const langBtn = gate.querySelector('#auth-lang-toggle');
+      if (langBtn) langBtn.addEventListener('click', () => this._toggleLandingLang());
+
+      // ESC closes any open auth modal
+      if (!this._authEscBound) {
+        this._authEscBound = true;
+        document.addEventListener('keydown', e => {
+          if (e.key === 'Escape' && document.getElementById('auth-modal-overlay')) this._closeAuthModal();
+        });
+      }
+    },
+
+    _toggleLandingLang() {
+      if (window.GL_I18N) {
+        const next = (GL_I18N.lang === 'es') ? 'en' : 'es';
+        GL_I18N.lang = next;
+        try { localStorage.setItem('gl_lang', next); } catch (_) {}
+      }
+      // Re-render the gate with the new language; close any open modal
+      this._closeAuthModal();
+      this.renderGate();
+    },
+
+    _t(key, fallback) {
+      return (typeof window.__ === 'function') ? window.__(key, fallback) : (fallback || key);
+    },
+
+    _landingHTML() {
+      const t = (k, fb) => this._t(k, fb);
+      const curLang = (window.GL_I18N && GL_I18N.lang) || 'es';
+      const langLabel = curLang === 'es' ? '🇬🇧 EN' : '🇪🇸 ES';
+      return ''
+        + '<div class="auth-landing">'
+        +   '<div class="auth-landing-bg" aria-hidden="true"></div>'
+        +   '<header class="auth-landing-topbar">'
+        +     '<div class="auth-brand">'
+        +       '<span class="auth-brand-mark">🏎️</span>'
+        +       '<span class="auth-brand-name">' + t('auth_brand', 'Garage Legends') + '</span>'
+        +     '</div>'
+        +     '<div class="auth-topbar-actions">'
+        +       '<button class="auth-btn auth-btn-ghost auth-lang-btn" id="auth-lang-toggle" type="button" aria-label="Change language">' + langLabel + '</button>'
+        +       '<button class="auth-btn auth-btn-ghost" id="auth-cta-login-top" type="button">' + t('auth_btn_login', 'Login') + '</button>'
+        +     '</div>'
+        +   '</header>'
+        +   '<section class="auth-hero">'
+        +     '<div class="auth-hero-eyebrow">' + t('auth_eyebrow', 'Motorsport Management · Closed Beta') + '</div>'
+        +     '<h1 class="auth-hero-title">' + t('auth_title_html', 'Build a racing team<br/>from the <span class="auth-hero-accent">garage</span> to the top.') + '</h1>'
+        +     '<p class="auth-hero-tagline">' + t('auth_tagline', '') + '</p>'
+        +     '<div class="auth-cta-row">'
+        +       '<button class="auth-btn auth-btn-primary" id="auth-cta-login" type="button">' + t('auth_btn_login', 'Login') + '</button>'
+        +       '<button class="auth-btn auth-btn-secondary" id="auth-cta-signup" type="button">' + t('auth_btn_signup', 'Sign up') + '</button>'
+        +     '</div>'
+        +     '<div class="auth-hero-meta">' + t('auth_meta', '') + '</div>'
+        +   '</section>'
+        +   '<section class="auth-features">'
+        +     '<div class="auth-feature"><div class="auth-feature-icon">🧑‍✈️</div><div class="auth-feature-title">' + t('auth_feat1_title', 'Pilots & Staff') + '</div><div class="auth-feature-desc">' + t('auth_feat1_desc', '') + '</div></div>'
+        +     '<div class="auth-feature"><div class="auth-feature-icon">⚙️</div><div class="auth-feature-title">' + t('auth_feat2_title', 'Car Development') + '</div><div class="auth-feature-desc">' + t('auth_feat2_desc', '') + '</div></div>'
+        +     '<div class="auth-feature"><div class="auth-feature-icon">💰</div><div class="auth-feature-title">' + t('auth_feat3_title', 'Sponsors & Finances') + '</div><div class="auth-feature-desc">' + t('auth_feat3_desc', '') + '</div></div>'
+        +     '<div class="auth-feature"><div class="auth-feature-icon">🏆</div><div class="auth-feature-title">' + t('auth_feat4_title', 'Live Multiplayer') + '</div><div class="auth-feature-desc">' + t('auth_feat4_desc', '') + '</div></div>'
+        +   '</section>'
+        + '</div>';
+    },
+
+    _openLoginModal() {
+      this._closeAuthModal();
+      const t = (k, fb) => this._t(k, fb);
+      const overlay = document.createElement('div');
+      overlay.id = 'auth-modal-overlay';
+      overlay.className = 'auth-modal-overlay';
+      overlay.innerHTML = ''
+        + '<div class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">'
+        +   '<button class="auth-modal-close" type="button" aria-label="Close">✕</button>'
+        +   '<h2 class="auth-modal-title" id="auth-modal-title">' + t('auth_modal_login_title', 'Log in') + '</h2>'
+        +   '<p class="auth-modal-subtitle">' + t('auth_modal_login_subtitle', '') + '</p>'
+        +   '<form class="auth-form" id="auth-form">'
+        +     '<label class="auth-label" for="auth-email">' + t('auth_form_email', 'Email') + '</label>'
+        +     '<input class="auth-input" id="auth-email" type="email" required autocomplete="email" />'
+        +     '<label class="auth-label" for="auth-password">' + t('auth_form_password', 'Password') + '</label>'
+        +     '<input class="auth-input" id="auth-password" type="password" required autocomplete="current-password" minlength="6" />'
+        +     '<div class="auth-row">'
+        +       '<button class="auth-btn auth-btn-primary" id="auth-submit" type="submit" style="flex:1;justify-content:center">' + t('auth_form_login', 'Login') + '</button>'
+        +       '<button class="auth-btn auth-btn-ghost" id="auth-reset" type="button">' + t('auth_form_reset', 'Reset password') + '</button>'
+        +     '</div>'
+        +   '</form>'
+        +   '<div class="auth-msg" id="auth-msg"></div>'
+        + '</div>';
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('.auth-modal-close').addEventListener('click', () => this._closeAuthModal());
+      overlay.addEventListener('click', e => { if (e.target === overlay) this._closeAuthModal(); });
+
+      const msg      = overlay.querySelector('#auth-msg');
+      const form     = overlay.querySelector('#auth-form');
+      const resetBtn = overlay.querySelector('#auth-reset');
       const setMsg   = (text, type) => { msg.className = 'auth-msg' + (type ? ' ' + type : ''); msg.textContent = text || ''; };
 
       resetBtn.addEventListener('click', async () => {
-        const email = String(gate.querySelector('#auth-email').value || '').trim();
-        if (!email) { setMsg('Enter your email first.', 'error'); return; }
-        try { await this._auth.sendPasswordResetEmail(email); setMsg('Password reset email sent. Check your inbox.', 'success'); }
-        catch (e) { setMsg(e.message || 'Could not send reset email.', 'error'); }
+        const email = String(overlay.querySelector('#auth-email').value || '').trim();
+        if (!email) { setMsg(t('auth_form_email_first', 'Enter your email first.'), 'error'); return; }
+        try { await this._auth.sendPasswordResetEmail(email); setMsg(t('auth_form_reset_sent', 'Password reset email sent.'), 'success'); }
+        catch (e) { setMsg(e.message || t('auth_form_reset_fail', 'Could not send reset email.'), 'error'); }
       });
 
       form.addEventListener('submit', async (e) => {
-        e.preventDefault(); setMsg('Processing...');
-        const email    = String(gate.querySelector('#auth-email').value || '').trim();
-        const password = String(gate.querySelector('#auth-password').value || '');
-        if (!email || !password) { setMsg('Email and password are required.', 'error'); return; }
+        e.preventDefault(); setMsg(t('auth_form_processing', 'Processing...'));
+        const email    = String(overlay.querySelector('#auth-email').value || '').trim();
+        const password = String(overlay.querySelector('#auth-password').value || '');
+        if (!email || !password) { setMsg(t('auth_form_required', 'Email and password are required.'), 'error'); return; }
         try {
           await this._auth.signInWithEmailAndPassword(email, password);
-          setMsg('Access granted. Loading game...', 'success');
+          setMsg(t('auth_form_login_ok', 'Access granted. Loading game...'), 'success');
         } catch (e) {
           const code = e.code || '';
           if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') {
-            setMsg('Invalid email or password.', 'error');
+            setMsg(t('auth_form_invalid', 'Invalid email or password.'), 'error');
           } else {
-            setMsg(e.message || 'Login failed.', 'error');
+            setMsg(e.message || t('auth_form_login_fail', 'Login failed.'), 'error');
           }
         }
       });
+
+      setTimeout(() => { const f = overlay.querySelector('#auth-email'); if (f) f.focus(); }, 50);
+    },
+
+    _openSignupModal() {
+      this._closeAuthModal();
+      const t = (k, fb) => this._t(k, fb);
+      const overlay = document.createElement('div');
+      overlay.id = 'auth-modal-overlay';
+      overlay.className = 'auth-modal-overlay';
+      overlay.innerHTML = ''
+        + '<div class="auth-modal auth-modal-notice" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">'
+        +   '<button class="auth-modal-close" type="button" aria-label="Close">✕</button>'
+        +   '<div class="auth-notice-icon">🔒</div>'
+        +   '<h2 class="auth-modal-title" id="auth-modal-title">' + t('auth_signup_title', 'Sign up — Closed beta') + '</h2>'
+        +   '<p class="auth-modal-subtitle">' + t('auth_signup_subtitle', '') + '</p>'
+        +   '<p class="auth-modal-text">' + t('auth_signup_text', '') + '</p>'
+        +   '<div class="auth-row" style="margin-top:18px">'
+        +     '<button class="auth-btn auth-btn-primary" id="auth-notice-ok" type="button" style="flex:1;justify-content:center">' + t('auth_signup_ok', 'Got it') + '</button>'
+        +   '</div>'
+        + '</div>';
+      document.body.appendChild(overlay);
+
+      overlay.querySelector('.auth-modal-close').addEventListener('click', () => this._closeAuthModal());
+      overlay.querySelector('#auth-notice-ok').addEventListener('click', () => this._closeAuthModal());
+      overlay.addEventListener('click', e => { if (e.target === overlay) this._closeAuthModal(); });
+    },
+
+    _closeAuthModal() {
+      const m = document.getElementById('auth-modal-overlay');
+      if (m) m.remove();
+    },
+
+    // ===== Inactivity auto-logout (1h) =====
+    _startInactivityTracking() {
+      if (this._inactivityHandlers) return;
+      const handler = () => this._resetInactivityTimer();
+      const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+      events.forEach(ev => window.addEventListener(ev, handler, { passive: true }));
+      this._inactivityHandlers = { handler, events };
+      this._inactivityLastReset = 0;
+      this._resetInactivityTimer();
+    },
+
+    _resetInactivityTimer() {
+      if (!this.isAuthenticated()) return;
+      const now = Date.now();
+      // Throttle: only re-arm timer once every 5s to avoid hammering on mousemove
+      if (now - this._inactivityLastReset < 5000) return;
+      this._inactivityLastReset = now;
+      if (this._inactivityTimer) clearTimeout(this._inactivityTimer);
+      this._inactivityTimer = setTimeout(() => this._handleInactivityLogout(), this._inactivityMs);
+    },
+
+    _stopInactivityTracking() {
+      if (this._inactivityTimer) { clearTimeout(this._inactivityTimer); this._inactivityTimer = null; }
+      if (!this._inactivityHandlers) return;
+      const { handler, events } = this._inactivityHandlers;
+      events.forEach(ev => window.removeEventListener(ev, handler));
+      this._inactivityHandlers = null;
+    },
+
+    async _handleInactivityLogout() {
+      if (!this.isAuthenticated()) return;
+      this._stopInactivityTracking();
+      try {
+        if (window.GL_STATE && typeof GL_STATE.saveState === 'function') GL_STATE.saveState();
+        await this.flushRemoteStateSnapshot();
+      } catch (_) {}
+      try {
+        if (window.GL_UI && typeof GL_UI.toast === 'function') {
+          GL_UI.toast(this._t('auth_inactivity_toast', 'Session closed after 1h of inactivity'), 'warning', 6000);
+        }
+      } catch (_) {}
+      try { await this.signOut(); } catch (_) {}
     }
   };
 
