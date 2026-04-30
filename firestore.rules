@@ -42,6 +42,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---- user_events_tracking ----
+    // Written exclusively by Cloud Functions via Admin SDK (bypasses rules).
+    // No client-side access; admin reads through the adminGetUserEvents callable.
+    match /user_events_tracking/{eventId} {
+      allow read, write: if false;
+    }
+
     // deny everything else by default
     match /{document=**} {
       allow read, write: if false;

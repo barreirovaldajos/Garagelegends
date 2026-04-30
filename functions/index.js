@@ -10,6 +10,7 @@ const db = admin.firestore();
 const raceRunner = require('./lib/race-runner.js');
 const divisionManager = require('./lib/division-manager.js');
 const seasonManager = require('./lib/season-manager.js');
+const eventTracker = require('./lib/event-tracker.js');
 
 // ── 1. Scheduled Race – Runs every Sunday at 18:00 UTC ──────────────────────
 exports.runScheduledRace = functions.pubsub
@@ -277,6 +278,45 @@ exports.adminResetGroup = functions.https.onCall(async (data, context) => {
 
   functions.logger.info(`adminResetGroup: ${divKey} reset. Players cleared: ${affectedPlayers.join(', ')}`);
   return { success: true, divKey, affectedPlayers };
+});
+
+// ── 12. Log User Event – Fire-and-forget event tracking ─────────────────────
+exports.logUserEvent = functions.https.onCall(async (data, context) => {
+  if (!context.auth) return { ok: false };
+
+  const eventName = typeof data.eventName === 'string' ? data.eventName.slice(0, 100) : 'unknown';
+  const uaString  = context.rawRequest && context.rawRequest.headers
+    ? (context.rawRequest.headers['user-agent'] || '')
+    : '';
+
+  try {
+    await eventTracker.logEvent(db, {
+      userId:    context.auth.uid,
+      eventName,
+      uaString,
+    });
+  } catch (err) {
+    functions.logger.warn('logUserEvent: write failed silently', err.message);
+  }
+
+  return { ok: true };
+});
+
+// ── 13. Admin Get User Events – Last 50 events + today's counters ─────────────
+exports.adminGetUserEvents = functions.https.onCall(async (_data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+
+  const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
+  if (!profileSnap.exists || profileSnap.data().role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Admin only');
+  }
+
+  const [events, counters] = await Promise.all([
+    eventTracker.getRecentEvents(db, { limit: 50 }),
+    eventTracker.getTodayCounters(db),
+  ]);
+
+  return { events, counters };
 });
 
 // ── 11. Admin Force Season Advance – End stuck seasons, then start new ───────

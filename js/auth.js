@@ -486,6 +486,7 @@
         if (!email || !password) { setMsg(t('auth_form_required', 'Email and password are required.'), 'error'); return; }
         try {
           await this._auth.signInWithEmailAndPassword(email, password);
+          if (window.GL_TRACKING) GL_TRACKING.track('login_success');
           setMsg(t('auth_form_login_ok', 'Access granted. Loading game...'), 'success');
         } catch (e) {
           const code = e.code || '';

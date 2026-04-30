@@ -128,6 +128,7 @@ const GL_ADMIN = {
         </div>
         <div id="admin-season-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>
+
     `;
 
     this._wireGroupSync('admin-tool-div', 'admin-tool-group');
@@ -795,16 +796,65 @@ const GL_ADMIN = {
   //  DATA PANEL (placeholder)
   // ==========================================
 
-  openDataPanel() {
-    GL_UI.openModal({
+  async openDataPanel() {
+    const { modal } = GL_UI.openModal({
       title: __('admin_data_panel'),
-      content: `
-        <div style="text-align:center;padding:32px 16px">
-          <div style="font-size:2.5rem;margin-bottom:12px">📊</div>
-          <div style="font-size:1rem;font-weight:700;color:var(--t-primary);margin-bottom:8px">${__('admin_data_coming_soon')}</div>
-          <div style="font-size:0.82rem;color:var(--t-secondary)">${__('admin_data_desc')}</div>
-        </div>`
+      size: 'xl',
+      content: '<div style="text-align:center;padding:32px;color:var(--t-tertiary)">Cargando eventos...</div>'
     });
+    const body = modal.querySelector('.modal-body');
+
+    try {
+      const fn = firebase.functions().httpsCallable('adminGetUserEvents');
+      const result = await fn({});
+      const { events, counters } = result.data;
+
+      const fmtDate = (ms) => {
+        if (!ms) return '—';
+        return new Date(ms).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+      };
+
+      body.innerHTML = `
+        <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+          <div style="background:var(--c-surface-2);border-radius:var(--r-sm);padding:10px 20px;min-width:160px">
+            <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:2px">login_success · hoy UTC</div>
+            <div style="font-size:1.6rem;font-weight:700;color:var(--c-green)">${counters.login_success}</div>
+          </div>
+          <div style="background:var(--c-surface-2);border-radius:var(--r-sm);padding:10px 20px;min-width:160px">
+            <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:2px">prepare_race_click · hoy UTC</div>
+            <div style="font-size:1.6rem;font-weight:700;color:var(--c-gold,#f4c430)">${counters.prepare_race_click}</div>
+          </div>
+        </div>
+        ${events.length === 0
+          ? '<div style="color:var(--t-tertiary)">Sin eventos registrados aún.</div>'
+          : `<div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:0.76rem">
+                <thead>
+                  <tr style="text-align:left;border-bottom:1px solid var(--c-border);color:var(--t-tertiary)">
+                    <th style="padding:5px 8px">Evento</th>
+                    <th style="padding:5px 8px">Usuario</th>
+                    <th style="padding:5px 8px">Fecha (UTC)</th>
+                    <th style="padding:5px 8px">Browser</th>
+                    <th style="padding:5px 8px">Device</th>
+                    <th style="padding:5px 8px">OS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${events.map(ev => `
+                    <tr style="border-bottom:1px solid var(--c-border)">
+                      <td style="padding:5px 8px;font-weight:600;color:var(--t-primary)">${ev.eventName}</td>
+                      <td style="padding:5px 8px;font-family:monospace;font-size:0.7rem;color:var(--t-tertiary)">${(ev.userId || '—').slice(0, 10)}…</td>
+                      <td style="padding:5px 8px;color:var(--t-secondary)">${fmtDate(ev.createdAt)}</td>
+                      <td style="padding:5px 8px;color:var(--t-secondary)">${ev.browser || '—'}</td>
+                      <td style="padding:5px 8px;color:var(--t-secondary)">${ev.deviceType || '—'}</td>
+                      <td style="padding:5px 8px;color:var(--t-secondary)">${ev.os || '—'}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`}`;
+    } catch (e) {
+      body.innerHTML = `<div style="color:var(--c-red,#e8292a);padding:16px">Error al cargar eventos: ${e.message || e}</div>`;
+    }
   },
 
   // ==========================================
