@@ -3088,10 +3088,9 @@ const SCREENS = {
               const isReleg = idx >= totalTeams - relegZone && relegZone > 0;
               return `<tr class="${isMe ? 'my-row' : ''} ${isPromo ? 'promoted' : ''} ${isReleg ? 'relegated' : ''}">
                 <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${s.position || idx + 1}</div></td>
-                <td style="display:flex;align-items:center;gap:var(--s-2);min-width:200px">
-                  <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${s.color || '#888'};flex-shrink:0"></span>
-                  <span style="cursor:pointer;text-decoration:underline dotted" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
-                  ${isMe ? `<span style="font-size:0.8rem;color:var(--c-accent)">${__('standings_you')}</span>` : ''}
+                <td style="min-width:200px">
+                  <span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+                  ${isMe ? `<span style="font-size:0.8rem;color:var(--c-accent);margin-left:6px">${__('standings_you')}</span>` : ''}
                 </td>
                 <td><strong style="color:var(--c-gold)">${s.points || 0}</strong></td>
                 <td>${s.wins || 0}</td>

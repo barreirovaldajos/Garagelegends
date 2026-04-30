@@ -278,8 +278,7 @@ const TEAM_PROFILE = {
 
         return `<tr style="${zoneBg}" onclick="GL_TEAM_PROFILE.openBrowserTeamByIdx(${idx})" style="cursor:pointer">
           <td><div class="pos-badge ${posClass}">${pos}</div></td>
-          <td style="display:flex;align-items:center;gap:7px;padding:6px 4px">
-            <div style="width:10px;height:10px;border-radius:50%;background:${s.color || '#888'};flex-shrink:0"></div>
+          <td style="padding:6px 4px">
             <span style="color:${isMe ? 'var(--c-accent)' : 'var(--t-primary)'};font-weight:${isMe ? '700' : '400'}">
               ${s.teamName || '—'}${isMe ? ' ⭐' : ''}${isPlayer ? ' 👤' : ''}${!s.isPlayer ? ' 🤖' : ''}
             </span>
