@@ -305,7 +305,7 @@ exports.logUserEvent = functions.https.onCall(async (data, context) => {
 });
 
 // ── 13. Admin Get User Events – Last 50 events + today's counters ─────────────
-exports.adminGetUserEvents = functions.https.onCall(async (_data, context) => {
+exports.adminGetUserEvents = functions.https.onCall(async (data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
 
   const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
