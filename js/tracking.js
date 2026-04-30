@@ -27,13 +27,23 @@
     track(eventName) { this._fire(eventName, null); },
 
     startSession() {
-      this._sessionStart    = Date.now();
+      const now = Date.now();
+      try { sessionStorage.setItem('gl_session_start', String(now)); } catch (_) {}
+      this._sessionStart    = now;
       this._currentScreen   = null;
       this._screenEnteredAt = null;
     },
 
+    _resumeSession() {
+      try {
+        const stored = sessionStorage.getItem('gl_session_start');
+        if (stored) this._sessionStart = Number(stored);
+      } catch (_) {}
+    },
+
     // Called on every GL_APP.navigateTo()
     trackScreenView(screenId) {
+      if (!this._sessionStart) this._resumeSession();
       const now = Date.now();
       if (this._currentScreen && this._screenEnteredAt) {
         const durationSeconds = Math.round((now - this._screenEnteredAt) / 1000);
@@ -46,6 +56,7 @@
 
     // Called on signout or inactivity logout
     trackSessionEnd() {
+      if (!this._sessionStart) this._resumeSession();
       if (!this._sessionStart) return;
       const durationSeconds = Math.round((Date.now() - this._sessionStart) / 1000);
       // Fire exit for current screen before ending session
@@ -54,6 +65,7 @@
         this._fire('screen_exit', { screen: this._currentScreen, durationSeconds: screenDuration });
       }
       this._fire('session_end', { durationSeconds });
+      try { sessionStorage.removeItem('gl_session_start'); } catch (_) {}
       this._sessionStart    = null;
       this._currentScreen   = null;
       this._screenEnteredAt = null;
