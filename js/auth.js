@@ -352,6 +352,7 @@
 
     async signOut() {
       if (!this._auth) return;
+      if (window.GL_TRACKING) GL_TRACKING.trackSessionEnd();
       await this.flushRemoteStateSnapshot();
       await this._auth.signOut();
     },
@@ -486,7 +487,7 @@
         if (!email || !password) { setMsg(t('auth_form_required', 'Email and password are required.'), 'error'); return; }
         try {
           await this._auth.signInWithEmailAndPassword(email, password);
-          if (window.GL_TRACKING) GL_TRACKING.track('login_success');
+          if (window.GL_TRACKING) { GL_TRACKING.track('login_success'); GL_TRACKING.startSession(); }
           setMsg(t('auth_form_login_ok', 'Access granted. Loading game...'), 'success');
         } catch (e) {
           const code = e.code || '';
@@ -562,6 +563,7 @@
     async _handleInactivityLogout() {
       if (!this.isAuthenticated()) return;
       this._stopInactivityTracking();
+      if (window.GL_TRACKING) GL_TRACKING.trackSessionEnd();
       try {
         if (window.GL_STATE && typeof GL_STATE.saveState === 'function') GL_STATE.saveState();
         await this.flushRemoteStateSnapshot();

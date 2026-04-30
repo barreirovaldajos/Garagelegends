@@ -297,6 +297,7 @@ const APP = {
 
   navigateTo(screenId, { updateHash = true } = {}) {
     if (!this._validScreenIds.has(screenId)) screenId = 'dashboard';
+    if (window.GL_TRACKING) GL_TRACKING.trackScreenView(screenId);
     if (this.currentScreen === 'liverace' && screenId !== 'liverace' && window.GL_SCREENS && GL_SCREENS.cleanupLiveRace) {
       GL_SCREENS.cleanupLiveRace();
     }

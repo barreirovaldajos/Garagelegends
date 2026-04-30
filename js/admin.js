@@ -805,10 +805,22 @@ const GL_ADMIN = {
     const body = modal.querySelector('.modal-body');
 
     const EVENT_LABELS = {
-      login_success:      'Inicio de sesión exitoso',
-      prepare_race_click: 'Preparar estrategia de carrera',
+      login_success:      'Inicio de sesión',
+      prepare_race_click: 'Preparar carrera',
+      screen_view:        'Pantalla visitada',
+      screen_exit:        'Salida de pantalla',
+      session_end:        'Sesión finalizada',
     };
     const DEVICE_LABELS = { mobile: 'Móvil', tablet: 'Tablet', desktop: 'Escritorio' };
+
+    const fmtMeta = (meta) => {
+      if (!meta) return '—';
+      const parts = [];
+      if (meta.screen)          parts.push(meta.screen);
+      if (meta.durationSeconds != null) parts.push(`${meta.durationSeconds}s`);
+      if (meta.prevScreen)      parts.push(`← ${meta.prevScreen}`);
+      return parts.join(' · ') || '—';
+    };
 
     const fmtDate = (ms) => {
       if (!ms) return '—';
@@ -830,7 +842,7 @@ const GL_ADMIN = {
       const prepData  = days.map(d => (dailyStats[d].prepare_race_click || 0));
 
       body.innerHTML = `
-        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;align-items:flex-start">
           <div style="background:var(--c-surface-2);border-radius:var(--r-sm);padding:10px 20px;min-width:160px">
             <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:2px">Inicios de sesión · hoy</div>
             <div style="font-size:1.6rem;font-weight:700;color:var(--c-green)">${counters.login_success}</div>
@@ -839,6 +851,7 @@ const GL_ADMIN = {
             <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:2px">Preparar carrera · hoy</div>
             <div style="font-size:1.6rem;font-weight:700;color:var(--c-gold,#f4c430)">${counters.prepare_race_click}</div>
           </div>
+          <button id="admin-csv-btn" class="btn btn-secondary btn-sm" style="margin-left:auto;align-self:center">⬇ Descargar CSV</button>
         </div>
         <div style="margin-bottom:20px">
           <div style="font-size:0.72rem;color:var(--t-tertiary);margin-bottom:8px">Actividad diaria · últimos 14 días (UTC)</div>
@@ -846,7 +859,7 @@ const GL_ADMIN = {
         </div>
         ${events.length === 0
           ? '<div style="color:var(--t-tertiary)">Sin eventos registrados aún.</div>'
-          : `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-bottom:6px">Últimos 50 eventos</div>
+          : `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-bottom:6px">Últimos 50 eventos recientes</div>
              <div style="overflow-x:auto">
               <table style="width:100%;border-collapse:collapse;font-size:0.75rem">
                 <thead>
@@ -854,6 +867,7 @@ const GL_ADMIN = {
                     <th style="padding:5px 8px">Tipo de evento</th>
                     <th style="padding:5px 8px">ID de usuario</th>
                     <th style="padding:5px 8px">Fecha y hora</th>
+                    <th style="padding:5px 8px">Detalle</th>
                     <th style="padding:5px 8px">Navegador</th>
                     <th style="padding:5px 8px">Dispositivo</th>
                     <th style="padding:5px 8px">Sistema operativo</th>
@@ -865,6 +879,7 @@ const GL_ADMIN = {
                       <td style="padding:5px 8px;font-weight:600;color:var(--t-primary)">${EVENT_LABELS[ev.eventName] || ev.eventName}</td>
                       <td style="padding:5px 8px;font-family:monospace;font-size:0.68rem;color:var(--t-tertiary)">${(ev.userId || '—').slice(0, 10)}…</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${fmtDate(ev.createdAt)}</td>
+                      <td style="padding:5px 8px;color:var(--t-secondary);font-size:0.7rem">${fmtMeta(ev.metadata)}</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${ev.browser || '—'}</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${DEVICE_LABELS[ev.deviceType] || ev.deviceType || '—'}</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${ev.os || '—'}</td>
@@ -915,6 +930,10 @@ const GL_ADMIN = {
         });
       });
 
+      // Wire CSV button
+      const csvBtn = document.getElementById('admin-csv-btn');
+      if (csvBtn) csvBtn.addEventListener('click', () => GL_ADMIN.downloadTrackingCSV());
+
     } catch (e) {
       body.innerHTML = `<div style="color:var(--c-red,#e8292a);padding:16px">Error al cargar eventos: ${e.message || e}</div>`;
     }
@@ -929,6 +948,47 @@ const GL_ADMIN = {
       s.onerror = reject;
       document.head.appendChild(s);
     });
+  },
+
+  async downloadTrackingCSV() {
+    const btn = document.getElementById('admin-csv-btn');
+    if (btn) { btn.textContent = '⏳ Exportando...'; btn.disabled = true; }
+    try {
+      const fn = firebase.functions().httpsCallable('adminGetUserEvents');
+      const result = await fn({ exportAll: true });
+      const events = result.data.events || [];
+
+      const escape = (v) => {
+        const s = v == null ? '' : String(v);
+        return s.includes(',') || s.includes('"') || s.includes('\n')
+          ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+
+      const headers = ['id','userId','eventName','createdAt','browser','deviceType','os','screen','prevScreen','durationSeconds'];
+      const rows = events.map(ev => {
+        const m = ev.metadata || {};
+        return [
+          ev.id, ev.userId, ev.eventName,
+          ev.createdAt ? new Date(ev.createdAt).toISOString() : '',
+          ev.browser, ev.deviceType, ev.os,
+          m.screen || '', m.prevScreen || '',
+          m.durationSeconds != null ? m.durationSeconds : '',
+        ].map(escape).join(',');
+      });
+
+      const csv  = [headers.join(','), ...rows].join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `gl_eventos_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      GL_UI.toast('Error al exportar: ' + (e.message || e), 'error');
+    } finally {
+      if (btn) { btn.textContent = '⬇ Descargar CSV'; btn.disabled = false; }
+    }
   },
 
   // ==========================================

@@ -24,17 +24,39 @@ function parseUA(uaString) {
   };
 }
 
-async function logEvent(db, { userId, eventName, uaString }) {
+async function logEvent(db, { userId, eventName, uaString, metadata }) {
   const admin = require('firebase-admin');
-  const meta = parseUA(uaString);
-  await db.collection('user_events_tracking').add({
+  const meta  = parseUA(uaString);
+
+  const doc = {
     userId:     userId     || null,
     eventName:  eventName  || 'unknown',
     createdAt:  admin.firestore.FieldValue.serverTimestamp(),
     browser:    meta.browser,
     deviceType: meta.deviceType,
     os:         meta.os,
-  });
+  };
+
+  // Store metadata (screen, durationSeconds, etc.) only if valid object
+  if (metadata && typeof metadata === 'object') {
+    doc.metadata = metadata;
+  }
+
+  await db.collection('user_events_tracking').add(doc);
+}
+
+function _mapDoc(doc) {
+  const d = doc.data();
+  return {
+    id:         doc.id,
+    userId:     d.userId     || null,
+    eventName:  d.eventName  || '',
+    createdAt:  d.createdAt  ? d.createdAt.toMillis() : null,
+    browser:    d.browser    || '',
+    deviceType: d.deviceType || '',
+    os:         d.os         || '',
+    metadata:   d.metadata   || null,
+  };
 }
 
 async function getRecentEvents(db, { limit = 50 } = {}) {
@@ -42,19 +64,15 @@ async function getRecentEvents(db, { limit = 50 } = {}) {
     .orderBy('createdAt', 'desc')
     .limit(limit)
     .get();
+  return snap.docs.map(_mapDoc);
+}
 
-  return snap.docs.map(doc => {
-    const d = doc.data();
-    return {
-      id:         doc.id,
-      userId:     d.userId     || null,
-      eventName:  d.eventName  || '',
-      createdAt:  d.createdAt  ? d.createdAt.toMillis() : null,
-      browser:    d.browser    || '',
-      deviceType: d.deviceType || '',
-      os:         d.os         || '',
-    };
-  });
+async function getAllEvents(db) {
+  const snap = await db.collection('user_events_tracking')
+    .orderBy('createdAt', 'desc')
+    .limit(5000)
+    .get();
+  return snap.docs.map(_mapDoc);
 }
 
 async function getTodayCounters(db) {
@@ -80,8 +98,6 @@ async function getTodayCounters(db) {
   };
 }
 
-// Returns daily counts for the last `days` days grouped by eventName.
-// Result: { 'YYYY-MM-DD': { login_success: N, prepare_race_click: M }, ... }
 async function getDailyStats(db, { days = 14 } = {}) {
   const admin = require('firebase-admin');
   const cutoff = new Date();
@@ -103,7 +119,6 @@ async function getDailyStats(db, { days = 14 } = {}) {
     byDay[day][d.eventName] = (byDay[day][d.eventName] || 0) + 1;
   });
 
-  // Fill missing days with zeros
   const result = {};
   for (let i = 0; i < days; i++) {
     const d = new Date(cutoff);
@@ -115,4 +130,4 @@ async function getDailyStats(db, { days = 14 } = {}) {
   return result;
 }
 
-module.exports = { logEvent, getRecentEvents, getTodayCounters, getDailyStats };
+module.exports = { logEvent, getRecentEvents, getAllEvents, getTodayCounters, getDailyStats };

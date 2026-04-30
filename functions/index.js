@@ -288,12 +288,14 @@ exports.logUserEvent = functions.https.onCall(async (data, context) => {
   const uaString  = context.rawRequest && context.rawRequest.headers
     ? (context.rawRequest.headers['user-agent'] || '')
     : '';
+  const metadata  = (data.metadata && typeof data.metadata === 'object') ? data.metadata : null;
 
   try {
     await eventTracker.logEvent(db, {
       userId:    context.auth.uid,
       eventName,
       uaString,
+      metadata,
     });
   } catch (err) {
     functions.logger.warn('logUserEvent: write failed silently', err.message);
@@ -309,6 +311,13 @@ exports.adminGetUserEvents = functions.https.onCall(async (_data, context) => {
   const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();
   if (!profileSnap.exists || profileSnap.data().role !== 'admin') {
     throw new functions.https.HttpsError('permission-denied', 'Admin only');
+  }
+
+  const exportAll = data && data.exportAll === true;
+
+  if (exportAll) {
+    const events = await eventTracker.getAllEvents(db);
+    return { events };
   }
 
   const [events, counters, dailyStats] = await Promise.all([
