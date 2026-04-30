@@ -311,12 +311,13 @@ exports.adminGetUserEvents = functions.https.onCall(async (_data, context) => {
     throw new functions.https.HttpsError('permission-denied', 'Admin only');
   }
 
-  const [events, counters] = await Promise.all([
+  const [events, counters, dailyStats] = await Promise.all([
     eventTracker.getRecentEvents(db, { limit: 50 }),
     eventTracker.getTodayCounters(db),
+    eventTracker.getDailyStats(db, { days: 14 }),
   ]);
 
-  return { events, counters };
+  return { events, counters, dailyStats };
 });
 
 // ── 11. Admin Force Season Advance – End stuck seasons, then start new ───────

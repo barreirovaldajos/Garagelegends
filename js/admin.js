@@ -804,57 +804,131 @@ const GL_ADMIN = {
     });
     const body = modal.querySelector('.modal-body');
 
+    const EVENT_LABELS = {
+      login_success:      'Inicio de sesión exitoso',
+      prepare_race_click: 'Preparar estrategia de carrera',
+    };
+    const DEVICE_LABELS = { mobile: 'Móvil', tablet: 'Tablet', desktop: 'Escritorio' };
+
+    const fmtDate = (ms) => {
+      if (!ms) return '—';
+      return new Date(ms).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+    };
+    const fmtDay = (isoDay) => {
+      const [, m, d] = isoDay.split('-');
+      return `${d}/${m}`;
+    };
+
     try {
       const fn = firebase.functions().httpsCallable('adminGetUserEvents');
       const result = await fn({});
-      const { events, counters } = result.data;
+      const { events, counters, dailyStats } = result.data;
 
-      const fmtDate = (ms) => {
-        if (!ms) return '—';
-        return new Date(ms).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-      };
+      const days   = Object.keys(dailyStats).sort();
+      const labels = days.map(fmtDay);
+      const loginData = days.map(d => (dailyStats[d].login_success      || 0));
+      const prepData  = days.map(d => (dailyStats[d].prepare_race_click || 0));
 
       body.innerHTML = `
-        <div style="display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
           <div style="background:var(--c-surface-2);border-radius:var(--r-sm);padding:10px 20px;min-width:160px">
-            <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:2px">login_success · hoy UTC</div>
+            <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:2px">Inicios de sesión · hoy</div>
             <div style="font-size:1.6rem;font-weight:700;color:var(--c-green)">${counters.login_success}</div>
           </div>
           <div style="background:var(--c-surface-2);border-radius:var(--r-sm);padding:10px 20px;min-width:160px">
-            <div style="font-size:0.7rem;color:var(--t-tertiary);margin-bottom:2px">prepare_race_click · hoy UTC</div>
+            <div style="font-size:0.68rem;color:var(--t-tertiary);margin-bottom:2px">Preparar carrera · hoy</div>
             <div style="font-size:1.6rem;font-weight:700;color:var(--c-gold,#f4c430)">${counters.prepare_race_click}</div>
           </div>
         </div>
+        <div style="margin-bottom:20px">
+          <div style="font-size:0.72rem;color:var(--t-tertiary);margin-bottom:8px">Actividad diaria · últimos 14 días (UTC)</div>
+          <canvas id="admin-tracking-chart" style="width:100%;max-height:200px"></canvas>
+        </div>
         ${events.length === 0
           ? '<div style="color:var(--t-tertiary)">Sin eventos registrados aún.</div>'
-          : `<div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:0.76rem">
+          : `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-bottom:6px">Últimos 50 eventos</div>
+             <div style="overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse;font-size:0.75rem">
                 <thead>
                   <tr style="text-align:left;border-bottom:1px solid var(--c-border);color:var(--t-tertiary)">
-                    <th style="padding:5px 8px">Evento</th>
-                    <th style="padding:5px 8px">Usuario</th>
-                    <th style="padding:5px 8px">Fecha (UTC)</th>
-                    <th style="padding:5px 8px">Browser</th>
-                    <th style="padding:5px 8px">Device</th>
-                    <th style="padding:5px 8px">OS</th>
+                    <th style="padding:5px 8px">Tipo de evento</th>
+                    <th style="padding:5px 8px">ID de usuario</th>
+                    <th style="padding:5px 8px">Fecha y hora</th>
+                    <th style="padding:5px 8px">Navegador</th>
+                    <th style="padding:5px 8px">Dispositivo</th>
+                    <th style="padding:5px 8px">Sistema operativo</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${events.map(ev => `
                     <tr style="border-bottom:1px solid var(--c-border)">
-                      <td style="padding:5px 8px;font-weight:600;color:var(--t-primary)">${ev.eventName}</td>
-                      <td style="padding:5px 8px;font-family:monospace;font-size:0.7rem;color:var(--t-tertiary)">${(ev.userId || '—').slice(0, 10)}…</td>
+                      <td style="padding:5px 8px;font-weight:600;color:var(--t-primary)">${EVENT_LABELS[ev.eventName] || ev.eventName}</td>
+                      <td style="padding:5px 8px;font-family:monospace;font-size:0.68rem;color:var(--t-tertiary)">${(ev.userId || '—').slice(0, 10)}…</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${fmtDate(ev.createdAt)}</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${ev.browser || '—'}</td>
-                      <td style="padding:5px 8px;color:var(--t-secondary)">${ev.deviceType || '—'}</td>
+                      <td style="padding:5px 8px;color:var(--t-secondary)">${DEVICE_LABELS[ev.deviceType] || ev.deviceType || '—'}</td>
                       <td style="padding:5px 8px;color:var(--t-secondary)">${ev.os || '—'}</td>
                     </tr>`).join('')}
                 </tbody>
               </table>
             </div>`}`;
+
+      // Render chart with Chart.js (load lazily if needed)
+      this._loadChartJs().then(() => {
+        const canvas = document.getElementById('admin-tracking-chart');
+        if (!canvas) return;
+        new Chart(canvas, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Inicios de sesión',
+                data: loginData,
+                backgroundColor: 'rgba(34,197,94,0.7)',
+                borderColor: 'rgba(34,197,94,1)',
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+              {
+                label: 'Preparar carrera',
+                data: prepData,
+                backgroundColor: 'rgba(244,196,48,0.7)',
+                borderColor: 'rgba(244,196,48,1)',
+                borderWidth: 1,
+                borderRadius: 4,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+              tooltip: { mode: 'index', intersect: false },
+            },
+            scales: {
+              x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+              y: { ticks: { color: '#64748b', font: { size: 10 }, stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true },
+            },
+          },
+        });
+      });
+
     } catch (e) {
       body.innerHTML = `<div style="color:var(--c-red,#e8292a);padding:16px">Error al cargar eventos: ${e.message || e}</div>`;
     }
+  },
+
+  _loadChartJs() {
+    if (window.Chart) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
   },
 
   // ==========================================

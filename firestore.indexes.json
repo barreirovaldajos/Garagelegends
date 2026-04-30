@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "user_events_tracking",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventName", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

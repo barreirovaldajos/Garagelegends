@@ -25,13 +25,12 @@ function parseUA(uaString) {
 }
 
 async function logEvent(db, { userId, eventName, uaString }) {
+  const admin = require('firebase-admin');
   const meta = parseUA(uaString);
   await db.collection('user_events_tracking').add({
     userId:     userId     || null,
     eventName:  eventName  || 'unknown',
-    createdAt:  db.constructor.name === 'Firestore'
-                  ? require('firebase-admin').firestore.FieldValue.serverTimestamp()
-                  : new Date(),
+    createdAt:  admin.firestore.FieldValue.serverTimestamp(),
     browser:    meta.browser,
     deviceType: meta.deviceType,
     os:         meta.os,
@@ -59,10 +58,9 @@ async function getRecentEvents(db, { limit = 50 } = {}) {
 }
 
 async function getTodayCounters(db) {
+  const admin = require('firebase-admin');
   const startOfDay = new Date();
   startOfDay.setUTCHours(0, 0, 0, 0);
-
-  const admin = require('firebase-admin');
   const startTs = admin.firestore.Timestamp.fromDate(startOfDay);
 
   const [loginSnap, prepSnap] = await Promise.all([
@@ -82,4 +80,39 @@ async function getTodayCounters(db) {
   };
 }
 
-module.exports = { logEvent, getRecentEvents, getTodayCounters };
+// Returns daily counts for the last `days` days grouped by eventName.
+// Result: { 'YYYY-MM-DD': { login_success: N, prepare_race_click: M }, ... }
+async function getDailyStats(db, { days = 14 } = {}) {
+  const admin = require('firebase-admin');
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - days + 1);
+  cutoff.setUTCHours(0, 0, 0, 0);
+  const cutoffTs = admin.firestore.Timestamp.fromDate(cutoff);
+
+  const snap = await db.collection('user_events_tracking')
+    .where('createdAt', '>=', cutoffTs)
+    .orderBy('createdAt', 'asc')
+    .get();
+
+  const byDay = {};
+  snap.docs.forEach(doc => {
+    const d = doc.data();
+    if (!d.createdAt) return;
+    const day = d.createdAt.toDate().toISOString().slice(0, 10);
+    if (!byDay[day]) byDay[day] = {};
+    byDay[day][d.eventName] = (byDay[day][d.eventName] || 0) + 1;
+  });
+
+  // Fill missing days with zeros
+  const result = {};
+  for (let i = 0; i < days; i++) {
+    const d = new Date(cutoff);
+    d.setUTCDate(d.getUTCDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    result[key] = byDay[key] || {};
+  }
+
+  return result;
+}
+
+module.exports = { logEvent, getRecentEvents, getTodayCounters, getDailyStats };
