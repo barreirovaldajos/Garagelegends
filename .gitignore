@@ -17,3 +17,6 @@ package-lock.json
 
 # Supabase backup (abandoned)
 js/auth.supabase.backup.js
+
+# Firebase client configs (cargados via CDN o variables de entorno)
+js/firebase-config.dev.js
