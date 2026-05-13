@@ -4004,23 +4004,19 @@ const SCREENS = {
         <span style="color:var(--c-border)">|</span>
         <span id="liverace-hud-p2" style="color:var(--t-primary)">P2: —</span>
       </div>
-      <div class="race-layout">
-        <div class="race-track-view">
-          <div class="race-track-bg"></div>
-          <div class="race-status-bar" id="liverace-status-bar">
-            <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
-            <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
-          </div>
-          ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace')}
-        </div>
-        <div style="display:flex;flex-direction:column;gap:var(--s-4);max-height:calc(100vh - 200px);overflow:hidden">
-          <div class="card" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column">
-            <div class="section-eyebrow">Grilla en Vivo</div>
-            <div class="race-grid-list" id="liverace-grid-list" style="flex:1;min-height:0;max-height:none">
-              <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
+      <div class="race-layout" style="align-items:start">
+        <div style="display:flex;flex-direction:column;gap:var(--s-4)">
+          <div class="race-track-view" style="min-height:0">
+            <div class="race-track-bg"></div>
+            <div class="race-status-bar" id="liverace-status-bar">
+              <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
+              <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
+            </div>
+            <div style="height:230px;overflow:hidden;border-radius:6px;flex-shrink:0">
+              ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace')}
             </div>
           </div>
-          <div class="card" style="flex:0 0 auto">
+          <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
               <div class="section-eyebrow" style="margin-bottom:0">Log</div>
               <div style="display:flex;gap:4px">
@@ -4028,11 +4024,17 @@ const SCREENS = {
                 <button class="btn btn-ghost btn-sm" id="liverace-filter-team" onclick="GL_SCREENS.setLiveLogFilter('team')" style="padding:2px 10px;font-size:0.75rem;opacity:0.5">${__('race_log_filter_team')}</button>
               </div>
             </div>
-            <div class="race-event-log" id="liverace-event-log" style="max-height:160px">
+            <div class="race-event-log" id="liverace-event-log" style="max-height:200px">
               <div class="race-event" style="border-color:var(--c-border)">
                 <span class="race-event-text">⏳ Esperando que el administrador inicie la carrera...</span>
               </div>
             </div>
+          </div>
+        </div>
+        <div class="card" style="max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column">
+          <div class="section-eyebrow">Grilla en Vivo</div>
+          <div class="race-grid-list" id="liverace-grid-list" style="flex:1;min-height:0;overflow-y:auto;max-height:none">
+            <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
           </div>
         </div>
       </div>`;
@@ -4303,7 +4305,7 @@ const SCREENS = {
         return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}${stickyStyle}">
           <span class="race-pos-num">${car.pos || (idx + 1)}</span>
           <span class="race-pos-teamdot" style="background:${dotColor}"></span>
-          <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
+          <span class="race-pos-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
           <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>
           <span class="race-pos-gap" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1">
             <span>${status}</span>
