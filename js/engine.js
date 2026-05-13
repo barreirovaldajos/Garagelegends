@@ -2764,26 +2764,24 @@ function updateConstructionQueue() {
 }
 
 // ---- start hq upgrade ----
-function startHqUpgrade(buildingId, cost, durationMs, targetLevel, useToken = false) {
+async function startHqUpgrade(buildingId, cost, durationMs, targetLevel, useToken = false) {
   const state = S.getState();
   if (state.construction.active) {
     return { ok: false, msg: 'Ya hay una construcción en curso' };
   }
-  
-  // Apply Vulcan Tech bonus if they have it
+
   let finalDuration = durationMs;
   if ((state.team.engineSupplier || '').toLowerCase() === 'vulcan') {
     finalDuration = Math.floor(finalDuration * 0.85);
   }
-  
-  // Apply token speedup if requested (e.g. 70% reduction)
+
   if (useToken) {
-    if (!S.spendTokens(5)) return { ok: false, msg: 'Tokens insuficientes (5 necesarios)' };
+    const r = await S.spendTokens(5, 'hq_construction_speedup');
+    if (!r.ok) return { ok: false, msg: r.msg || 'Tokens insuficientes (5 necesarios)' };
     finalDuration = Math.floor(finalDuration * 0.3);
   } else {
-    if (!S.spendCredits(cost)) {
-      return { ok: false, msg: `Saldo insuficiente. Necesitas ${cost.toLocaleString()} CR` };
-    }
+    const r = await S.spendCredits(cost, 'hq_construction');
+    if (!r.ok) return { ok: false, msg: r.msg || `Saldo insuficiente. Necesitas ${cost.toLocaleString()} CR` };
   }
 
   state.construction = {
@@ -2820,7 +2818,7 @@ function generateRandomEvent() {
 }
 
 // ---- apply random event choice ----
-function applyEventChoice(event, choiceIndex) {
+async function applyEventChoice(event, choiceIndex) {
   const state = S.getState();
   const choice = event.choices[choiceIndex];
 
@@ -2829,12 +2827,14 @@ function applyEventChoice(event, choiceIndex) {
     if (choiceIndex === 0) { S.addCredits(15000); S.addLog('💰 Received +15,000 CR bonus!', 'good'); }
     else { S.addTokens(8); S.addLog('🪙 Received +8 tokens!', 'good'); }
   } else if (event.id.startsWith('re4') && choiceIndex === 0) {
-    S.spendCredits(5000);
+    const r = await S.spendCredits(5000, 'event_tech_partnership');
+    if (!r.ok) { S.addLog(`❌ Sin fondos para aceptar el trato técnico. (${r.msg})`, 'bad'); S.saveState(); return; }
     const car = S.getCar();
     Object.keys(car.components).forEach(k => { car.components[k].score = Math.min(99, car.components[k].score + 10); });
     S.addLog('⚙️ Tech partnership accepted! All car stats +10', 'good');
   } else if (event.id.startsWith('re5') && choiceIndex === 0) {
-    S.spendCredits(8000);
+    const r = await S.spendCredits(8000, 'event_mechanical_repair');
+    if (!r.ok) { S.addLog(`❌ Sin fondos para reparar. (${r.msg})`, 'bad'); S.saveState(); return; }
     S.addLog('🔧 Mechanical issue repaired!', 'info');
   } else if (event.id.startsWith('re7')) {
     if (choiceIndex === 0) {

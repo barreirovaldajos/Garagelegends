@@ -574,11 +574,22 @@ function addCredits(amount) {
   _state.finances.credits = Math.max(0, (_state.finances.credits || 0) + amount);
   saveState();
 }
-function spendCredits(amount) {
-  if (_state.finances.credits < amount) return false;
-  _state.finances.credits -= amount;
-  saveState();
-  return true;
+async function spendCredits(amount, reason) {
+  // Atomic server-side deduction — prevents "inflate in memory then spend" attacks.
+  // Returns {ok, newBalance} on success or {ok: false, msg} on failure.
+  try {
+    const deductFn = firebase.functions().httpsCallable('deductCredits');
+    const result = await deductFn({ amount, reason: reason || 'purchase' });
+    if (result.data && result.data.ok) {
+      _state.finances.credits = result.data.newBalance;
+      return { ok: true, newBalance: result.data.newBalance };
+    }
+    return { ok: false, msg: 'Error procesando la compra' };
+  } catch (err) {
+    if (err.code === 'failed-precondition') return { ok: false, msg: 'Créditos insuficientes' };
+    if (err.code === 'unauthenticated')     return { ok: false, msg: 'Debes iniciar sesión para comprar' };
+    return { ok: false, msg: 'Sin conexión. Inténtalo de nuevo.' };
+  }
 }
 
 function addCashflowAdjustment(amount, reason = 'manual', meta = {}) {
@@ -601,11 +612,20 @@ function addTokens(n) {
   _state.finances.tokens = (_state.finances.tokens || 0) + n;
   saveState();
 }
-function spendTokens(n) {
-  if (_state.finances.tokens < n) return false;
-  _state.finances.tokens -= n;
-  saveState();
-  return true;
+async function spendTokens(amount, reason) {
+  try {
+    const deductFn = firebase.functions().httpsCallable('deductTokens');
+    const result = await deductFn({ amount, reason: reason || 'purchase' });
+    if (result.data && result.data.ok) {
+      _state.finances.tokens = result.data.newBalance;
+      return { ok: true, newBalance: result.data.newBalance };
+    }
+    return { ok: false, msg: 'Error procesando la compra' };
+  } catch (err) {
+    if (err.code === 'failed-precondition') return { ok: false, msg: 'Tokens insuficientes' };
+    if (err.code === 'unauthenticated')     return { ok: false, msg: 'Debes iniciar sesión para comprar' };
+    return { ok: false, msg: 'Sin conexión. Inténtalo de nuevo.' };
+  }
 }
 
 function addLog(text, type = 'info') {
