@@ -288,7 +288,14 @@ exports.logUserEvent = functions.https.onCall(async (data, context) => {
   const uaString  = context.rawRequest && context.rawRequest.headers
     ? (context.rawRequest.headers['user-agent'] || '')
     : '';
-  const metadata  = (data.metadata && typeof data.metadata === 'object') ? data.metadata : null;
+  // Cap metadata to prevent doc-bloat / DoS: max 10 keys, values truncated to strings ≤ 200 chars
+  let metadata = null;
+  if (data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata)) {
+    metadata = {};
+    for (const [k, v] of Object.entries(data.metadata).slice(0, 10)) {
+      metadata[String(k).substring(0, 50)] = String(v ?? '').substring(0, 200);
+    }
+  }
 
   try {
     await eventTracker.logEvent(db, {
@@ -327,6 +334,72 @@ exports.adminGetUserEvents = functions.https.onCall(async (data, context) => {
   ]);
 
   return { events, counters, dailyStats };
+});
+
+// ── 14. Deduct Credits – Atomic server-side credit deduction for purchases ───
+// All client purchases go through here so we can validate balance server-side
+// and prevent "inflate in memory then spend" attacks.
+exports.deductCredits = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+
+  const amount = Number(data.amount);
+  const reason = typeof data.reason === 'string' ? data.reason.substring(0, 100) : 'purchase';
+
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid amount');
+  }
+
+  const profileRef = db.collection('profiles').doc(context.auth.uid);
+  return db.runTransaction(async (txn) => {
+    const snap = await txn.get(profileRef);
+    if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Profile not found');
+
+    const saveData = snap.data().save_data || {};
+    const currentCredits = Number((saveData.finances && saveData.finances.credits) || 0);
+
+    if (currentCredits < amount) {
+      throw new functions.https.HttpsError('failed-precondition', 'Insufficient credits');
+    }
+
+    txn.update(profileRef, {
+      'save_data.finances.credits': admin.firestore.FieldValue.increment(-amount)
+    });
+
+    functions.logger.info(`deductCredits: ${context.auth.uid} spent ${amount} (${reason}), balance ${currentCredits} → ${currentCredits - amount}`);
+    return { ok: true, newBalance: currentCredits - amount };
+  });
+});
+
+// ── 15. Deduct Tokens – Atomic server-side token deduction for purchases ─────
+exports.deductTokens = functions.https.onCall(async (data, context) => {
+  if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
+
+  const amount = Number(data.amount);
+  const reason = typeof data.reason === 'string' ? data.reason.substring(0, 100) : 'purchase';
+
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 10000) {
+    throw new functions.https.HttpsError('invalid-argument', 'Invalid amount');
+  }
+
+  const profileRef = db.collection('profiles').doc(context.auth.uid);
+  return db.runTransaction(async (txn) => {
+    const snap = await txn.get(profileRef);
+    if (!snap.exists) throw new functions.https.HttpsError('not-found', 'Profile not found');
+
+    const saveData = snap.data().save_data || {};
+    const currentTokens = Number((saveData.finances && saveData.finances.tokens) || 0);
+
+    if (currentTokens < amount) {
+      throw new functions.https.HttpsError('failed-precondition', 'Insufficient tokens');
+    }
+
+    txn.update(profileRef, {
+      'save_data.finances.tokens': admin.firestore.FieldValue.increment(-amount)
+    });
+
+    functions.logger.info(`deductTokens: ${context.auth.uid} spent ${amount} tokens (${reason}), balance ${currentTokens} → ${currentTokens - amount}`);
+    return { ok: true, newBalance: currentTokens - amount };
+  });
 });
 
 // ── 11. Admin Force Season Advance – End stuck seasons, then start new ───────

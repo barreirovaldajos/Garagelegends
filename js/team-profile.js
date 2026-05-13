@@ -280,7 +280,7 @@ const TEAM_PROFILE = {
           <td><div class="pos-badge ${posClass}">${pos}</div></td>
           <td style="padding:6px 4px">
             <span style="color:${isMe ? 'var(--c-accent)' : 'var(--t-primary)'};font-weight:${isMe ? '700' : '400'}">
-              ${s.teamName || '—'}${isMe ? ' ⭐' : ''}${isPlayer ? ' 👤' : ''}${!s.isPlayer ? ' 🤖' : ''}
+              ${escapeHtml(s.teamName || '—')}${isMe ? ' ⭐' : ''}${isPlayer ? ' 👤' : ''}${!s.isPlayer ? ' 🤖' : ''}
             </span>
           </td>
           <td style="font-weight:700;color:var(--c-gold)">${s.points || 0}</td>
@@ -328,7 +328,7 @@ const TEAM_PROFILE = {
   openTeamModal(s) {
     // s can come from SP standings {id, name, color, points, wins, podiums, bestResult, position}
     // or MP standings {teamId, teamName, color, points, wins, podiums, position, isPlayer}
-    const name      = s.teamName || s.name || 'Team';
+    const name      = escapeHtml(s.teamName || s.name || 'Team');
     const color     = s.color    || '#888';
     const position  = s.position || '—';
     const points    = s.points   || 0;

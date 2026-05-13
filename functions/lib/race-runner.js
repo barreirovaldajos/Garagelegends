@@ -284,21 +284,105 @@ function _defaultStrategy(weather, snapshot) {
   };
 }
 
+// ─── Server-side validation constants ────────────────────────────────────────
+// Mirrors the client-side DEFAULT_STATE and RESEARCH_TREES in engine.js.
+// Any manipulation of save_data beyond these bounds is silently capped here,
+// so cheated values never reach the race simulation.
+const _BASE_COMPONENT_SCORES = {
+  engine: 42, chassis: 38, aero: 35, tyreManage: 40,
+  brakes: 45, gearbox: 43, reliability: 55, efficiency: 48
+};
+// Maps RnD tree IDs to component boosts (from engine.js RESEARCH_TREES)
+const _RND_BOOSTS = {
+  acceleration: { component: 'chassis',     boostPerLevel: 2,   maxLevel: 20 },
+  power:        { component: 'engine',      boostPerLevel: 2,   maxLevel: 20 },
+  reliability:  { component: 'reliability', boostPerLevel: 2.5, maxLevel: 20 },
+  weather:      { component: 'aero',        boostPerLevel: 2,   maxLevel: 20 }
+};
+const _MAX_HQ_LEVEL   = 5;   // matches data.js maxLevel for all buildings
+const _MAX_ATTR       = 99;
+const _EVENT_BUFFER   = 15;  // headroom for legitimate random-event score bonuses
+
+function _sanitizeName(str, maxLen) {
+  return String(str || '').replace(/[<>"'&`]/g, '').trim().substring(0, maxLen || 50);
+}
+
+function _capHQ(hq) {
+  const h = hq || {};
+  return {
+    admin:       Math.min(Math.max(1, Number(h.admin)       || 1), _MAX_HQ_LEVEL),
+    wind_tunnel: Math.min(Math.max(1, Number(h.wind_tunnel) || 1), _MAX_HQ_LEVEL),
+    rnd:         Math.min(Math.max(1, Number(h.rnd)         || 1), _MAX_HQ_LEVEL),
+    factory:     Math.min(Math.max(1, Number(h.factory)     || 1), _MAX_HQ_LEVEL),
+    academy:     Math.min(Math.max(1, Number(h.academy)     || 1), _MAX_HQ_LEVEL)
+  };
+}
+
+function _capComponents(car) {
+  const components = (car && car.components) ? car.components : {};
+  const queue      = (car && car.rnd && car.rnd.queue) ? car.rnd.queue : {};
+  const result     = {};
+
+  for (const [key, baseScore] of Object.entries(_BASE_COMPONENT_SCORES)) {
+    const comp = components[key] || {};
+    // Maximum score achievable through legitimate research + event bonuses
+    let maxScore = baseScore + _EVENT_BUFFER;
+    for (const [treeId, tree] of Object.entries(_RND_BOOSTS)) {
+      if (tree.component === key) {
+        const level = Math.min(Math.max(0, Math.floor(Number(queue[treeId]) || 0)), tree.maxLevel);
+        maxScore += level * tree.boostPerLevel;
+      }
+    }
+    maxScore = Math.min(_MAX_ATTR, maxScore);
+    result[key] = {
+      level: Math.max(1, Math.min(50, Math.floor(Number(comp.level) || 1))),
+      score: Math.min(maxScore, Math.max(1, Number(comp.score) || baseScore))
+    };
+  }
+
+  // Pass through any engine-calculated unlisted components, capped globally
+  for (const [key, comp] of Object.entries(components)) {
+    if (!result[key]) {
+      result[key] = {
+        level: Math.max(1, Math.min(50, Math.floor(Number(comp.level) || 1))),
+        score: Math.min(_MAX_ATTR, Math.max(1, Number(comp.score) || 40))
+      };
+    }
+  }
+  return result;
+}
+
+function _capPilots(pilots) {
+  if (!Array.isArray(pilots)) return [];
+  return pilots.map(p => {
+    if (!p || typeof p !== 'object') return null;
+    const sanitizedAttrs = {};
+    const attrs = p.attrs || {};
+    for (const [key, val] of Object.entries(attrs)) {
+      const n = Number(val);
+      sanitizedAttrs[key] = isNaN(n) ? val : Math.min(_MAX_ATTR, Math.max(1, n));
+    }
+    return { ...p, name: _sanitizeName(p.name, 50), attrs: sanitizedAttrs };
+  }).filter(Boolean);
+}
+
 /**
- * Rebuild a team snapshot from the player's full save_data.
- * Used when the cached slot snapshot might be stale.
+ * Rebuild a trusted team snapshot from the player's full save_data.
+ * All competitive values (car scores, HQ levels, pilot attrs) are capped to
+ * their server-defined maximums so manipulated save_data has no race effect.
  */
 function _buildSnapshotFromSaveData(saveData) {
+  const car = saveData.car || {};
   return {
-    teamName:       (saveData.team  && saveData.team.name)            || 'Team',
+    teamName:       _sanitizeName((saveData.team && saveData.team.name) || 'Team', 40),
     colors:         (saveData.team  && saveData.team.colors)          || { primary: '#888888', secondary: '#0a0b0f' },
     logo:           (saveData.team  && saveData.team.logo)            || '',
-    pilots:         saveData.pilots || [],
-    car:            { components: (saveData.car && saveData.car.components) || {} },
-    staff:          saveData.staff  || [],
-    hq:             saveData.hq     || { admin: 1, wind_tunnel: 1, rnd: 1, factory: 1, academy: 1 },
+    pilots:         _capPilots(saveData.pilots),
+    car:            { components: _capComponents(car) },
+    staff:          Array.isArray(saveData.staff) ? saveData.staff : [],
+    hq:             _capHQ(saveData.hq),
     engineSupplier: (saveData.team  && saveData.team.engineSupplier)  || '',
-    fans:           (saveData.team  && saveData.team.fans)            || 1000
+    fans:           Math.max(0, Number((saveData.team && saveData.team.fans) || 1000))
   };
 }
 

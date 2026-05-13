@@ -8,10 +8,105 @@ service cloud.firestore {
         get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // ---- Helper: returns current credits stored in Firestore (0 if absent) ----
+    function existingCredits() {
+      return (resource != null
+        && resource.data.save_data != null
+        && resource.data.save_data.finances != null)
+        ? (resource.data.save_data.finances.get('credits', 0))
+        : 0;
+    }
+
+    // ---- Helper: returns current tokens stored in Firestore (0 if absent) ----
+    function existingTokens() {
+      return (resource != null
+        && resource.data.save_data != null
+        && resource.data.save_data.finances != null)
+        ? (resource.data.save_data.finances.get('tokens', 0))
+        : 0;
+    }
+
+    // ---- Helper: server-authorized pending credits (written by Cloud Functions only) ----
+    function pendingCredits() {
+      return (resource != null
+        && resource.data.mp != null)
+        ? (resource.data.mp.get('pendingCredits', 0))
+        : 0;
+    }
+
+    // ---- Helper: server-authorized pending tokens ----
+    function pendingTokens() {
+      return (resource != null
+        && resource.data.mp != null)
+        ? (resource.data.mp.get('pendingTokens', 0))
+        : 0;
+    }
+
+    // ---- Helper: incoming credits from the client write ----
+    function incomingCredits() {
+      return (request.resource.data.save_data != null
+        && request.resource.data.save_data.finances != null)
+        ? (request.resource.data.save_data.finances.get('credits', 0))
+        : existingCredits();
+    }
+
+    // ---- Helper: incoming tokens from the client write ----
+    function incomingTokens() {
+      return (request.resource.data.save_data != null
+        && request.resource.data.save_data.finances != null)
+        ? (request.resource.data.save_data.finances.get('tokens', 0))
+        : existingTokens();
+    }
+
+    // ---- Validate that credits/tokens don't increase beyond what the server authorized ----
+    // Credits may increase by at most mp.pendingCredits (set exclusively by Cloud Functions).
+    // Any spending (decrease) is always allowed.
+    function isSafeEconomyWrite() {
+      return incomingCredits() <= (existingCredits() + pendingCredits())
+          && incomingTokens()  <= (existingTokens()  + pendingTokens());
+    }
+
+    // ---- Validate HQ building levels don't exceed the game maximum (5) ----
+    // Defense-in-depth: the server also caps these in _buildSnapshotFromSaveData,
+    // but rejecting writes here prevents the cheated value from ever reaching Firestore.
+    function isSafeHQWrite() {
+      let hq = request.resource.data.get('save_data', {}).get('hq', null);
+      return hq == null || (
+        hq.get('admin',       1) <= 5 &&
+        hq.get('wind_tunnel', 1) <= 5 &&
+        hq.get('rnd',         1) <= 5 &&
+        hq.get('factory',     1) <= 5 &&
+        hq.get('academy',     1) <= 5
+      );
+    }
+
+    // ---- Validate car component scores stay within global maximum (99) ----
+    function isSafeCarWrite() {
+      let car = request.resource.data.get('save_data', {}).get('car', null);
+      if (car == null) return true;
+      let c = car.get('components', null);
+      if (c == null) return true;
+      return c.get('engine',      {}).get('score', 0) <= 99 &&
+             c.get('chassis',     {}).get('score', 0) <= 99 &&
+             c.get('aero',        {}).get('score', 0) <= 99 &&
+             c.get('tyreManage',  {}).get('score', 0) <= 99 &&
+             c.get('brakes',      {}).get('score', 0) <= 99 &&
+             c.get('gearbox',     {}).get('score', 0) <= 99 &&
+             c.get('reliability', {}).get('score', 0) <= 99 &&
+             c.get('efficiency',  {}).get('score', 0) <= 99;
+    }
+
     // ---- profiles ----
-    // Players read/write their own doc. Admins can read/write any profile.
+    // Players can read their own doc freely.
+    // Players can write their own doc ONLY if they pass all server-side validations.
+    // Admins bypass all checks.
     match /profiles/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && isSafeEconomyWrite()
+                   && isSafeHQWrite()
+                   && isSafeCarWrite();
       allow read, write: if isAdmin();
     }
 

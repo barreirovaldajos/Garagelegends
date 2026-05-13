@@ -1,6 +1,15 @@
 // ===== SCREENS.JS – All secondary screen renderers =====
 'use strict';
 
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 const SCREENS = {
   getRaceRuntimeMode() {
     const mode = window._raceRuntimeMode;
@@ -1121,8 +1130,8 @@ const SCREENS = {
      }
   },
 
-  upgradeBuilding(id, cost, durationMs, targetLevel) {
-    const result = GL_ENGINE.startHqUpgrade(id, cost, durationMs, targetLevel, false);
+  async upgradeBuilding(id, cost, durationMs, targetLevel) {
+    const result = await GL_ENGINE.startHqUpgrade(id, cost, durationMs, targetLevel, false);
     if (result.ok) {
       GL_UI.toast(`🏗️ Construcción iniciada.`, 'success');
       this.renderGarage();
@@ -1133,9 +1142,10 @@ const SCREENS = {
   },
 
   showBoostModal() {
-    GL_UI.confirm('Acelerar Construcción', '¿Usar 5 Tokens para acortar el tiempo restante de construcción al 30% del original?', 'Gastar 5 Tokens ⚡', 'Cancelar').then(ok => {
+    GL_UI.confirm('Acelerar Construcción', '¿Usar 5 Tokens para acortar el tiempo restante de construcción al 30% del original?', 'Gastar 5 Tokens ⚡', 'Cancelar').then(async ok => {
       if (!ok) return;
-      if (!GL_STATE.spendTokens(5)) { GL_UI.toast('¡Tokens insuficientes!', 'error'); return; }
+      const r = await GL_STATE.spendTokens(5, 'construction_boost');
+      if (!r.ok) { GL_UI.toast(r.msg || '¡Tokens insuficientes!', 'error'); return; }
       const c = GL_STATE.getConstruction();
       if(c && c.active) {
          const remaining = (c.startTime + c.durationMs) - Date.now();
@@ -1248,10 +1258,11 @@ const SCREENS = {
     const okLabel = __('pilots_dismiss_confirm_ok') || 'Despedir y pagar';
     const cancelLabel = __('btn_cancel') || 'Cancelar';
 
-    GL_UI.confirm(title, msg, okLabel, cancelLabel).then((confirmed) => {
+    GL_UI.confirm(title, msg, okLabel, cancelLabel).then(async (confirmed) => {
       if (!confirmed) return;
-      if (!GL_STATE.spendCredits(severance)) {
-        GL_UI.toast(__('pilots_dismiss_insufficient') || 'Saldo insuficiente para pagar la indemnizacion.', 'warning');
+      const r = await GL_STATE.spendCredits(severance, 'pilot_severance');
+      if (!r.ok) {
+        GL_UI.toast(r.msg || __('pilots_dismiss_insufficient') || 'Saldo insuficiente para pagar la indemnización.', 'warning');
         return;
       }
       if (typeof GL_STATE.addCashflowAdjustment === 'function') {
@@ -1522,10 +1533,11 @@ const SCREENS = {
     const title = 'Despedir personal';
     const msg = `Si despides a <strong>${member.name}</strong>, debes pagar la indemnización de ${weeksLabel} de sueldo: <strong>${GL_UI.fmtCR(severance)} CR</strong>.`;
 
-    GL_UI.confirm(title, msg, 'Despedir y pagar', 'Cancelar').then((confirmed) => {
+    GL_UI.confirm(title, msg, 'Despedir y pagar', 'Cancelar').then(async (confirmed) => {
       if (!confirmed) return;
-      if (!GL_STATE.spendCredits(severance)) {
-        GL_UI.toast('Saldo insuficiente para pagar la indemnización.', 'warning');
+      const r = await GL_STATE.spendCredits(severance, 'staff_severance');
+      if (!r.ok) {
+        GL_UI.toast(r.msg || 'Saldo insuficiente para pagar la indemnización.', 'warning');
         return;
       }
       if (typeof GL_STATE.addCashflowAdjustment === 'function') {
@@ -1613,12 +1625,13 @@ const SCREENS = {
       </div>`;
   },
 
-  upgradeCarComp(key) {
+  async upgradeCarComp(key) {
     const car = GL_STATE.getCar();
     const cost = 5000 + car.components[key].level * 3000;
     const rndCost = 10;
     if ((car.rnd.points || 0) < rndCost) { GL_UI.toast(`Puntos de I+D insuficientes (necesitas ${rndCost} pts)`, 'warning'); return; }
-    if (!GL_STATE.spendCredits(cost)) { GL_UI.toast('Créditos insuficientes', 'warning'); return; }
+    const r = await GL_STATE.spendCredits(cost, 'car_rnd_upgrade');
+    if (!r.ok) { GL_UI.toast(r.msg || 'Créditos insuficientes', 'warning'); return; }
     car.rnd.points = (car.rnd.points || 0) - rndCost;
     car.components[key].score = Math.min(99, car.components[key].score + 3);
     car.components[key].level++;
@@ -2932,10 +2945,13 @@ const SCREENS = {
     GL_UI.confirm(
       'Rescindir contrato',
       `¿Rescindir el contrato con ${sp.name}? Penalización: -${GL_UI.fmtCR(penalty)} CR por incumplimiento.`
-    ).then(ok => {
+    ).then(async ok => {
       if (!ok) return;
+      if (penalty > 0) {
+        const r = await GL_STATE.spendCredits(penalty, 'sponsor_rescind_penalty');
+        if (!r.ok) { GL_UI.toast(r.msg || 'Error al aplicar la penalización.', 'error'); return; }
+      }
       sp.expired = true;
-      if (penalty > 0) GL_STATE.addCredits(-penalty);
       GL_STATE.addLog(`💼 Contrato rescindido con ${sp.name}. Penalización: -${GL_UI.fmtCR(penalty)} CR`, 'bad');
       GL_STATE.saveState();
       GL_UI.toast(`Contrato rescindido.`, 'warning');
@@ -3089,7 +3105,7 @@ const SCREENS = {
               return `<tr class="${isMe ? 'my-row' : ''} ${isPromo ? 'promoted' : ''} ${isReleg ? 'relegated' : ''}">
                 <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${s.position || idx + 1}</div></td>
                 <td style="min-width:200px">
-                  <span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+                  <span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${escapeHtml(s.teamName || 'Team')}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
                   ${isMe ? `<span style="font-size:0.8rem;color:var(--c-accent);margin-left:6px">${__('standings_you')}</span>` : ''}
                 </td>
                 <td><strong style="color:var(--c-gold)">${s.points || 0}</strong></td>
