@@ -588,7 +588,7 @@ const SCREENS = {
       </svg>`;
   },
 
-  getRaceTrackStageMarkup(circuit, weather, idPrefix = 'race') {
+  getRaceTrackStageMarkup(circuit, weather, idPrefix = 'race', extraStageStyle = '') {
     const layout = circuit?.layout || 'mixed';
     const trackKey = circuit?.id || layout;
 
@@ -638,7 +638,7 @@ const SCREENS = {
 
     const weatherLabel = this.getWeatherLabel(weather);
     return `
-      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="${idPrefix}-track-stage">
+      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="${idPrefix}-track-stage"${extraStageStyle ? ` style="${extraStageStyle}"` : ''}>
         <svg class="race-track-svg" viewBox="0 0 1000 620" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
           <defs>
             <filter id="${idPrefix}-track-shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -4012,8 +4012,8 @@ const SCREENS = {
               <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
               <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
             </div>
-            <div style="height:230px;overflow:hidden;border-radius:6px;flex-shrink:0">
-              ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace')}
+            <div style="aspect-ratio:1000/620;max-height:230px;overflow:hidden">
+              ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace', 'min-height:0')}
             </div>
           </div>
           <div class="card">
