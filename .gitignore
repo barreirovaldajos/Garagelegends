@@ -17,3 +17,7 @@ package-lock.json
 
 # Supabase backup (abandoned)
 js/auth.supabase.backup.js
+
+# Windows Explorer metadata
+desktop.ini
+**/desktop.ini
