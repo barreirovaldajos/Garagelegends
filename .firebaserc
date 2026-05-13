@@ -1,5 +1,17 @@
 {
   "projects": {
-    "default": "garagelegends-1"
+    "default": "garagelegends-1",
+    "production": "garagelegends-1",
+    "dev": "garagelegends-dev"
+  },
+  "targets": {
+    "garagelegends-1": {
+      "hosting": {
+        "main":  ["garagelegends-1"],
+        "dani":  ["garagelegends-dani"],
+        "juana": ["garagelegends-juana"],
+        "dev":   ["garagelegends-dev-gl"]
+      }
+    }
   }
 }

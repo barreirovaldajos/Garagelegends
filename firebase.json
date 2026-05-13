@@ -1,31 +1,118 @@
 {
-  "hosting": {
-    "public": ".",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**",
-      "scripts/**",
-      "docs/**",
-      "functions/**",
-      "migration.env",
-      "firebase-service-account.json",
-      "migration-reset-links.txt",
-      "migration-summary.json",
-      "*.backup.js",
-      "*.md",
-      "*.csv",
-      "*.html.bak",
-      "package.json",
-      "package-lock.json"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
+  "hosting": [
+    {
+      "target": "main",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "scripts/**",
+        "docs/**",
+        "functions/**",
+        "migration.env",
+        "firebase-service-account.json",
+        "migration-reset-links.txt",
+        "migration-summary.json",
+        "*.backup.js",
+        "*.md",
+        "*.csv",
+        "*.html.bak",
+        "package.json",
+        "package-lock.json"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "dani",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "scripts/**",
+        "docs/**",
+        "functions/**",
+        "migration.env",
+        "firebase-service-account.json",
+        "migration-reset-links.txt",
+        "migration-summary.json",
+        "*.backup.js",
+        "*.md",
+        "*.csv",
+        "*.html.bak",
+        "package.json",
+        "package-lock.json"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "juana",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "scripts/**",
+        "docs/**",
+        "functions/**",
+        "migration.env",
+        "firebase-service-account.json",
+        "migration-reset-links.txt",
+        "migration-summary.json",
+        "*.backup.js",
+        "*.md",
+        "*.csv",
+        "*.html.bak",
+        "package.json",
+        "package-lock.json"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
+      "target": "dev",
+      "public": ".",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**",
+        "scripts/**",
+        "docs/**",
+        "functions/**",
+        "migration.env",
+        "firebase-service-account.json",
+        "migration-reset-links.txt",
+        "migration-summary.json",
+        "*.backup.js",
+        "*.md",
+        "*.csv",
+        "*.html.bak",
+        "package.json",
+        "package-lock.json"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    }
+  ],
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

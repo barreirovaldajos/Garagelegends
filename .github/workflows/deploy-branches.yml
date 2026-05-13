@@ -1,0 +1,29 @@
+name: Deploy branch sites
+
+on:
+  push:
+    branches:
+      - Dani
+      - JuanA
+      - Dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      - name: Deploy Dani branch
+        if: github.ref == 'refs/heads/Dani'
+        run: firebase deploy --only hosting:dani --token "${{ secrets.FIREBASE_TOKEN }}" --project garagelegends-1 --non-interactive
+
+      - name: Deploy JuanA branch
+        if: github.ref == 'refs/heads/JuanA'
+        run: firebase deploy --only hosting:juana --token "${{ secrets.FIREBASE_TOKEN }}" --project garagelegends-1 --non-interactive
+
+      - name: Deploy Dev branch
+        if: github.ref == 'refs/heads/Dev'
+        run: firebase deploy --only hosting:dev --token "${{ secrets.FIREBASE_TOKEN }}" --project garagelegends-1 --non-interactive
