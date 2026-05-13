@@ -4012,7 +4012,7 @@ const SCREENS = {
               <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
               <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
             </div>
-            <div style="aspect-ratio:1000/620;max-height:230px;overflow:hidden">
+            <div style="max-width:371px;margin:0 auto;overflow:hidden">
               ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace', 'min-height:0')}
             </div>
           </div>
