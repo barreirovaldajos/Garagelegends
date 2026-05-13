@@ -2455,8 +2455,11 @@ const SCREENS = {
         ${cal.map(r => {
           const isDone = r.status === (window.RACE_STATUS ? RACE_STATUS.COMPLETED : 'completed');
           const isNext = r.status === (window.RACE_STATUS ? RACE_STATUS.NEXT : 'next');
-          const liveRemMs = isDone ? this._liveRaceRemainingMs({ liveRaceState: window._divLiveRaceState }) : 0;
-          const isLiveBlocked = liveRemMs > 0 && isDone; // ocultar resultado si la carrera en vivo sigue activa
+          const _liveStateRef = window._divLiveRaceState;
+          const _liveActiveRound = _liveStateRef && _liveStateRef.status === 'live' ? _liveStateRef.round : null;
+          const isThisRoundLive = _liveActiveRound != null && r.round === _liveActiveRound;
+          const liveRemMs = isThisRoundLive ? this._liveRaceRemainingMs({ liveRaceState: _liveStateRef }) : 0;
+          const isLiveBlocked = liveRemMs > 0 && isDone && isThisRoundLive;
           const res = r.result;
           const weatherIndicator = this.getCalendarWeatherIndicator(r);
           const raceArchive = this.getRaceArchiveRecord(r.round);
@@ -2480,7 +2483,10 @@ const SCREENS = {
             </div>
             <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
-              ${isDone ? (isLiveBlocked ? `<div style="color:var(--t-tertiary);font-size:0.78rem">🏁 En vivo...</div>` : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              ${isDone ? (isLiveBlocked ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                  <div style="color:var(--t-tertiary);font-size:0.78rem">🏁 En vivo...</div>
+                  <button class="btn btn-secondary btn-sm" onclick="GL_APP.navigateTo('liverace')">Ver Carrera en Vivo</button>
+                </div>` : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
                 ${res && res.position != null ? `<div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div><div class="calendar-result-pts">+${res.points ?? 0} ${__('points')}</div>` : `<div class="calendar-result-pos" style="color:var(--t-secondary)">—</div>`}
                 <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
               </div>`) :
@@ -3946,6 +3952,20 @@ const SCREENS = {
     if (window._liveRaceAnimFrame) { cancelAnimationFrame(window._liveRaceAnimFrame); window._liveRaceAnimFrame = null; }
     this._raceVisualState = {};
     this._retiredSlotMap = {};
+    window._liveLogFilter = 'all';
+  },
+
+  setLiveLogFilter(mode) {
+    window._liveLogFilter = mode;
+    const btnAll  = document.getElementById('liverace-filter-all');
+    const btnTeam = document.getElementById('liverace-filter-team');
+    if (btnAll)  btnAll.style.opacity  = mode === 'all'  ? '1' : '0.5';
+    if (btnTeam) btnTeam.style.opacity = mode === 'team' ? '1' : '0.5';
+    const log = document.getElementById('liverace-event-log');
+    if (!log) return;
+    Array.from(log.querySelectorAll('.race-event')).forEach(ev => {
+      ev.style.display = (mode === 'team' && !ev.classList.contains('team-highlight')) ? 'none' : '';
+    });
   },
 
   renderLiveRace() {
@@ -3961,7 +3981,9 @@ const SCREENS = {
 
     const state = GL_STATE.getState();
     const cal = state.season.calendar || [];
-    const next = cal.find(r => r.status === 'next');
+    const liveStateInit = window._divLiveRaceState;
+    const liveRoundInit = liveStateInit && liveStateInit.status === 'live' && liveStateInit.round;
+    const next = (liveRoundInit ? cal.find(r => r.round === liveRoundInit) : null) || cal.find(r => r.status === 'next');
     const circuit = next?.circuit || GL_DATA.CIRCUITS[0];
     const weather = next?.weather || 'dry';
     el.innerHTML = `
@@ -3976,6 +3998,12 @@ const SCREENS = {
           <button class="btn btn-secondary" onclick="GL_APP.navigateTo('calendar')">← Calendario</button>
         </div>
       </div>
+      <div id="liverace-player-hud" style="display:flex;align-items:center;gap:14px;padding:6px 16px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--r-md);margin-bottom:var(--s-4);font-size:0.82rem;font-family:var(--font-display);font-weight:800">
+        <span style="color:var(--t-tertiary);font-size:0.75rem;font-weight:600">${__('standings_you')}</span>
+        <span id="liverace-hud-p1" style="color:var(--t-primary)">P1: —</span>
+        <span style="color:var(--c-border)">|</span>
+        <span id="liverace-hud-p2" style="color:var(--t-primary)">P2: —</span>
+      </div>
       <div class="race-layout">
         <div class="race-track-view">
           <div class="race-track-bg"></div>
@@ -3984,17 +4012,26 @@ const SCREENS = {
             <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
           </div>
           ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace')}
-          <div class="race-event-log" id="liverace-event-log">
-            <div class="race-event" style="border-color:var(--c-border)">
-              <span class="race-event-text">⏳ Esperando que el administrador inicie la carrera...</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--s-4);max-height:calc(100vh - 200px);overflow:hidden">
+          <div class="card" style="flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column">
+            <div class="section-eyebrow">Grilla en Vivo</div>
+            <div class="race-grid-list" id="liverace-grid-list" style="flex:1;min-height:0;max-height:none">
+              <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
             </div>
           </div>
-        </div>
-        <div class="flex flex-col gap-4">
-          <div class="card">
-            <div class="section-eyebrow">Grilla en Vivo</div>
-            <div class="race-grid-list" id="liverace-grid-list">
-              <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
+          <div class="card" style="flex:0 0 auto">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="section-eyebrow" style="margin-bottom:0">Log</div>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-ghost btn-sm" id="liverace-filter-all" onclick="GL_SCREENS.setLiveLogFilter('all')" style="padding:2px 10px;font-size:0.75rem">${__('race_log_filter_all')}</button>
+                <button class="btn btn-ghost btn-sm" id="liverace-filter-team" onclick="GL_SCREENS.setLiveLogFilter('team')" style="padding:2px 10px;font-size:0.75rem;opacity:0.5">${__('race_log_filter_team')}</button>
+              </div>
+            </div>
+            <div class="race-event-log" id="liverace-event-log" style="max-height:160px">
+              <div class="race-event" style="border-color:var(--c-border)">
+                <span class="race-event-text">⏳ Esperando que el administrador inicie la carrera...</span>
+              </div>
             </div>
           </div>
         </div>
@@ -4036,6 +4073,21 @@ const SCREENS = {
       window._liveRaceStarted = true;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
+      const liveRaceCal = cal.find(r => r.round === liveState.round);
+      if (liveRaceCal && liveRaceCal.circuit) {
+        const lc = liveRaceCal.circuit;
+        const lw = liveRaceCal.weather || 'dry';
+        const headerEl  = el.querySelector('.screen-header');
+        const eyebrowEl = headerEl?.querySelector('.screen-eyebrow');
+        const titleEl   = headerEl?.querySelector('.screen-title');
+        const subEl     = headerEl?.querySelector('.screen-subtitle');
+        if (eyebrowEl) eyebrowEl.textContent = `Carrera en Vivo · Ronda ${liveState.round}`;
+        if (titleEl)   titleEl.textContent   = lc.name;
+        if (subEl)     subEl.textContent     = `${lw === 'wet' ? '🌧️' : '☀️'} ${lw} · En vivo`;
+        const condEl = document.getElementById('liverace-status-bar')?.querySelector('.race-condition');
+        if (condEl)    condEl.textContent    = `${lw === 'wet' ? '🌧️' : '☀️'} ${lw.charAt(0).toUpperCase() + lw.slice(1)} · ${lc.laps} vueltas`;
+        this.renderRaceTrackVisualization({ liveOrder: [], progress: 0, totalLaps: lc.laps || 1, currentLap: 1, circuit: lc, weather: lw, idPrefix: 'liverace' });
+      }
       this._startLiveRaceCountdown(liveState, mp.divKey);
       return true;
     };
@@ -4119,10 +4171,9 @@ const SCREENS = {
 
   async _fetchAndStartLiveRace(divKey, round, raceStartMs, durationMode) {
     try {
-      // Use lastRaceRound from the division doc as the authoritative round number
       const divSnap = await GL_AUTH._db.collection('divisions').doc(divKey).get({ source: 'server' });
       const divData = divSnap.exists ? divSnap.data() : {};
-      const effectiveRound = divData.lastRaceRound || round;
+      const effectiveRound = (divData.liveRaceState && divData.liveRaceState.round) || divData.lastRaceRound || round;
 
       // Build a teamId → unique colour map from division slot snapshots.
       // Each team keeps its preferred colour if no other team took it first;
@@ -4238,6 +4289,7 @@ const SCREENS = {
     const renderLiveGrid = (live) => {
       const gl = document.getElementById('liverace-grid-list');
       if (!gl) return;
+      let stickyOffset = 0;
       gl.innerHTML = live.slice(0, 20).map((car, idx) => {
         const gapToLeader = idx === 0 ? __('race_leader') : (Number.isFinite(car.gapMs) ? `+${(car.gapMs / 1000).toFixed(1)}s` : `+${(idx * 0.9).toFixed(1)}s`);
         const aheadCar = idx > 0 ? live[idx - 1] : null;
@@ -4246,7 +4298,9 @@ const SCREENS = {
         const dotColor = car.color || '#888';
         const tyreMeta = this.getTyreMeta(car.tyre);
         const status = car.retired ? 'DNF' : car.pit ? `BOX ${Number.isFinite(car.pitLossMs) && car.pitLossMs > 0 ? `· -${(car.pitLossMs / 1000).toFixed(1)}s` : ''}` : gapToLeader;
-        return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}">
+        const stickyStyle = car.isPlayer ? `;position:sticky;top:${stickyOffset}px;z-index:3` : '';
+        if (car.isPlayer) stickyOffset += 32;
+        return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}${stickyStyle}">
           <span class="race-pos-num">${car.pos || (idx + 1)}</span>
           <span class="race-pos-teamdot" style="background:${dotColor}"></span>
           <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
@@ -4293,6 +4347,12 @@ const SCREENS = {
 
       if (lapEl) lapEl.textContent = `🏁 Vuelta ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;
 
+      const myTeamCars = liveOrder.filter(c => c.isPlayer).sort((a, b) => (a.displayPos || a.pos || 99) - (b.displayPos || b.pos || 99));
+      const hudP1El = document.getElementById('liverace-hud-p1');
+      const hudP2El = document.getElementById('liverace-hud-p2');
+      if (hudP1El) { const c = myTeamCars[0]; hudP1El.textContent = c ? `${c.name || 'P1'}: P${Math.max(1, Math.round(c.displayPos || c.pos || 1))}` : 'P1: —'; }
+      if (hudP2El) { const c = myTeamCars[1]; hudP2El.textContent = c ? `${c.name || 'P2'}: P${Math.max(1, Math.round(c.displayPos || c.pos || 2))}` : 'P2: —'; }
+
       const shouldShowEvents = Math.floor(progress * allEvents.length);
       while (eventCursor < shouldShowEvents) {
         const ev = allEvents[eventCursor];
@@ -4301,8 +4361,9 @@ const SCREENS = {
           const teamHighlightClass = this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : '';
           div.className = `race-event ${ev.type || ''} ${teamHighlightClass}`.trim();
           div.innerHTML = `<span class="race-event-lap">${__('race_lap_short')} ${ev.lap}</span><span class="race-event-text">${ev.text}</span>`;
+          if (window._liveLogFilter === 'team' && !teamHighlightClass) div.style.display = 'none';
           log.appendChild(div);
-          log.scrollTop = log.scrollHeight;
+          if (window._liveLogFilter !== 'team' || teamHighlightClass) log.scrollTop = log.scrollHeight;
         }
         eventCursor += 1;
       }
