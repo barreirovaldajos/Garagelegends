@@ -4121,7 +4121,17 @@ const SCREENS = {
     try {
       // Use lastRaceRound from the division doc as the authoritative round number
       const divSnap = await GL_AUTH._db.collection('divisions').doc(divKey).get({ source: 'server' });
-      const effectiveRound = (divSnap.exists && divSnap.data().lastRaceRound) || round;
+      const divData = divSnap.exists ? divSnap.data() : {};
+      const effectiveRound = divData.lastRaceRound || round;
+
+      // Build a teamId → colors.primary map from division slot snapshots so every
+      // team's cars render with the correct color (server may omit color for human teams).
+      const teamColorMap = {};
+      Object.values(divData.slots || {}).forEach(slot => {
+        const tid = slot.userId || slot.botTeamId;
+        const col = slot.teamSnapshot && slot.teamSnapshot.colors && slot.teamSnapshot.colors.primary;
+        if (tid && col) teamColorMap[tid] = col;
+      });
 
       // Retry hasta 4 veces con 2s de espera: Firestore puede tener lag de replicación
       // entre la subcollección raceResults y el documento de división
@@ -4139,6 +4149,22 @@ const SCREENS = {
         return;
       }
       const result = resultSnap.data();
+
+      // Enrich car entries that are missing a color using the team snapshot map.
+      if (Object.keys(teamColorMap).length) {
+        const enrichColor = (entry) => {
+          if (!entry.color && entry.teamId && teamColorMap[entry.teamId]) {
+            entry.color = teamColorMap[entry.teamId];
+          }
+        };
+        if (Array.isArray(result.finalGrid)) result.finalGrid.forEach(enrichColor);
+        if (Array.isArray(result.lapSnapshots)) {
+          result.lapSnapshots.forEach(snap => {
+            if (Array.isArray(snap.order)) snap.order.forEach(enrichColor);
+          });
+        }
+      }
+
       const uid = GL_AUTH.user && GL_AUTH.user.uid;
       const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
       const playerCars = viewerCars.length ? viewerCars : (result.playerCars || []).filter(c => c.teamId === uid);
