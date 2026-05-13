@@ -4,3 +4,16 @@ migration.env
 migration-reset-links.txt
 migration-summary.json
 node_modules/
+
+# Claude Code local session data
+.claude/
+
+# Firebase build cache
+.firebase/
+
+# Migration scripts dependencies (not part of the game)
+package.json
+package-lock.json
+
+# Supabase backup (abandoned)
+js/auth.supabase.backup.js

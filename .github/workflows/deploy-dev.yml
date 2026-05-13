@@ -1,0 +1,41 @@
+name: Deploy to Firebase DEV
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify critical JS files exist
+        run: |
+          missing=0
+          for f in js/firebase-config.dev.js js/app.js js/auth.js; do
+            if [ ! -f "$f" ]; then
+              echo "ERROR: archivo crítico faltante antes del deploy: $f"
+              missing=1
+            fi
+          done
+          if [ $missing -eq 1 ]; then
+            echo "Deploy cancelado — archivos JS críticos no encontrados en el repo."
+            exit 1
+          fi
+
+      - name: Use DEV Firebase config
+        run: cp js/firebase-config.dev.js js/firebase-config.js
+
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting to DEV
+        run: firebase deploy --only hosting --token "${{ secrets.FIREBASE_TOKEN }}" --project dev --non-interactive
+
+      - name: Deploy Firestore rules to DEV
+        run: firebase deploy --only firestore:rules --token "${{ secrets.FIREBASE_TOKEN }}" --project dev --non-interactive
+
+      - name: Deploy Cloud Functions to DEV
+        run: firebase deploy --only functions --token "${{ secrets.FIREBASE_TOKEN }}" --project dev --non-interactive
