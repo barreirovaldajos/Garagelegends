@@ -4124,14 +4124,39 @@ const SCREENS = {
       const divData = divSnap.exists ? divSnap.data() : {};
       const effectiveRound = divData.lastRaceRound || round;
 
-      // Build a teamId → colors.primary map from division slot snapshots so every
-      // team's cars render with the correct color (server may omit color for human teams).
+      // Build a teamId → unique colour map from division slot snapshots.
+      // Each team keeps its preferred colour if no other team took it first;
+      // duplicates (e.g. everyone on the default red) receive a spare from
+      // the pool so every car in the race view is visually distinct.
+      const SPARE_POOL = [
+        '#00A6FB','#2EC4B6','#8AC926','#6A4C93','#FF9F1C',
+        '#06D6A0','#FFD166','#D65DB1','#3A86FF','#43AA8B',
+        '#118AB2','#7B2CBF','#90BE6D','#F9C74F','#4CC9F0',
+        '#F8961E','#577590','#4D96FF','#C77DFF','#e8292a',
+      ];
       const teamColorMap = {};
-      Object.values(divData.slots || {}).forEach(slot => {
-        const tid = slot.userId || slot.botTeamId;
-        const col = slot.teamSnapshot && slot.teamSnapshot.colors && slot.teamSnapshot.colors.primary;
-        if (tid && col) teamColorMap[tid] = col;
-      });
+      const usedColors = new Set();
+      let spareIdx = 0;
+      const nextSpare = () => {
+        while (spareIdx < SPARE_POOL.length && usedColors.has(SPARE_POOL[spareIdx])) spareIdx++;
+        return SPARE_POOL[spareIdx % SPARE_POOL.length];
+      };
+      Object.entries(divData.slots || {})
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .forEach(([, slot]) => {
+          const tid = slot.userId || slot.botTeamId;
+          const pref = slot.teamSnapshot && slot.teamSnapshot.colors && slot.teamSnapshot.colors.primary;
+          if (!tid) return;
+          if (pref && !usedColors.has(pref)) {
+            teamColorMap[tid] = pref;
+            usedColors.add(pref);
+          } else {
+            const spare = nextSpare();
+            teamColorMap[tid] = spare;
+            usedColors.add(spare);
+            spareIdx++;
+          }
+        });
 
       // Retry hasta 4 veces con 2s de espera: Firestore puede tener lag de replicación
       // entre la subcollección raceResults y el documento de división
@@ -4150,12 +4175,16 @@ const SCREENS = {
       }
       const result = resultSnap.data();
 
-      // Enrich car entries that are missing a color using the team snapshot map.
+      // Stamp every car entry with its unique team colour.
+      // lap-snapshot entries lack teamId, so build an id→teamId map from finalGrid first.
       if (Object.keys(teamColorMap).length) {
+        const idToTeam = {};
+        if (Array.isArray(result.finalGrid)) {
+          result.finalGrid.forEach(e => { if (e.id && e.teamId) idToTeam[e.id] = e.teamId; });
+        }
         const enrichColor = (entry) => {
-          if (!entry.color && entry.teamId && teamColorMap[entry.teamId]) {
-            entry.color = teamColorMap[entry.teamId];
-          }
+          const tid = entry.teamId || idToTeam[entry.id];
+          if (tid && teamColorMap[tid]) entry.color = teamColorMap[tid];
         };
         if (Array.isArray(result.finalGrid)) result.finalGrid.forEach(enrichColor);
         if (Array.isArray(result.lapSnapshots)) {
