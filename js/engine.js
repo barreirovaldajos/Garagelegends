@@ -2950,19 +2950,6 @@ function updateStandings(raceResult) {
   standings.forEach((s, i) => { s.position = i + 1; });
   state.standings = standings;
 
-  // R&D points — requires R&D Centre Lv2 (hq.rnd >= 2)
-  const rndLvCheck = Number(state.hq && state.hq.rnd) || 0;
-  if (rndLvCheck >= 2) {
-    if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
-    let rndEarned = 2;
-    if (bestPlayerPos === 1)      rndEarned += 5;
-    else if (bestPlayerPos <= 3)  rndEarned += 3;
-    else if (bestPlayerPos <= 5)  rndEarned += 2;
-    else if (bestPlayerPos <= 10) rndEarned += 1;
-    state.car.rnd.points = (state.car.rnd.points || 0) + rndEarned;
-    S.addLog(`🔬 I+D: +${rndEarned} pts (total: ${state.car.rnd.points})`, 'info');
-  }
-
   S.saveState();   // called only here, after ALL mutations are complete
 }
 // ---- get next real-world race date ----

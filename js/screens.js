@@ -3863,6 +3863,7 @@ const SCREENS = {
       const _rndBuildingLv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
       const _rndBonus = Math.max(0, _rndBuildingLv - 1);
       const _rndEarned = _rndBasePoints > 0 ? _rndBasePoints + _rndBonus : 0;
+      if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
       if (_rndEarned > 0) {
         state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
         const _rndMsg = _rndBonus > 0 ? `🔬 +${_rndEarned} pts de I+D (P${_bestPos}, +${_rndBonus} bonus I+D Lv${_rndBuildingLv})` : `🔬 +${_rndEarned} pts de I+D (P${_bestPos})`;

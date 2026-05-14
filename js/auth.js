@@ -185,7 +185,7 @@
         // Award I+D points (once per round)
         const _rndRound = pendingRaceResult.round;
         if (!state.car) state.car = {};
-        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: [] };
+        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
         if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
           const _pos = Number(pendingRaceResult.position) || 99;
           const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
