@@ -372,10 +372,14 @@ const DASHBOARD = {
       const liveRaceState = data.liveRaceState;
       const isLiveRace = liveRaceState && liveRaceState.status === 'live';
 
-      if (isLiveRace && typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS._liveRaceRemainingMs === 'function') {
+      const remMsCheck = isLiveRace && typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS._liveRaceRemainingMs === 'function'
+        ? GL_SCREENS._liveRaceRemainingMs(data)
+        : -1;
+
+      if (isLiveRace && remMsCheck > 0 && typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS._liveRaceRemainingMs === 'function') {
         // ── Live-race countdown: hide standings, tick until race ends ────────
-        let remMs = GL_SCREENS._liveRaceRemainingMs(data);
-        el.innerHTML = GL_SCREENS._liveRaceBlockHtml(Math.max(0, remMs));
+        let remMs = remMsCheck;
+        el.innerHTML = GL_SCREENS._liveRaceBlockHtml(remMs);
 
         window._dashStandingsCountdown = setInterval(() => {
           const standingsEl = document.getElementById('dash-standings');
