@@ -351,6 +351,12 @@ const DASHBOARD = {
     const el = document.getElementById('dash-standings');
     if (!el) return;
 
+    // Clear any running live-race countdown before fetching fresh data
+    if (window._dashStandingsCountdown) {
+      clearInterval(window._dashStandingsCountdown);
+      window._dashStandingsCountdown = null;
+    }
+
     // MMG: always fetch from Firestore
     if (!GL_AUTH.mp || !GL_AUTH.mp.divKey || !GL_AUTH._db) {
       el.innerHTML = '<div style="font-size:0.78rem;color:var(--t-tertiary);padding:8px 0">📡 Conectando a la división...</div>';
@@ -366,52 +372,74 @@ const DASHBOARD = {
       const liveRaceState = data.liveRaceState;
       const isLiveRace = liveRaceState && liveRaceState.status === 'live';
 
-      // ── Standings ─────────────────────────────────────────────────────────
-      const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
-      if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = mpStandings;
-      const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
-      const promotionSpots = divInfo.promotions || 0;
-      const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
-      const myPos = myEntry ? myEntry.position : '-';
-      const myPts = myEntry ? myEntry.points : 0;
-      const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
-      const pj = (data.calendar || []).filter(r => r && r.status === 'completed').length;
-      el.innerHTML = `
-        ${isLiveRace ? `<div style="font-size:0.72rem;color:var(--t-secondary);background:rgba(232,41,42,0.08);border:1px solid rgba(232,41,42,0.25);border-radius:6px;padding:5px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px"><span style="color:var(--c-red)">⏸</span> ${__('dash_standings_frozen') || 'Race in progress — final standings after race'}</div>` : ''}
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
-          <div>
-            <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(data.division, data.group) : `${data.division}-${data.group}`} · ${divInfo.name || ''}</div>
+      if (isLiveRace && typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS._liveRaceRemainingMs === 'function') {
+        // ── Live-race countdown: hide standings, tick until race ends ────────
+        let remMs = GL_SCREENS._liveRaceRemainingMs(data);
+        el.innerHTML = GL_SCREENS._liveRaceBlockHtml(Math.max(0, remMs));
+
+        window._dashStandingsCountdown = setInterval(() => {
+          const standingsEl = document.getElementById('dash-standings');
+          if (!standingsEl) {
+            clearInterval(window._dashStandingsCountdown);
+            window._dashStandingsCountdown = null;
+            return;
+          }
+          remMs -= 1000;
+          if (remMs <= 0) {
+            clearInterval(window._dashStandingsCountdown);
+            window._dashStandingsCountdown = null;
+            if (window.GL_DASHBOARD) GL_DASHBOARD.renderStandings(state);
+            return;
+          }
+          standingsEl.innerHTML = GL_SCREENS._liveRaceBlockHtml(Math.max(0, remMs));
+        }, 1000);
+      } else {
+        // ── Normal standings table ────────────────────────────────────────────
+        const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
+        if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = mpStandings;
+        const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
+        const promotionSpots = divInfo.promotions || 0;
+        const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
+        const myPos = myEntry ? myEntry.position : '-';
+        const myPts = myEntry ? myEntry.points : 0;
+        const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
+        const pj = (data.calendar || []).filter(r => r && r.status === 'completed').length;
+        el.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
+            <div>
+              <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(data.division, data.group) : `${data.division}-${data.group}`} · ${divInfo.name || ''}</div>
+            </div>
+            <div style="text-align:right">
+              <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
+              <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
+            </div>
           </div>
-          <div style="text-align:right">
-            <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
-            <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
-          </div>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;table-layout:fixed">
-          <thead>
-            <tr style="font-size:0.6rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.05em">
-              <th style="width:22px;text-align:right;padding:2px 0;font-weight:700">#</th>
-              <th style="text-align:left;padding:2px 6px;font-weight:700">${__('standings_team')}</th>
-              <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_played_short')}</th>
-              <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_wins_short')}</th>
-              <th style="width:28px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_podiums_short')}</th>
-              <th style="width:30px;text-align:right;padding:2px 0;font-weight:700">${__('standings_pts_short')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${mpStandings.map((s, idx) => {
-              const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
-              return `<tr style="border-bottom:1px solid var(--c-border);${isMe?'background:var(--c-surface-2)':''}">
-                <td style="text-align:right;padding:4px 0;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</td>
-                <td style="padding:4px 6px;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</td>
-                <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${pj}</td>
-                <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.wins || 0}</td>
-                <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.podiums || 0}</td>
-                <td style="text-align:right;padding:4px 0;font-weight:${isMe?'700':'600'};color:${isMe?'var(--c-gold)':'var(--t-primary)'}">${s.points || 0}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>`;
+          <table style="width:100%;border-collapse:collapse;font-size:0.78rem;table-layout:fixed">
+            <thead>
+              <tr style="font-size:0.6rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.05em">
+                <th style="width:22px;text-align:right;padding:2px 0;font-weight:700">#</th>
+                <th style="text-align:left;padding:2px 6px;font-weight:700">${__('standings_team')}</th>
+                <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_played_short')}</th>
+                <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_wins_short')}</th>
+                <th style="width:28px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_podiums_short')}</th>
+                <th style="width:30px;text-align:right;padding:2px 0;font-weight:700">${__('standings_pts_short')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${mpStandings.map((s, idx) => {
+                const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
+                return `<tr style="border-bottom:1px solid var(--c-border);${isMe?'background:var(--c-surface-2)':''}">
+                  <td style="text-align:right;padding:4px 0;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</td>
+                  <td style="padding:4px 6px;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</td>
+                  <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${pj}</td>
+                  <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.wins || 0}</td>
+                  <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.podiums || 0}</td>
+                  <td style="text-align:right;padding:4px 0;font-weight:${isMe?'700':'600'};color:${isMe?'var(--c-gold)':'var(--t-primary)'}">${s.points || 0}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+      }
 
       // ── Circuit preview (right panel) – reads from Firestore calendar ─────
       const previewEl = document.getElementById('dash-circuit-preview');
