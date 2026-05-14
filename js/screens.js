@@ -4533,6 +4533,18 @@ const SCREENS = {
       const base = pos === 1 ? 10 : pos === 2 ? 8 : pos === 3 ? 6 : pos <= 10 ? 3 : pos <= 20 ? 1 : 0;
       if (base > 0) _rndEarned += base + _rndBonus;
     });
+    // Award R&D points here — reliable fallback when _applyMpPending fails (Firebase quota, timing).
+    // lastAwardedRound prevents double-counting if _applyMpPending also fires later.
+    const _rndRound = result._mpRound || result.round || 0;
+    if (_rndEarned > 0 && _rndRound && state && state.car) {
+      if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
+      if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
+        state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
+        state.car.rnd.lastAwardedRound = _rndRound;
+        GL_STATE.saveState();
+        console.log('DEBUG postrace R&D awarded:', _rndEarned, '→ total', state.car.rnd.points);
+      }
+    }
     const crashReports = playerCars
       .filter((car) => car && car.isDNF)
       .map((car) => ({
