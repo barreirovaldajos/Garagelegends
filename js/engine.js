@@ -2708,7 +2708,7 @@ function endSeason() {
   state.season.lastSummaryPending = true;
 
   // Reiniciar tecnología (I+D) por cambio de temporada.
-  state.car.rnd = { points: 0, active: null, queue: [] };
+  state.car.rnd = { points: 0, active: null, queue: {} };
 
   // Nueva temporada
   state.season.year = completedYear + 1;

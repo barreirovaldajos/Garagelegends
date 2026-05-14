@@ -4326,6 +4326,39 @@ const SCREENS = {
       if (finished) return;
       finished = true;
       if (lapEl) lapEl.textContent = '🏁 ¡Carrera finalizada!';
+
+      // Award R&D points from live race result immediately (client-side).
+      // _applyMpPending may also run later via Firebase; lastAwardedRound prevents double-counting.
+      const _liveResult = window._lastRaceResult;
+      const _liveRound  = (_liveResult && (_liveResult._mpRound || _liveResult.round)) || 0;
+      const _liveState  = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
+      if (_liveState && _liveResult && _liveRound) {
+        if (!_liveState.car) _liveState.car = {};
+        if (!_liveState.car.rnd) _liveState.car.rnd = { points: 0, active: null, queue: {} };
+        const _rnd = _liveState.car.rnd;
+        if (!_rnd.lastAwardedRound || _rnd.lastAwardedRound < _liveRound) {
+          const _lv    = (_liveState.hq && _liveState.hq.rnd) ? Number(_liveState.hq.rnd) : 1;
+          const _bonus = Math.max(0, _lv - 1);
+          const _cars  = Array.isArray(_liveResult.playerCars) && _liveResult.playerCars.length > 0
+            ? _liveResult.playerCars
+            : [{ position: _liveResult.position || 99 }];
+          let _earned = 0;
+          const _breakdown = [];
+          _cars.forEach(_c => {
+            const _pos  = (_c && Number.isFinite(_c.position)) ? _c.position : 99;
+            const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
+            const _e    = _base > 0 ? _base + _bonus : 0;
+            if (_e > 0) { _earned += _e; _breakdown.push(`P${_pos}:+${_e}`); }
+          });
+          _rnd.lastAwardedRound = _liveRound;
+          if (_earned > 0) {
+            _rnd.points = (_rnd.points || 0) + _earned;
+            if (GL_STATE.addLog) GL_STATE.addLog(`🔬 +${_earned} pts de I+D (${_breakdown.join(', ')})`, 'good');
+          }
+          if (GL_STATE.saveState) GL_STATE.saveState();
+        }
+      }
+
       // Sincronizar calendario desde Firestore y esperar antes de navegar a postrace
       const mp = window.GL_AUTH && GL_AUTH.mp;
       if (mp && mp.divKey && GL_AUTH._db) {
