@@ -3856,18 +3856,23 @@ const SCREENS = {
       }
       window._advisorStrategySource = 'manual';
 
-      const _bestPos = Array.isArray(result.playerCars) && result.playerCars.length > 0
-        ? result.playerCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
-        : (result.position || 99);
-      const _rndBasePoints = _bestPos === 1 ? 10 : _bestPos === 2 ? 8 : _bestPos === 3 ? 6 : _bestPos <= 10 ? 3 : _bestPos <= 20 ? 1 : 0;
       const _rndBuildingLv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
       const _rndBonus = Math.max(0, _rndBuildingLv - 1);
-      const _rndEarned = _rndBasePoints > 0 ? _rndBasePoints + _rndBonus : 0;
+      const _carsForRnd = Array.isArray(result.playerCars) && result.playerCars.length > 0
+        ? result.playerCars
+        : [{ position: result.position || 99 }];
+      let _totalRndEarned = 0;
+      const _rndBreakdown = [];
+      _carsForRnd.forEach(c => {
+        const pos = c && Number.isFinite(c.position) ? c.position : 99;
+        const base = pos === 1 ? 10 : pos === 2 ? 8 : pos === 3 ? 6 : pos <= 10 ? 3 : pos <= 20 ? 1 : 0;
+        const earned = base > 0 ? base + _rndBonus : 0;
+        if (earned > 0) { _totalRndEarned += earned; _rndBreakdown.push(`P${pos}:+${earned}`); }
+      });
       if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
-      if (_rndEarned > 0) {
-        state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
-        const _rndMsg = _rndBonus > 0 ? `🔬 +${_rndEarned} pts de I+D (P${_bestPos}, +${_rndBonus} bonus I+D Lv${_rndBuildingLv})` : `🔬 +${_rndEarned} pts de I+D (P${_bestPos})`;
-        GL_STATE.addLog(_rndMsg, 'good');
+      if (_totalRndEarned > 0) {
+        state.car.rnd.points = (state.car.rnd.points || 0) + _totalRndEarned;
+        GL_STATE.addLog(`🔬 +${_totalRndEarned} pts de I+D (${_rndBreakdown.join(', ')})`, 'good');
       }
       if (archiveRecord && GL_ENGINE.upsertRaceArchiveRecord) {
         GL_ENGINE.upsertRaceArchiveRecord(state, archiveRecord);
@@ -4475,13 +4480,18 @@ const SCREENS = {
       .join('');
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
-    const _rndBestPos = playerCars.length > 0
-      ? playerCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
-      : (result.position || 99);
-    const _rndBase = _rndBestPos === 1 ? 10 : _rndBestPos === 2 ? 8 : _rndBestPos === 3 ? 6 : _rndBestPos <= 10 ? 3 : _rndBestPos <= 20 ? 1 : 0;
+    const _displayTeamPoints = playerCars.length > 0
+      ? playerCars.reduce((s, c) => s + (c.points || 0), 0)
+      : (result.points || 0);
     const _rndLv = (state && state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
     const _rndBonus = Math.max(0, _rndLv - 1);
-    const _rndEarned = _rndBase > 0 ? _rndBase + _rndBonus : 0;
+    const _carsForRndDisplay = playerCars.length > 0 ? playerCars : [{ position: result.position || 99 }];
+    let _rndEarned = 0;
+    _carsForRndDisplay.forEach(c => {
+      const pos = c && Number.isFinite(c.position) ? c.position : 99;
+      const base = pos === 1 ? 10 : pos === 2 ? 8 : pos === 3 ? 6 : pos <= 10 ? 3 : pos <= 20 ? 1 : 0;
+      if (base > 0) _rndEarned += base + _rndBonus;
+    });
     const crashReports = playerCars
       .filter((car) => car && car.isDNF)
       .map((car) => ({
@@ -4577,7 +4587,7 @@ const SCREENS = {
             <div style="color:var(--t-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)} ${teamResultHeadline}</div>
           <div style="display:grid;gap:6px;margin-top:10px">${heroTeamResults}</div>
           <div class="post-race-metrics">
-              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${_displayTeamPoints}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
               ${_rndEarned > 0 ? `<div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-accent)">+${_rndEarned}</div><div class="post-race-metric-label">🔬 ${__('postrace_rnd_earned', 'Pts I+D')}</div></div>` : ''}
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.weeklyNetDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.weeklyNetDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.weeklyNetDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_weekly_balance', 'Weekly balance')}</div></div>
