@@ -115,8 +115,9 @@
               // where _applyMpPending() runs before loadState() replaces _state.
               const _rndRound = pendingRaceResult.round;
               if (!sd.car) sd.car = {};
-              if (!sd.car.rnd) sd.car.rnd = { points: 0, active: null, queue: {} };
-              if (!sd.car.rnd.lastAwardedRound || sd.car.rnd.lastAwardedRound < _rndRound) {
+              if (!sd.car.rnd) sd.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {} };
+              if (!sd.car.rnd.awardedRounds || typeof sd.car.rnd.awardedRounds !== 'object') sd.car.rnd.awardedRounds = {};
+              if (!sd.car.rnd.awardedRounds[_rndRound]) {
                 const _lv = (sd.hq && sd.hq.rnd) ? Number(sd.hq.rnd) : 1;
                 const _bonus = Math.max(0, _lv - 1);
                 const _positions = Array.isArray(pendingRaceResult.carPositions) && pendingRaceResult.carPositions.length > 0
@@ -129,7 +130,7 @@
                 });
                 if (_earned > 0) {
                   sd.car.rnd.points = (sd.car.rnd.points || 0) + _earned;
-                  sd.car.rnd.lastAwardedRound = _rndRound;
+                  sd.car.rnd.awardedRounds[_rndRound] = true;
                 }
               }
             }
@@ -206,8 +207,9 @@
         // Award I+D points (once per round)
         const _rndRound = pendingRaceResult.round;
         if (!state.car) state.car = {};
-        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
-        if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
+        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {} };
+        if (!state.car.rnd.awardedRounds || typeof state.car.rnd.awardedRounds !== 'object') state.car.rnd.awardedRounds = {};
+        if (!state.car.rnd.awardedRounds[_rndRound]) {
           const _lv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
           const _bonus = Math.max(0, _lv - 1);
           const _carPositions = Array.isArray(pendingRaceResult.carPositions) && pendingRaceResult.carPositions.length > 0
@@ -222,7 +224,7 @@
           });
           if (_totalEarned > 0) {
             state.car.rnd.points = (state.car.rnd.points || 0) + _totalEarned;
-            state.car.rnd.lastAwardedRound = _rndRound;
+            state.car.rnd.awardedRounds[_rndRound] = true;
             if (window.GL_STATE && GL_STATE.addLog) {
               GL_STATE.addLog(`🔬 +${_totalEarned} pts de I+D (${_breakdown.join(', ')})`, 'good');
             }

@@ -4338,7 +4338,8 @@ const SCREENS = {
         if (!_liveState.car) _liveState.car = {};
         if (!_liveState.car.rnd) _liveState.car.rnd = { points: 0, active: null, queue: {} };
         const _rnd = _liveState.car.rnd;
-        if (!_rnd.lastAwardedRound || _rnd.lastAwardedRound < _liveRound) {
+        if (!_rnd.awardedRounds || typeof _rnd.awardedRounds !== 'object') _rnd.awardedRounds = {};
+        if (!_rnd.awardedRounds[_liveRound]) {
           const _lv    = (_liveState.hq && _liveState.hq.rnd) ? Number(_liveState.hq.rnd) : 1;
           const _bonus = Math.max(0, _lv - 1);
           // Use HUD-tracked positions (most reliable), fall back to _lastRaceResult data
@@ -4355,9 +4356,9 @@ const SCREENS = {
             const _e    = _base > 0 ? _base + _bonus : 0;
             if (_e > 0) { _earned += _e; _breakdown.push(`P${_pos}:+${_e}`); }
           });
-          _rnd.lastAwardedRound = _liveRound;
           if (_earned > 0) {
             _rnd.points = (_rnd.points || 0) + _earned;
+            _rnd.awardedRounds[_liveRound] = true;
             if (GL_STATE.addLog) GL_STATE.addLog(`🔬 +${_earned} pts de I+D (${_breakdown.join(', ')})`, 'good');
           }
           console.log('DEBUG finishRace R&D: round', _liveRound, '| cars', _cars, '| earned', _earned, '| total', _rnd.points);
@@ -4536,12 +4537,12 @@ const SCREENS = {
     // Award R&D points here — reliable fallback when _applyMpPending fails (Firebase quota, timing).
     // lastAwardedRound prevents double-counting if _applyMpPending also fires later.
     const _rndRound = result._mpRound || result.round || 0;
-    console.log('DEBUG postrace R&D:', { _rndEarned, _rndRound, lastAwardedRound: state?.car?.rnd?.lastAwardedRound, currentPoints: state?.car?.rnd?.points });
     if (_rndEarned > 0 && _rndRound && state && state.car) {
-      if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
-      if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
+      if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {} };
+      if (!state.car.rnd.awardedRounds || typeof state.car.rnd.awardedRounds !== 'object') state.car.rnd.awardedRounds = {};
+      if (!state.car.rnd.awardedRounds[_rndRound]) {
         state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
-        state.car.rnd.lastAwardedRound = _rndRound;
+        state.car.rnd.awardedRounds[_rndRound] = true;
         GL_STATE.saveState();
         console.log('DEBUG postrace R&D awarded:', _rndEarned, '→ total', state.car.rnd.points);
       }

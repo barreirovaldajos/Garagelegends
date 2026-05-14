@@ -94,7 +94,7 @@ const DEFAULT_STATE = {
       reliability:  { level: 1, score: 55 },
       efficiency:   { level: 1, score: 48 }
     },
-    rnd: { points: 0, active: null, queue: {} }
+    rnd: { points: 0, active: null, queue: {}, awardedRounds: {} }
   },
   hq: {
     wind_tunnel: 1, // Aero
@@ -346,6 +346,7 @@ function loadState() {
       if (!Array.isArray(_state.raceResults)) _state.raceResults = [];
       if (!_state.car) _state.car = deepClone(DEFAULT_STATE.car);
       if (!_state.car.rnd) _state.car.rnd = deepClone(DEFAULT_STATE.car.rnd);
+      if (!_state.car.rnd.awardedRounds || typeof _state.car.rnd.awardedRounds !== 'object' || Array.isArray(_state.car.rnd.awardedRounds)) _state.car.rnd.awardedRounds = {};
       if (!_state.hq) _state.hq = { wind_tunnel: 1, rnd: 1, factory: 1, academy: 1, admin: 1 };
       if (!_state.construction) _state.construction = { active: false, buildingId: null, startTime: 0, durationMs: 0, targetLevel: 0 };
       if (!Array.isArray(_state.sponsors)) _state.sponsors = [];
