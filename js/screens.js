@@ -4289,6 +4289,7 @@ const SCREENS = {
     let eventCursor = 0;
     let tick = 0;
     let finished = false;
+    let _finalMyTeamCars = [];
 
     const formatRemaining = (ms) => {
       const sec = Math.max(0, Math.ceil(ms / 1000));
@@ -4327,21 +4328,25 @@ const SCREENS = {
       finished = true;
       if (lapEl) lapEl.textContent = '🏁 ¡Carrera finalizada!';
 
-      // Award R&D points from live race result immediately (client-side).
-      // _applyMpPending may also run later via Firebase; lastAwardedRound prevents double-counting.
+      // Award R&D points using the final positions captured from the live race HUD.
+      // _finalMyTeamCars is updated each tick with isPlayer-flagged cars and correct positions.
+      // _applyMpPending may also fire later via Firebase; lastAwardedRound prevents double-counting.
       const _liveResult = window._lastRaceResult;
       const _liveRound  = (_liveResult && (_liveResult._mpRound || _liveResult.round)) || 0;
       const _liveState  = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
-      if (_liveState && _liveResult && _liveRound) {
+      if (_liveState && _liveRound) {
         if (!_liveState.car) _liveState.car = {};
         if (!_liveState.car.rnd) _liveState.car.rnd = { points: 0, active: null, queue: {} };
         const _rnd = _liveState.car.rnd;
         if (!_rnd.lastAwardedRound || _rnd.lastAwardedRound < _liveRound) {
           const _lv    = (_liveState.hq && _liveState.hq.rnd) ? Number(_liveState.hq.rnd) : 1;
           const _bonus = Math.max(0, _lv - 1);
-          const _cars  = Array.isArray(_liveResult.playerCars) && _liveResult.playerCars.length > 0
-            ? _liveResult.playerCars
-            : [{ position: _liveResult.position || 99 }];
+          // Use HUD-tracked positions (most reliable), fall back to _lastRaceResult data
+          const _cars = _finalMyTeamCars.length > 0
+            ? _finalMyTeamCars.map(c => ({ position: Math.round(c.displayPos || c.pos || 99) }))
+            : (Array.isArray(_liveResult && _liveResult.playerCars) && _liveResult.playerCars.length > 0
+                ? _liveResult.playerCars
+                : [{ position: (_liveResult && _liveResult.position) || 99 }]);
           let _earned = 0;
           const _breakdown = [];
           _cars.forEach(_c => {
@@ -4355,6 +4360,7 @@ const SCREENS = {
             _rnd.points = (_rnd.points || 0) + _earned;
             if (GL_STATE.addLog) GL_STATE.addLog(`🔬 +${_earned} pts de I+D (${_breakdown.join(', ')})`, 'good');
           }
+          console.log('DEBUG finishRace R&D: round', _liveRound, '| cars', _cars, '| earned', _earned, '| total', _rnd.points);
           if (GL_STATE.saveState) GL_STATE.saveState();
         }
       }
@@ -4390,6 +4396,7 @@ const SCREENS = {
       if (lapEl) lapEl.textContent = `🏁 Vuelta ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;
 
       const myTeamCars = liveOrder.filter(c => c.isPlayer).sort((a, b) => (a.displayPos || a.pos || 99) - (b.displayPos || b.pos || 99));
+      if (myTeamCars.length) _finalMyTeamCars = myTeamCars;
       const hudP1El = document.getElementById('liverace-hud-p1');
       const hudP2El = document.getElementById('liverace-hud-p2');
       if (hudP1El) { const c = myTeamCars[0]; hudP1El.textContent = c ? `${c.name || 'P1'}: P${Math.max(1, Math.round(c.displayPos || c.pos || 1))}` : 'P1: —'; }
