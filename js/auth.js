@@ -111,6 +111,25 @@
               if (!Array.isArray(sd.raceResults)) sd.raceResults = [];
               if (!sd.raceResults.find(r => r.round === pendingRaceResult.round && r.ts === pendingRaceResult.ts))
                 sd.raceResults.push(pendingRaceResult);
+              // Apply R&D points into save_data so loadState() includes them — prevents timing gap
+              // where _applyMpPending() runs before loadState() replaces _state.
+              const _rndRound = pendingRaceResult.round;
+              if (!sd.car) sd.car = {};
+              if (!sd.car.rnd) sd.car.rnd = { points: 0, active: null, queue: [] };
+              if (!sd.car.rnd.lastAwardedRound || sd.car.rnd.lastAwardedRound < _rndRound) {
+                const _lv = (sd.hq && sd.hq.rnd) ? Number(sd.hq.rnd) : 1;
+                const _bonus = Math.max(0, _lv - 1);
+                const _positions = Array.isArray(pendingRaceResult.carPositions) && pendingRaceResult.carPositions.length > 0
+                  ? pendingRaceResult.carPositions
+                  : [Number(pendingRaceResult.position) || 99];
+                let _earned = 0;
+                _positions.forEach(_p => {
+                  const _base = _p === 1 ? 10 : _p === 2 ? 8 : _p === 3 ? 6 : _p <= 10 ? 3 : _p <= 20 ? 1 : 0;
+                  if (_base > 0) _earned += _base + _bonus;
+                });
+                if (_earned > 0) sd.car.rnd.points = (sd.car.rnd.points || 0) + _earned;
+                sd.car.rnd.lastAwardedRound = _rndRound;
+              }
             }
             if (!sd.meta) sd.meta = {};
             sd.meta.saveTime = Date.now();
