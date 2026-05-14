@@ -281,7 +281,7 @@ function getHqCapabilities(state) {
     academyTrainingSlots: academyLv >= 3 ? 2 : 1,
     academyTrainingSpeedMultiplier: 1 + (academyLv >= 2 ? 0.1 : 0) + (academyLv >= 3 ? 0.2 : 0) + (academyLv >= 4 ? 0.25 : 0) + (academyLv >= 5 ? 0.45 : 0),
     academyInjuryRiskMultiplier: academyLv >= 5 ? 0.5 : 1,
-    weatherResearchUnlocked: true
+    weatherResearchUnlocked: windLv >= 2
   };
 }
 
@@ -2200,11 +2200,24 @@ function simulateRace(options = {}) {
   const prizeMap = prizeBase.map(v => Math.round(v * _pMult / 100) * 100);
   const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || Math.max(100, Math.round(200 * _pMult / 100) * 100)), 0);
 
+  // pendingPoints: championship points earned, keyed by teamId.
+  // They must NOT be applied to state.standings until finalizeRace() is called.
+  const pendingPoints = {};
+  playerCars.forEach((c) => { if (!c.isDNF) pendingPoints['player'] = (pendingPoints['player'] || 0) + (c.points || 0); });
+  (Array.isArray(finalGrid) ? finalGrid : []).forEach((car, idx) => {
+    if (!car.isPlayer) {
+      const tid = car.teamId || car.id;
+      pendingPoints[tid] = (pendingPoints[tid] || 0) + (D.POINTS_TABLE[idx] || 0);
+    }
+  });
+
   return {
+    status: 'pending',   // only finalizeRace() may promote this to 'finished'
     round,
     position: leadResult.position,
     isDNF: leadResult.isDNF,
     points: teamPoints,
+    pendingPoints,
     events,
     lapSnapshots,
     finalGrid,
@@ -2866,69 +2879,91 @@ function buildInitialStandings(division) {
   return standings;
 }
 
+// ---- standings finalization gate ----
+// simulateRace() returns status:'pending'. Only finalizeRace() may promote it to 'finished'
+// and commit points to state.standings. This is the ONLY valid commit path.
+let _pendingRaceResult = null;
+
+function finalizeRace(result) {
+  if (!result || result.status !== 'pending') return false;
+  result.status = 'finished';
+  _pendingRaceResult = result;
+  updateStandings(result);
+  _pendingRaceResult = null;
+  return true;
+}
+
 // ---- update standings after race ----
+// Must only be called via finalizeRace(). Direct external calls with status:'pending'
+// results are rejected by the guard below.
 function updateStandings(raceResult) {
+  if (!raceResult || raceResult.status !== 'finished') return;
   const state = S.getState();
   if (!Array.isArray(state.standings) || state.standings.length === 0) {
     state.standings = buildInitialStandings((state.season && state.season.division) || 8);
   }
-  let standings = state.standings;
+
+  // Work on a shallow clone — state.standings is not touched until atomic swap at the end.
+  const standings = state.standings.map(s => ({ ...s }));
+
   const visualTeams = Object.fromEntries(getVisualAiTeams().map((team) => [team.id, team]));
   standings.forEach((entry) => {
-    if (entry.id === 'player') {
-      entry.color = state.team.colors.primary;
-      return;
-    }
-    const visualTeam = visualTeams[entry.id];
-    if (visualTeam) {
-      entry.color = visualTeam.color;
-      entry.flag = visualTeam.flag;
-      entry.name = visualTeam.name;
-    }
+    if (entry.id === 'player') { entry.color = state.team.colors.primary; return; }
+    const vt = visualTeams[entry.id];
+    if (vt) { entry.color = vt.color; entry.flag = vt.flag; entry.name = vt.name; }
   });
-  const { position, points, finalGrid, playerCars } = raceResult;
-  const earnedPoints = Number.isFinite(points) ? points : 0;
+
+  const { position, pendingPoints = {}, finalGrid, playerCars } = raceResult;
   const bestPlayerPos = Array.isArray(playerCars) && playerCars.length
     ? playerCars.reduce((best, c) => Math.min(best, c && Number.isFinite(c.position) ? c.position : 99), 99)
     : (Number.isFinite(position) ? position : 99);
 
-  // Update player
+  // Apply pre-computed pendingPoints from simulateRace().
   const playerEntry = standings.find(s => s.id === 'player');
   if (playerEntry) {
-    playerEntry.points += earnedPoints;
-    const hasWin = Array.isArray(playerCars)
-      ? playerCars.some((c) => c && c.position === 1)
-      : position === 1;
-    const hasPodium = Array.isArray(playerCars)
-      ? playerCars.some((c) => c && c.position >= 1 && c.position <= 3)
-      : (position >= 1 && position <= 3);
+    playerEntry.points += (pendingPoints['player'] || 0);
+    const hasWin   = Array.isArray(playerCars) ? playerCars.some((c) => c && c.position === 1) : position === 1;
+    const hasPodium = Array.isArray(playerCars) ? playerCars.some((c) => c && c.position >= 1 && c.position <= 3) : (position >= 1 && position <= 3);
     if (hasWin) playerEntry.wins++;
     if (hasPodium) playerEntry.podiums = (playerEntry.podiums || 0) + 1;
     if (!playerEntry.bestResult || bestPlayerPos < playerEntry.bestResult) playerEntry.bestResult = bestPlayerPos;
   }
-
-  // Update AI
+  standings.forEach((entry) => {
+    if (entry.id !== 'player' && pendingPoints[entry.id]) {
+      entry.points += pendingPoints[entry.id];
+    }
+  });
+  // wins for AI (first non-player in finalGrid)
   const aiWinners = new Set();
   (Array.isArray(finalGrid) ? finalGrid : []).forEach((car, idx) => {
-    if (!car.isPlayer) {
+    if (!car.isPlayer && idx === 0) {
       const teamId = car.teamId || car.id;
-      const entry = standings.find(s => s.id === teamId);
-      if (entry) {
-        const aiPts = D.POINTS_TABLE[idx] || 0;
-        entry.points += aiPts;
-        if (idx === 0 && !aiWinners.has(teamId)) {
-          entry.wins++;
-          aiWinners.add(teamId);
-        }
+      if (!aiWinners.has(teamId)) {
+        const entry = standings.find(s => s.id === teamId);
+        if (entry) { entry.wins++; aiWinners.add(teamId); }
       }
     }
   });
 
-  // Sort and re-assign positions
+  // Sort and atomically swap in the fully-computed table.
   standings.sort((a, b) => b.points - a.points || b.wins - a.wins);
   standings.forEach((s, i) => { s.position = i + 1; });
   state.standings = standings;
-  S.saveState();
+
+  // R&D points — requires R&D Centre Lv2 (hq.rnd >= 2)
+  const rndLvCheck = Number(state.hq && state.hq.rnd) || 0;
+  if (rndLvCheck >= 2) {
+    if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
+    let rndEarned = 2;
+    if (bestPlayerPos === 1)      rndEarned += 5;
+    else if (bestPlayerPos <= 3)  rndEarned += 3;
+    else if (bestPlayerPos <= 5)  rndEarned += 2;
+    else if (bestPlayerPos <= 10) rndEarned += 1;
+    state.car.rnd.points = (state.car.rnd.points || 0) + rndEarned;
+    S.addLog(`🔬 I+D: +${rndEarned} pts (total: ${state.car.rnd.points})`, 'info');
+  }
+
+  S.saveState();   // called only here, after ALL mutations are complete
 }
 // ---- get next real-world race date ----
 function getNextRaceDate() {
@@ -3525,6 +3560,7 @@ window.GL_ENGINE = {
   shiftTimeToMs,
   ensureNextRaceAvailable,
   generateRandomEvent, applyEventChoice,
+  finalizeRace,
   buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot,
   endSeason,
   isMultiplayer

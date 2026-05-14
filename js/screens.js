@@ -3808,7 +3808,7 @@ const SCREENS = {
           }, state)
         : null;
 
-      GL_ENGINE.updateStandings(result);
+      GL_ENGINE.finalizeRace(result);
       if (nextIdx >= 0 && cal[nextIdx]) {
         cal[nextIdx].status = 'completed';
         cal[nextIdx].result = archiveRecord || { position: result.position, points: result.points, playerCars: result.playerCars || [] };

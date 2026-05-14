@@ -50,10 +50,12 @@ const Academy = {
         this.improveAttribute(state, item.pilotId, item.targetAttr);
         if (typeof window !== 'undefined' && window.GL_STATE) {
           const attrLabel = (window.__ && window.__(`attr_${item.targetAttr}`, item.targetAttr)) || item.targetAttr;
-          const logText = ((window.__ && window.__('academy_training_complete', '{trainingType}: {attrLabel} improved for driver {pilotId}.')) || '{trainingType}: {attrLabel} improved for driver {pilotId}.')
+          const pilot = (state.pilots || []).find(p => p.id === item.pilotId);
+          const pilotName = pilot ? (pilot.name || pilot.id) : item.pilotId;
+          const logText = ((window.__ && window.__('academy_training_complete', '{trainingType}: {attrLabel} improved for {pilotName}.')) || '{trainingType}: {attrLabel} improved for {pilotName}.')
             .replace('{trainingType}', item.trainingType)
             .replace('{attrLabel}', attrLabel)
-            .replace('{pilotId}', item.pilotId);
+            .replace('{pilotName}', pilotName);
           window.GL_STATE.addLog(`🎓 ${logText}`, 'good');
         }
         changed = true;

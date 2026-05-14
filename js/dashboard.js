@@ -363,6 +363,9 @@ const DASHBOARD = {
       if (!snap.exists) return;
       const data = snap.data();
 
+      const liveRaceState = data.liveRaceState;
+      const isLiveRace = liveRaceState && liveRaceState.status === 'live';
+
       // ── Standings ─────────────────────────────────────────────────────────
       const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
       if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = mpStandings;
@@ -374,6 +377,7 @@ const DASHBOARD = {
       const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
       const pj = (data.calendar || []).filter(r => r && r.status === 'completed').length;
       el.innerHTML = `
+        ${isLiveRace ? `<div style="font-size:0.72rem;color:var(--t-secondary);background:rgba(232,41,42,0.08);border:1px solid rgba(232,41,42,0.25);border-radius:6px;padding:5px 10px;margin-bottom:8px;display:flex;align-items:center;gap:6px"><span style="color:var(--c-red)">⏸</span> ${__('dash_standings_frozen') || 'Race in progress — final standings after race'}</div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
           <div>
             <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(data.division, data.group) : `${data.division}-${data.group}`} · ${divInfo.name || ''}</div>
