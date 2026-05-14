@@ -187,19 +187,23 @@
         if (!state.car) state.car = {};
         if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
         if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
-          const _pos = Number(pendingRaceResult.position) || 99;
-          const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
           const _lv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
           const _bonus = Math.max(0, _lv - 1);
-          const _earned = _base > 0 ? _base + _bonus : 0;
+          const _carPositions = Array.isArray(pendingRaceResult.carPositions) && pendingRaceResult.carPositions.length > 0
+            ? pendingRaceResult.carPositions
+            : [Number(pendingRaceResult.position) || 99];
+          let _totalEarned = 0;
+          const _breakdown = [];
+          _carPositions.forEach(_pos => {
+            const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
+            const _e = _base > 0 ? _base + _bonus : 0;
+            if (_e > 0) { _totalEarned += _e; _breakdown.push(`P${_pos}:+${_e}`); }
+          });
           state.car.rnd.lastAwardedRound = _rndRound;
-          if (_earned > 0) {
-            state.car.rnd.points = (state.car.rnd.points || 0) + _earned;
+          if (_totalEarned > 0) {
+            state.car.rnd.points = (state.car.rnd.points || 0) + _totalEarned;
             if (window.GL_STATE && GL_STATE.addLog) {
-              const _msg = _bonus > 0
-                ? `🔬 +${_earned} pts de I+D (P${_pos}, +${_bonus} bonus I+D Lv${_lv})`
-                : `🔬 +${_earned} pts de I+D (P${_pos})`;
-              GL_STATE.addLog(_msg, 'good');
+              GL_STATE.addLog(`🔬 +${_totalEarned} pts de I+D (${_breakdown.join(', ')})`, 'good');
             }
           }
         }
@@ -212,6 +216,13 @@
             if (typeof sp.weeksLeft === 'number') sp.weeksLeft = Math.max(0, sp.weeksLeft - 1);
           });
         }
+      }
+
+      // Persist to localStorage immediately so UI reads the updated value
+      if (window.GL_STATE && GL_STATE.saveState) GL_STATE.saveState();
+      // Re-render car dev screen if it's currently active
+      if (window.GL_APP && GL_APP.currentScreen === 'car' && window.GL_SCREENS && GL_SCREENS.renderCar) {
+        GL_SCREENS.renderCar();
       }
 
       const sd = JSON.parse(JSON.stringify(state));

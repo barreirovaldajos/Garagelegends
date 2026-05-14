@@ -207,9 +207,11 @@ async function runRaceForDivision(db, divKey, opts) {
       const podiumMult = bestPos === 1 ? 2.2 : bestPos === 2 ? 1.6 : bestPos === 3 ? 1.3 : 1.0;
       const fansGained = Math.round(((FAN_BASE[division] || 50) + points * (FAN_PER_PT[division] || 10)) * podiumMult);
       // Compact race result for save_data.raceResults (sponsors + finance panel)
+      const carPositions = summary ? summary.cars.map(c => c.position).filter(p => Number.isFinite(p)) : [bestPos];
       const raceEntry = {
         round, points, prizeMoney, fansGained,
         position: bestPos,
+        carPositions,
         circuit: { name: circuit.name, country: circuit.country || '', layout: circuit.layout || '' },
         weather,
         ts: Date.now()
