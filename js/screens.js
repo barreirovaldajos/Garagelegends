@@ -4536,6 +4536,7 @@ const SCREENS = {
     // Award R&D points here — reliable fallback when _applyMpPending fails (Firebase quota, timing).
     // lastAwardedRound prevents double-counting if _applyMpPending also fires later.
     const _rndRound = result._mpRound || result.round || 0;
+    console.log('DEBUG postrace R&D:', { _rndEarned, _rndRound, lastAwardedRound: state?.car?.rnd?.lastAwardedRound, currentPoints: state?.car?.rnd?.points });
     if (_rndEarned > 0 && _rndRound && state && state.car) {
       if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
       if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {

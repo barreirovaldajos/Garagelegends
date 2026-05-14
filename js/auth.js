@@ -127,8 +127,10 @@
                   const _base = _p === 1 ? 10 : _p === 2 ? 8 : _p === 3 ? 6 : _p <= 10 ? 3 : _p <= 20 ? 1 : 0;
                   if (_base > 0) _earned += _base + _bonus;
                 });
-                if (_earned > 0) sd.car.rnd.points = (sd.car.rnd.points || 0) + _earned;
-                sd.car.rnd.lastAwardedRound = _rndRound;
+                if (_earned > 0) {
+                  sd.car.rnd.points = (sd.car.rnd.points || 0) + _earned;
+                  sd.car.rnd.lastAwardedRound = _rndRound;
+                }
               }
             }
             if (!sd.meta) sd.meta = {};
@@ -218,9 +220,9 @@
             const _e = _base > 0 ? _base + _bonus : 0;
             if (_e > 0) { _totalEarned += _e; _breakdown.push(`P${_pos}:+${_e}`); }
           });
-          state.car.rnd.lastAwardedRound = _rndRound;
           if (_totalEarned > 0) {
             state.car.rnd.points = (state.car.rnd.points || 0) + _totalEarned;
+            state.car.rnd.lastAwardedRound = _rndRound;
             if (window.GL_STATE && GL_STATE.addLog) {
               GL_STATE.addLog(`🔬 +${_totalEarned} pts de I+D (${_breakdown.join(', ')})`, 'good');
             }
