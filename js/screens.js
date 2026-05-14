@@ -4475,6 +4475,13 @@ const SCREENS = {
       .join('');
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
+    const _rndBestPos = playerCars.length > 0
+      ? playerCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
+      : (result.position || 99);
+    const _rndBase = _rndBestPos === 1 ? 10 : _rndBestPos === 2 ? 8 : _rndBestPos === 3 ? 6 : _rndBestPos <= 10 ? 3 : _rndBestPos <= 20 ? 1 : 0;
+    const _rndLv = (state && state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
+    const _rndBonus = Math.max(0, _rndLv - 1);
+    const _rndEarned = _rndBase > 0 ? _rndBase + _rndBonus : 0;
     const crashReports = playerCars
       .filter((car) => car && car.isDNF)
       .map((car) => ({
@@ -4571,6 +4578,7 @@ const SCREENS = {
           <div style="display:grid;gap:6px;margin-top:10px">${heroTeamResults}</div>
           <div class="post-race-metrics">
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
+              ${_rndEarned > 0 ? `<div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-accent)">+${_rndEarned}</div><div class="post-race-metric-label">🔬 ${__('postrace_rnd_earned', 'Pts I+D')}</div></div>` : ''}
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.weeklyNetDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.weeklyNetDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.weeklyNetDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_weekly_balance', 'Weekly balance')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.totalDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.totalDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.totalDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_credit_delta', 'Total credit delta')}</div></div>
