@@ -115,7 +115,7 @@
               // where _applyMpPending() runs before loadState() replaces _state.
               const _rndRound = pendingRaceResult.round;
               if (!sd.car) sd.car = {};
-              if (!sd.car.rnd) sd.car.rnd = { points: 0, active: null, queue: [] };
+              if (!sd.car.rnd) sd.car.rnd = { points: 0, active: null, queue: {} };
               if (!sd.car.rnd.lastAwardedRound || sd.car.rnd.lastAwardedRound < _rndRound) {
                 const _lv = (sd.hq && sd.hq.rnd) ? Number(sd.hq.rnd) : 1;
                 const _bonus = Math.max(0, _lv - 1);

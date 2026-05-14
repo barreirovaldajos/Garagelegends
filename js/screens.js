@@ -1561,6 +1561,7 @@ const SCREENS = {
   renderCar() {
     const state = GL_STATE.getState();
     const car = state.car;
+    console.log('DEBUG R&D Points:', car.rnd.points);
     const el = document.getElementById('screen-car');
     if (!el) return;
     const total = Math.round(Object.values(car.components).reduce((s,c)=>s+c.score,0)/Object.keys(car.components).length);
