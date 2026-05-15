@@ -411,17 +411,36 @@ function processResearch(state) {
     S.saveState();
     return completed;
   }
-  return rnd.active;
+  return null;
 }
 
 function getResearchStatus() {
   const state = S.getState();
+  // Detecta completiones pendientes antes de leer el estado (p.ej. modal abierto sin tick previo)
+  if (state.car.rnd.active) {
+    const completed = processResearch(state);
+    if (completed) {
+      const tree = RESEARCH_TREES[completed.treeId];
+      if (tree) S.addLog(`${tree.icon} Research: ${tree.name} Lv${completed.targetLevel} completado!`, 'good');
+    }
+  }
   const rnd = state.car.rnd;
   const caps = getHqCapabilities(state);
+  const currentWeek = state.season.week;
   return Object.keys(RESEARCH_TREES).map(treeId => {
     const tree = RESEARCH_TREES[treeId];
     const currentLevel = (rnd.queue && rnd.queue[treeId]) || 0;
-    const isActive = rnd.active && rnd.active.treeId === treeId;
+    const isActive = !!(rnd.active && rnd.active.treeId === treeId);
+    // Calcular progreso en tiempo real desde season.week, no desde el valor guardado
+    let progress = 0, statusPercent = 0, weeksLeft = null;
+    if (isActive) {
+      const startWeek = typeof rnd.active.startWeek === 'number' ? rnd.active.startWeek : currentWeek;
+      const durationWeeks = rnd.active.durationWeeks || Math.max(1, Math.ceil(rnd.active.duration / (7 * DAY_MS)));
+      const weeksElapsed = Math.max(0, currentWeek - startWeek);
+      statusPercent = Math.min(100, Math.round((weeksElapsed / durationWeeks) * 100));
+      progress = statusPercent;
+      weeksLeft = Math.max(0, durationWeeks - weeksElapsed);
+    }
     return {
       treeId,
       name: tree.name,
@@ -431,9 +450,9 @@ function getResearchStatus() {
       nextCost: tree.costPerLevel(currentLevel + 1),
       nextDuration: tree.durationPerLevel(currentLevel + 1),
       isActive,
-      progress: isActive ? (rnd.active.progress || 0) : 0,
-      statusPercent: isActive ? (rnd.active.statusPercent || 0) : 0,
-      weeksLeft: isActive ? (rnd.active.weeksLeft ?? null) : null,
+      progress,
+      statusPercent,
+      weeksLeft,
       nextComponentBoost: tree.componentBoost,
       unlocked: caps.rndUnlocked && (treeId !== 'weather' || caps.weatherResearchUnlocked)
     };

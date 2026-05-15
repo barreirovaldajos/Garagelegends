@@ -1684,7 +1684,13 @@ const SCREENS = {
                 <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:6px">
                   Mejora: ${compLabel} · ${GL_UI.fmtCR(t.nextCost)} CR · ${pointCost} pts · Duración: ${toTime(t.nextDuration)}
                 </div>
-                ${t.isActive ? `<div style="margin-top:8px">${GL_UI.progressBar(Math.round(t.progress), 100, 'blue')}</div>` : ''}
+                ${t.isActive ? `
+                  <div style="margin-top:8px">${GL_UI.progressBar(Math.round(t.statusPercent), 100, 'blue')}</div>
+                  <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:4px">
+                    ${t.weeksLeft > 0
+                      ? `⏳ Completa en ${t.weeksLeft} semana${t.weeksLeft !== 1 ? 's' : ''} — avanza semana para progresar`
+                      : `✅ Lista para completar — avanza semana`}
+                  </div>` : ''}
                 ${locked ? `<div style="font-size:0.78rem;color:var(--c-orange);margin-top:8px">Requiere Centro de I+D Nivel 2.</div>` : ''}
                 ${canStart ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_SCREENS.startResearchTree('${t.treeId}')">Iniciar (${pointCost} pts · ${GL_UI.fmtCR(t.nextCost)} CR)</button>` : ''}
                 ${canStartNoPoints ? `<div style="font-size:0.78rem;color:var(--c-red);margin-top:8px">⚠️ Sin puntos suficientes — compite para ganar más.</div>` : ''}
