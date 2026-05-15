@@ -312,33 +312,102 @@ function startResearch(treeId) {
   let duration = tree.durationPerLevel(nextLevel);
   duration = Math.floor(duration / caps.rndSpeedMultiplier);
   if ((state.team.engineSupplier || '').toLowerCase() === 'vulcan') {
-    duration = Math.floor(duration * 0.8);
+    duration = Math.floor(duration * 0.85);
   }
   if (state.finances.credits < cost) return { error: 'Insufficient funds' };
   if ((rnd.points || 0) < pointCost) return { error: `Not enough R&D points (need ${pointCost})` };
   state.finances.credits -= cost;
   rnd.points = (rnd.points || 0) - pointCost;
-  rnd.active = { treeId, startTime: getNowMs(), duration, targetLevel: nextLevel, progress: 0 };
+  const durationWeeks = Math.max(1, Math.ceil(duration / (7 * DAY_MS)));
+  rnd.active = {
+    treeId,
+    startTime: getNowMs(),
+    startWeek: state.season.week,
+    duration,
+    durationWeeks,
+    targetLevel: nextLevel,
+    progress: 0,
+    statusPercent: 0,
+    weeksLeft: durationWeeks
+  };
   S.saveState();
-  return { success: true, treeId, cost, pointCost, duration, targetLevel: nextLevel };
+  return { success: true, treeId, cost, pointCost, duration, durationWeeks, targetLevel: nextLevel };
+}
+
+function _completeResearch(state) {
+  const rnd = state.car.rnd;
+  const active = rnd.active;
+  if (!active) return null;
+  const tree = RESEARCH_TREES[active.treeId];
+  if (!tree) { rnd.active = null; return null; }
+
+  if (!rnd.queue) rnd.queue = {};
+  rnd.queue[active.treeId] = active.targetLevel;
+
+  const component = state.car.components[tree.componentBoost];
+  if (component) component.score = Math.min(99, component.score + tree.boostPerLevel);
+
+  if (!Array.isArray(rnd.history)) rnd.history = [];
+  rnd.history.unshift({
+    treeId: active.treeId,
+    targetLevel: active.targetLevel,
+    completedWeek: state.season.week,
+    boostApplied: tree.boostPerLevel,
+    componentBoosted: tree.componentBoost
+  });
+  if (rnd.history.length > 20) rnd.history = rnd.history.slice(0, 20);
+
+  const completed = { ...active };
+  rnd.active = null;
+
+  // Auto-start siguiente proyecto en cola
+  if (Array.isArray(rnd.pendingQueue) && rnd.pendingQueue.length) {
+    const next = rnd.pendingQueue.shift();
+    if (next && RESEARCH_TREES[next.treeId]) {
+      const nextResult = startResearch(next.treeId);
+      if (nextResult.success) {
+        S.addLog(`🔬 Cola I+D activada: ${RESEARCH_TREES[next.treeId].name}`, 'info');
+      }
+    }
+  }
+
+  return completed;
 }
 
 function processResearch(state) {
   const rnd = state.car.rnd;
   if (!rnd.active) return null;
   const tree = RESEARCH_TREES[rnd.active.treeId];
-  const elapsed = getNowMs() - rnd.active.startTime;
-  const progress = Math.min(100, (elapsed / rnd.active.duration) * 100);
-  rnd.active.progress = progress;
-  if (elapsed >= rnd.active.duration) {
-    const treeId = rnd.active.treeId;
-    const targetLevel = rnd.active.targetLevel;
-    if (!rnd.queue) rnd.queue = {};
-    rnd.queue[treeId] = targetLevel;
-    const component = state.car.components[tree.componentBoost];
-    if (component) component.score += tree.boostPerLevel;
-    const completed = { ...rnd.active };
-    rnd.active = null;
+  if (!tree) { rnd.active = null; return null; }
+
+  const currentWeek = state.season.week;
+
+  // Migrar saves legacy sin startWeek: estimar semanas transcurridas desde startTime
+  if (typeof rnd.active.startWeek !== 'number') {
+    const nowMs = (state.meta && typeof state.meta.saveTime === 'number') ? state.meta.saveTime : Date.now();
+    const elapsedMs = Math.max(0, nowMs - (rnd.active.startTime || nowMs));
+    rnd.active.startWeek = currentWeek - Math.floor(elapsedMs / (7 * DAY_MS));
+    rnd.active.durationWeeks = Math.max(1, Math.ceil(rnd.active.duration / (7 * DAY_MS)));
+  }
+
+  const durationWeeks = rnd.active.durationWeeks;
+  const weeksElapsed = Math.max(0, currentWeek - rnd.active.startWeek);
+
+  // Progreso primario: semanas de juego. Fallback: tiempo real via meta.saveTime
+  const nowMs = (state.meta && typeof state.meta.saveTime === 'number') ? state.meta.saveTime : Date.now();
+  const realElapsedMs = Math.max(0, nowMs - (rnd.active.startTime || nowMs));
+  const completedByWeeks = weeksElapsed >= durationWeeks;
+  const completedByRealTime = realElapsedMs >= rnd.active.duration;
+
+  const statusPercent = Math.min(100, Math.round((weeksElapsed / durationWeeks) * 100));
+  const weeksLeft = Math.max(0, durationWeeks - weeksElapsed);
+
+  rnd.active.progress = statusPercent;
+  rnd.active.statusPercent = statusPercent;
+  rnd.active.weeksLeft = weeksLeft;
+
+  if (completedByWeeks || completedByRealTime) {
+    const completed = _completeResearch(state);
     S.saveState();
     return completed;
   }
@@ -362,7 +431,9 @@ function getResearchStatus() {
       nextCost: tree.costPerLevel(currentLevel + 1),
       nextDuration: tree.durationPerLevel(currentLevel + 1),
       isActive,
-      progress: isActive ? rnd.active.progress : 0,
+      progress: isActive ? (rnd.active.progress || 0) : 0,
+      statusPercent: isActive ? (rnd.active.statusPercent || 0) : 0,
+      weeksLeft: isActive ? (rnd.active.weeksLeft ?? null) : null,
       nextComponentBoost: tree.componentBoost,
       unlocked: caps.rndUnlocked && (treeId !== 'weather' || caps.weatherResearchUnlocked)
     };
@@ -2708,7 +2779,7 @@ function endSeason() {
   state.season.lastSummaryPending = true;
 
   // Reiniciar tecnología (I+D) por cambio de temporada.
-  state.car.rnd = { points: 0, active: null, queue: {} };
+  state.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {}, history: [], pendingQueue: [] };
 
   // Nueva temporada
   state.season.year = completedYear + 1;
