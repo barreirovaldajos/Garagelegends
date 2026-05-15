@@ -3208,7 +3208,7 @@ const SCREENS = {
         <div class="screen-actions">
           ${next.savedStrategy ? `<span style="font-size:0.78rem;color:var(--c-green);display:flex;align-items:center;gap:4px">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</span>` : ''}
           <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${next.savedStrategy ? (__('prerace_update_strat') || '💾 Actualizar Estrategia') : (window.__('prerace_save_strat') || '💾 Guardar Estrategia')}</button>
-          <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:4px">${__('prerace_mp_info') || 'La carrera se simula automáticamente el domingo 18:00 UTC'}</div>
+
         </div>
       </div>
       <div class="prerace-grid">
