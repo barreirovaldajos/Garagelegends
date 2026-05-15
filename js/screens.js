@@ -2701,15 +2701,18 @@ const SCREENS = {
                 .map((sp) => {
                   const incomeVal = Number(sp.weeklyValue || sp.income || 0);
                   const weeksLeft = sp.weeksLeft != null ? Number(sp.weeksLeft) : Number(sp.duration || 0);
+                  const demandBonus = Number(sp.demandBonus || 0);
                   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)">
-                    <div style="display:flex;align-items:center;gap:8px;min-width:0">
-                      <span style="font-size:1rem">${sp.logo || '💼'}</span>
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                      <span style="font-size:1.4rem">${sp.logo || '💼'}</span>
                       <div style="min-width:0">
-                        <div style="font-weight:700;color:var(--t-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sp.name || __('finances_sponsors')}</div>
-                        <div style="font-size:0.74rem;color:var(--t-secondary)">${__('market_duration')}: ${weeksLeft} ${__('market_weeks')}</div>
+                        <div style="font-weight:700;color:${sp.color||'var(--t-primary)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sp.name || __('finances_sponsors')}</div>
+                        <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:2px">${weeksLeft} ${__('market_weeks')} · ${sp.demand || ''}</div>
+                        ${demandBonus > 0 ? `<div style="font-size:0.74rem;color:var(--c-gold);margin-top:2px">🎯 Bonus si cumples: +${GL_UI.fmtCR(demandBonus)}</div>` : ''}
+                        <div style="font-size:0.72rem;color:var(--c-green);margin-top:2px">✓ Contrato activo</div>
                       </div>
                     </div>
-                    <div style="font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(incomeVal)}${__('per_week')}</div>
+                    <div style="font-weight:800;color:var(--c-green);white-space:nowrap">+${GL_UI.fmtCR(incomeVal)}${__('per_week')}</div>
                   </div>`;
                 })
                 .join('')
