@@ -641,7 +641,7 @@ function getDefaultPitTyres(strategy = {}, weather = 'dry') {
   if (preset.length === 2) return preset;
   const startTyre = strategy.tyre || getDefaultRaceTyre(weather);
   if (weather === 'wet') {
-    return [preset[0] || (startTyre === 'wet' ? 'intermediate' : 'intermediate'), preset[1] || 'intermediate'];
+    return [preset[0] || 'intermediate', preset[1] || 'intermediate'];
   }
   if (startTyre === 'soft') return [preset[0] || 'hard', preset[1] || 'medium'];
   if (startTyre === 'hard') return [preset[0] || 'medium', preset[1] || 'soft'];
@@ -926,26 +926,36 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}, rng) {
 }
 
 // ---- tyre degradation per compound ----
+// paceDeltaMs: ms added to each lap time vs medium/dry baseline (negative = faster)
+// durabilityPct [min,max]: % of race laps before degradation cliff
 const TYRE_COMPOUNDS = {
   soft: {
-    dry: { durabilityPct: [0.15, 0.30], paceDeltaMs: -550 },
-    wet: { durabilityPct: [0.10, 0.20], paceDeltaMs: 4200 }
+    // Fastest in dry, fragile — optimal for ~12-15% of laps before cliff
+    dry: { durabilityPct: [0.13, 0.25], paceDeltaMs: -550 },
+    // Slick in rain: loses ~4s/lap, degrades extremely fast
+    wet: { durabilityPct: [0.08, 0.16], paceDeltaMs: 3800 }
   },
   medium: {
+    // Baseline compound, versatile
     dry: { durabilityPct: [0.30, 0.50], paceDeltaMs: 0 },
-    wet: { durabilityPct: [0.15, 0.25], paceDeltaMs: 5200 }
+    wet: { durabilityPct: [0.13, 0.22], paceDeltaMs: 5000 }
   },
   hard: {
-    dry: { durabilityPct: [0.50, 0.70], paceDeltaMs: 500 },
-    wet: { durabilityPct: [0.20, 0.30], paceDeltaMs: 6200 }
+    // ~0.5s slower in dry, built for long stints
+    dry: { durabilityPct: [0.52, 0.72], paceDeltaMs: 500 },
+    wet: { durabilityPct: [0.18, 0.28], paceDeltaMs: 6000 }
   },
   intermediate: {
-    dry: { durabilityPct: [0.10, 0.25], paceDeltaMs: 4200 },
-    wet: { durabilityPct: [0.40, 0.70], paceDeltaMs: 800 }
+    // Designed for damp/mixed. Ruins itself on dry asphalt in ~5 laps
+    dry: { durabilityPct: [0.07, 0.16], paceDeltaMs: 3800 },
+    // Competitive in light/medium rain, very durable
+    wet: { durabilityPct: [0.42, 0.72], paceDeltaMs: 550 }
   },
   wet: {
-    dry: { durabilityPct: [0.05, 0.15], paceDeltaMs: 6500 },
-    wet: { durabilityPct: [0.20, 0.40], paceDeltaMs: 0 }
+    // Only for extreme rain. Catastrophic on dry
+    dry: { durabilityPct: [0.04, 0.10], paceDeltaMs: 6200 },
+    // Optimal in heavy rain, but shorter window than inters
+    wet: { durabilityPct: [0.22, 0.42], paceDeltaMs: 0 }
   }
 };
 
@@ -965,7 +975,17 @@ function getTyreUsefulLife(tyre, weather = 'dry', totalLaps = 60) {
 }
 
 function getTyreWearStep(tyre, weather) {
-  return 1;
+  // Wear units accumulated per lap. Determines how fast a compound reaches its cliff.
+  // Also controls degradation slope past the cliff (wearOveruse grows at this rate).
+  const rates = {
+    soft:         { dry: 1.38, wet: 1.90 },
+    medium:       { dry: 1.00, wet: 1.30 },
+    hard:         { dry: 0.73, wet: 0.94 },
+    intermediate: { dry: 2.20, wet: 0.80 },
+    wet:          { dry: 3.10, wet: 1.12 }
+  };
+  const r = rates[tyre] || rates.medium;
+  return weather === 'wet' ? r.wet : r.dry;
 }
 
 function getTyrePaceDeltaMs(tyre, weather = 'dry') {
@@ -2052,8 +2072,9 @@ function simulateRace(options = {}) {
       const currentTyre = entry.tyre || s.tyre || 'medium';
       if (rt) {
         const baseWear = getTyreWearStep(currentTyre, liveWeather) * lapProfile.tyreDegMult * (1 + engineFx.tyre) * setup.tyreMult;
-        const aggressionWear = Math.max(0, ((s.aggression || 50) - 50) * 0.003);
-        rt.wear += baseWear + aggressionWear;
+        // Conservative driving reduces wear; aggressive driving increases it
+        const aggressionWear = ((s.aggression || 50) - 50) * 0.0028;
+        rt.wear = Math.max(0, rt.wear + baseWear + aggressionWear);
       }
 
       const rawPace = clamp(Number(entry.base || entry.score || entry.gridScore || 60), 35, 99);
@@ -2063,7 +2084,7 @@ function simulateRace(options = {}) {
       const engineMs = (engineFx.pace || 0) * 2200;
       const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
       const wearOveruse = rt ? Math.max(0, rt.wear - usefulLife) : 0;
-      const wearMs = wearOveruse * 1100;
+      const wearMs = wearOveruse * 460;
       const lapBaseMs = safetyCarActive ? 110000 : 94500;
       const consistency = clamp(Number(entry.consistency || 60), 20, 99);
       const playerNoiseHalfRange = clamp(500 - (consistency * 3), 120, 520);

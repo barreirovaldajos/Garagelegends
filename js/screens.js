@@ -26,13 +26,39 @@ const SCREENS = {
     this.renderRace();
   },
 
-  getTyreMeta(tyre) {
+  getTyreMeta(tyre, weather) {
+    const isWet = weather === 'wet';
     const compounds = {
-      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: __('compound_soft_pace', '+0.5s to +1.0s vs Medium in the dry'), durabilityText: __('compound_soft_durability', 'Lasts 15-30% of the race · drops to 10-20% in the wet') },
-      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: __('compound_medium_pace', 'Baseline compound and the most versatile'), durabilityText: __('compound_medium_durability', 'Lasts 30-50% of the race · strong for Medium -> Hard plans') },
-      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: __('compound_hard_pace', '0.5s to 0.8s slower than Medium'), durabilityText: __('compound_hard_durability', 'Lasts 50-70% of the race · best for one-stop plans') },
-      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: __('compound_intermediate_pace', 'Reference tyre on a damp track'), durabilityText: __('compound_intermediate_durability', 'Lasts 40-70% in the wet · only 10-25% on dry asphalt') },
-      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: __('compound_wet_pace', 'Only for extreme rain · usually slower than Intermediates'), durabilityText: __('compound_wet_durability', 'Lasts 20-40% in the wet · overheats in 5-15% on dry asphalt') }
+      soft: {
+        label: 'Blando', shortLabel: 'S', color: '#ff4d4f',
+        paceText: isWet ? '⚠️ ~3.8s/vuelta más lento · usa lluvia/inters' : '0.55s más rápido que Medio · ventana corta',
+        durabilityText: isWet ? 'Solo 8-16% de la carrera en mojado · se destruye rápido' : 'Cliff a ~12-15% de vueltas · degradación rápida tras el límite',
+        weatherWarning: isWet ? '⚠️ Neumático equivocado para lluvia' : null
+      },
+      medium: {
+        label: 'Medio', shortLabel: 'M', color: '#f1c40f',
+        paceText: isWet ? '⚠️ ~5s/vuelta más lento en lluvia' : 'Compuesto de referencia · equilibrio ritmo/duración',
+        durabilityText: isWet ? '13-22% de la carrera en mojado' : 'Aguanta 30-50% de la carrera · ideal paradas únicas moderadas',
+        weatherWarning: isWet ? '⚠️ Neumático equivocado para lluvia' : null
+      },
+      hard: {
+        label: 'Duro', shortLabel: 'H', color: '#e8e8e8',
+        paceText: isWet ? '⚠️ ~6s/vuelta más lento en lluvia' : '0.5s más lento que Medio · el más duradero en seco',
+        durabilityText: isWet ? '18-28% de la carrera en mojado' : 'Cliff a ~52-72% de vueltas · perfecto para parada única',
+        weatherWarning: isWet ? '⚠️ Neumático equivocado para lluvia' : null
+      },
+      intermediate: {
+        label: 'Intermedio', shortLabel: 'I', color: '#2ecc71',
+        paceText: isWet ? 'Referencia en pista mojada · 0.55s vs lluvia plena' : '⚠️ ~3.8s/vuelta más lento · se destruye en 5-7 vueltas en seco',
+        durabilityText: isWet ? 'Aguanta 42-72% de la carrera en mojado · muy duradero' : 'Solo 7-16% en seco · entrar a boxes urgente',
+        weatherWarning: isWet ? null : '⚠️ Neumático de lluvia en pista seca'
+      },
+      wet: {
+        label: 'Lluvia', shortLabel: 'W', color: '#3498db',
+        paceText: isWet ? 'Óptimo en lluvia extrema · referencia absoluta' : '⚠️ +6.2s/vuelta · se destruye en 3-4 vueltas en seco',
+        durabilityText: isWet ? 'Ventana 22-42% de la carrera · menos que los inters' : 'Solo 4-10% en seco · salida de boxes inmediata',
+        weatherWarning: isWet ? null : '⚠️ Neumático de lluvia extrema en pista seca'
+      }
     };
     return compounds[tyre] || compounds.medium;
   },
@@ -3225,7 +3251,7 @@ const SCREENS = {
             const slotLabel = pilotSlot === 0 ? 'Piloto 1' : pilotSlot === 1 ? 'Piloto 2' : null;
             const slotColor = pilotSlot === 0 ? 'var(--c-accent)' : '#a78bfa';
             const cfg = this.getDriverStrategyDefaults(window._raceStrategy || baseStrategy, window._raceStrategy?.driverConfigs?.[p.id] || {});
-            const tyreMeta = this.getTyreMeta(cfg.tyre);
+            const tyreMeta = this.getTyreMeta(cfg.tyre, next.weather);
             return `
             <div class="morale-pill" style="margin-bottom:var(--s-3);${selected ? `border:1.5px solid ${slotColor}55;` : ''}">
               <div class="morale-avatar" style="font-size:1.2rem">${p.emoji||'🧑'}</div>
@@ -3246,8 +3272,10 @@ const SCREENS = {
                   <div class="ds-section-label">Neumático de salida</div>
                   <div class="ds-tyre-row">
                     <span class="badge" style="background:${tyreMeta.color}22;color:${tyreMeta.color};border:1px solid ${tyreMeta.color}55;padding:3px 10px">${tyreMeta.label}</span>
-                    <span class="ds-tyre-meta">${tyreMeta.paceText} · ${tyreMeta.durabilityText}</span>
+                    <span class="ds-tyre-meta">${tyreMeta.paceText}</span>
                   </div>
+                  <div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:2px">${tyreMeta.durabilityText}</div>
+                  ${tyreMeta.weatherWarning ? `<div style="font-size:0.74rem;font-weight:700;color:var(--c-accent);background:rgba(232,41,42,0.1);border:1px solid rgba(232,41,42,0.3);border-radius:6px;padding:5px 10px;margin-top:6px">${tyreMeta.weatherWarning}</div>` : ''}
                   <div class="ds-selects-row">
                     <div class="ds-select-wrap">
                       <label class="ds-select-label">Neumático</label>
