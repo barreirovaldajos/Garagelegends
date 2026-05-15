@@ -204,10 +204,6 @@ function getSeasonWetRaceTarget() {
 }
 
 function generateCalendar(division) {
-  if (typeof window !== 'undefined' && typeof window.RACE_STATUS === 'undefined') {
-    // Cargar enums si no están presentes
-    try { window.RACE_STATUS = require('./game_constants.js').RACE_STATUS; } catch(e) {}
-  }
   const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
   const count = 8;
   const shuffled = [...CIRCUITS].sort(() => Math.random() - 0.5);

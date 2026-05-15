@@ -1587,7 +1587,6 @@ const SCREENS = {
   renderCar() {
     const state = GL_STATE.getState();
     const car = state.car;
-    console.log('DEBUG R&D Points:', car.rnd.points);
     const el = document.getElementById('screen-car');
     if (!el) return;
     const total = Math.round(Object.values(car.components).reduce((s,c)=>s+c.score,0)/Object.keys(car.components).length);
@@ -4398,7 +4397,6 @@ const SCREENS = {
             _rnd.awardedRounds[_liveRound] = true;
             if (GL_STATE.addLog) GL_STATE.addLog(`🔬 +${_earned} pts de I+D (${_breakdown.join(', ')})`, 'good');
           }
-          console.log('DEBUG finishRace R&D: round', _liveRound, '| cars', _cars, '| earned', _earned, '| total', _rnd.points);
           if (GL_STATE.saveState) GL_STATE.saveState();
         }
       }
@@ -4581,7 +4579,6 @@ const SCREENS = {
         state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
         state.car.rnd.awardedRounds[_rndRound] = true;
         GL_STATE.saveState();
-        console.log('DEBUG postrace R&D awarded:', _rndEarned, '→ total', state.car.rnd.points);
       }
     }
     const crashReports = playerCars

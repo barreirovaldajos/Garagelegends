@@ -483,9 +483,6 @@ function loadState() {
 
       // --- Migración de estados legacy de carrera a enums centralizados ---
       if (_state.season && Array.isArray(_state.season.calendar)) {
-        if (typeof window !== 'undefined' && typeof window.RACE_STATUS === 'undefined') {
-          try { window.RACE_STATUS = require('./game_constants.js').RACE_STATUS; } catch(e) {}
-        }
         const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
         _state.season.calendar = _state.season.calendar.map(race => ({
           ...race,
