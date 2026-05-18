@@ -2232,6 +2232,53 @@ function simulateRace(options = {}) {
 
     updateRunningOrder();
 
+    // Narrative events: AI overtakes and race story moments
+    if (!safetyCarActive) {
+      // AI-vs-AI overtake every ~8 laps
+      if (lap % 8 === 3) {
+        const activeAI = positions.filter(e => !e.isPlayer && !e.retired).sort((a, b) => a.pos - b.pos);
+        if (activeAI.length >= 2) {
+          const attackerIdx = Math.floor(rng.next() * Math.min(activeAI.length - 1, 8));
+          const attacker = activeAI[attackerIdx + 1];
+          const defender = activeAI[attackerIdx];
+          if (attacker && defender && rng.next() < 0.55 * lapProfile.overtakeBias) {
+            const tmp = attacker.pos; attacker.pos = defender.pos; defender.pos = tmp;
+            attacker.timeMs = Math.max(0, attacker.timeMs - 700);
+            defender.timeMs += 700;
+            events.push({ lap, type: 'info', text: `🔄 ${formatTranslatedText('race_event_ai_overtake', { attacker: attacker.name, defender: defender.name, pos: attacker.pos }, '<strong>{attacker}</strong> overtakes <strong>{defender}</strong> for P{pos}!')}` });
+          }
+        }
+      }
+
+      // Spin/incident for a random AI car every ~12 laps
+      if (lap % 12 === 7 && rng.next() < 0.35) {
+        const activeAI = positions.filter(e => !e.isPlayer && !e.retired && e.pos > 3);
+        if (activeAI.length > 0) {
+          const victim = activeAI[Math.floor(rng.next() * activeAI.length)];
+          victim.timeMs += 2400;
+          events.push({ lap, type: 'incident', text: `🌀 ${formatTranslatedText('race_event_ai_spin', { name: victim.name }, '<strong>{name}</strong> has a spin and loses time!')}` });
+        }
+      }
+
+      // Race status update at 25%, 50%, 75% of race
+      const quarterLap = Math.floor(totalLaps / 4);
+      if (quarterLap > 0 && (lap === quarterLap || lap === quarterLap * 2 || lap === quarterLap * 3)) {
+        const active = positions.filter(e => !e.retired).sort((a, b) => a.pos - b.pos);
+        const leader = active[0];
+        const playerCar = active.find(e => e.isPlayer);
+        if (leader && playerCar && !playerCar.retired) {
+          const pct = Math.round((lap / totalLaps) * 100);
+          const gapToLeaderMs = Math.max(0, playerCar.timeMs - leader.timeMs);
+          const gapSec = (gapToLeaderMs / 1000).toFixed(1);
+          if (playerCar.pos === 1) {
+            events.push({ lap, type: 'good', text: `📍 ${pct}% ${translateText('race_narrative_leading', 'Laps completed.')} <strong>${playerCar.pilotName}</strong> ${translateText('race_narrative_leads', 'leads the race!')}` });
+          } else {
+            events.push({ lap, type: 'info', text: `📍 ${pct}% ${translateText('race_narrative_laps_done', 'Laps completed.')} <strong>${playerCar.pilotName}</strong> P${playerCar.pos} · +${gapSec}s ${translateText('race_narrative_gap', 'behind leader')} <strong>${leader.name}</strong>.` });
+          }
+        }
+      }
+    }
+
     const leaderTime = positions.filter((entry) => !entry.retired).reduce((best, entry) => Math.min(best, entry.timeMs), Number.POSITIVE_INFINITY);
     lapSnapshots.push({
       lap,
@@ -2762,15 +2809,18 @@ function endSeason() {
     return aPos - bPos;
   });
   const myStanding = standings.find((s) => s.id === 'player') || S.getMyStanding() || { position: 10, points: 0, wins: 0 };
-  const finalPosition = Number(myStanding.position) || 10;
+  const _rawPos = Number(myStanding.position);
+  const finalPosition = Number.isFinite(_rawPos) && _rawPos > 0 ? _rawPos : 10;
   const finalPoints = Number(myStanding.points) || 0;
   const finalWins = Number(myStanding.wins) || 0;
   const finalPodiums = Number(myStanding.podiums) || 0;
   const transition = getDivisionTransition(state, finalPosition);
 
-  const bonusCredits = finalPosition <= 3 ? 100000 : 0;
+  const _posBonus = { 1: 200000, 2: 120000, 3: 80000, 4: 50000, 5: 30000 };
+  const bonusCredits = _posBonus[finalPosition] || 0;
   if (bonusCredits > 0) {
     S.addCredits(bonusCredits);
+    S.addLog(`🏆 Bonus de posición final P${finalPosition}: +${bonusCredits.toLocaleString()} CR`, 'good');
   }
 
   state.season.division = transition.nextDivision;
@@ -2787,6 +2837,15 @@ function endSeason() {
   }
   state.season.divisionGroup = nextDivisionGroup;
 
+  // GL-034: snapshot top-3 for the ceremony podium display
+  const top3Snapshot = standings.slice(0, 3).map(s => ({
+    teamName: s.teamName || s.id || '?',
+    logo: s.logo || '',
+    points: Number(s.points) || 0,
+    wins: Number(s.wins) || 0,
+    isPlayer: s.id === 'player'
+  }));
+
   const seasonSummary = {
     year: completedYear,
     division: completedDivision,
@@ -2799,6 +2858,7 @@ function endSeason() {
     nextDivision: transition.nextDivision,
     nextDivisionGroup,
     bonusCredits,
+    top3: top3Snapshot,
     ts: Date.now()
   };
 
@@ -3056,6 +3116,9 @@ function updateStandings(raceResult) {
     }
   });
 
+  // GL-019: snapshot position before re-sorting so UI can show ▲/▼ change
+  standings.forEach(s => { s.prevPosition = s.position || null; });
+
   // Sort and atomically swap in the fully-computed table.
   standings.sort((a, b) => b.points - a.points || b.wins - a.wins);
   standings.forEach((s, i) => { s.position = i + 1; });
@@ -3207,6 +3270,9 @@ function refreshForecastForNextRace() {
   const cal = (state && state.season && state.season.calendar) ? state.season.calendar : [];
   const nextRace = cal.find(r => r.status === 'next');
   if (!nextRace || !nextRace.circuit) return null;
+
+  // GL-022/048: once user opens the prep screen, forecast is locked — no more random drift
+  if (nextRace.forecast && nextRace.forecast.lockedForPrep) return nextRace.forecast;
 
   if (!nextRace.forecast) {
     const wetBase = Math.max(5, Math.min(95, 100 - (nextRace.circuit.weather || 70)));

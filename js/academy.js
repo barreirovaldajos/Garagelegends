@@ -83,13 +83,24 @@ const Academy = {
       'Kai','Noa','Sasha','Avery','Quinn','Reese','Blake','Emery','Skyler','Dakota',
       'Luca','Mika','Tariq','Soren','Zara','Nico','Yael','Cleo','Ezra','Remy',
       'Finn','Sage','Beau','Cruz','Juno','Ren','Briar','Dani','Mace','Shay',
-      'Ara','Rex','Vito','Sol','Ines','Kofi','Tao','Lexi','Rafe','Gael'
+      'Ara','Rex','Vito','Sol','Ines','Kofi','Tao','Lexi','Rafe','Gael',
+      'Ivan','Priya','Amara','Hiro','Fatou','Lukas','Sienna','Omar','Petra','Idris',
+      'Vera','Koby','Aiko','Sven','Cora','Nate','Elif','Ravi','Zelda','Dayo',
+      'Henri','Nadia','Elias','Linh','Tobias','Yemi','Cian','Sofía','Arjun','Isla',
+      'Kira','Mateo','Zuri','Leon','Amira','Paco','Hana','Viktor','Luna','Seun',
+      'Abel','Nora','Rafiq','Vivienne','Joko','Elena','Bruno','Mei','Asher','Imani'
     ];
     const lastNames = [
       'Vega','Park','Diaz','Chen','Müller','Rossi','Novak','Obi','Souza','Patel',
       'Kowalski','Nakamura','Ferreira','Costa','Ibarra','Johansson','Okafor','Yıldız',
       'Santos','Berg','Reis','Kato','Flores','Andersen','Mensah','Rivera','Dubois',
-      'Moreau','Tremblay','Hoffman','Walsh','Reyes','Kim','Sato','Gomez','Nkosi'
+      'Moreau','Tremblay','Hoffman','Walsh','Reyes','Kim','Sato','Gomez','Nkosi',
+      'Adeyemi','Strand','Moura','Szabo','Petrov','Tanaka','Okoro','Lavoie','Bernal',
+      'Nilsen','Ferraro','Webb','Khoury','Braun','Diallo','Saito','Rueda','Asante',
+      'Morozova','Montoya','Lemos','Haverford','Polanski','Ade','Adesanya','Huang',
+      'Lindqvist','Camacho','Osei','Mbeki','Tran','Vasiliev','Delacroix','Nakagawa',
+      'Alves','Bautista','Eriksson','Farouk','Guerrero','Haddad','Iwata','Jansen',
+      'Kaur','Larsson','Mancini','Nwachukwu','Ortega','Pham','Ramirez','Spence'
     ];
 
     // Collect all names already in use across the whole game

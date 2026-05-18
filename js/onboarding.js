@@ -44,15 +44,18 @@ const OB = {
   },
 
   getCountryCatalog() {
-    if (this._countryCatalog) return this._countryCatalog;
     const lang = (window.GL_I18N && GL_I18N.currentLang === 'es') ? 'es' : 'en';
+    // GL-042: don't persist cache across language changes
+    if (this._countryCatalog && this._countryCatalogLang === lang) return this._countryCatalog;
     const display = (typeof Intl !== 'undefined' && Intl.DisplayNames)
       ? new Intl.DisplayNames([lang], { type: 'region' })
       : null;
 
+    this._countryCatalogLang = lang;
     this._countryCatalog = this.COUNTRY_CODES.map(code => {
       const safeCode = String(code || '').toUpperCase();
-      const name = display ? display.of(safeCode) : safeCode;
+      let name;
+      try { name = display ? display.of(safeCode) : safeCode; } catch(_) { name = safeCode; }
       const flag = this.countryCodeToFlag(safeCode);
       return {
         code: safeCode,
@@ -60,7 +63,7 @@ const OB = {
         flag,
         label: `${flag} ${name} (${safeCode})`
       };
-    }).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    }).sort((a, b) => String(a.name).localeCompare(String(b.name), lang));
 
     return this._countryCatalog;
   },
@@ -193,7 +196,7 @@ const OB = {
         
         <div>
           <p style="font-size:0.85rem;color:var(--t-secondary);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.05em">Selecciona tu base de operaciones:</p>
-          <input id="ob-country-search" list="ob-country-list" placeholder="Busca un país (ej: Chile, Spain, Japan)" style="width:100%;padding:12px;border:1px solid #333;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--t-primary)">
+          <input id="ob-country-search" list="ob-country-list" placeholder="${__('ob_country_search_placeholder', 'Busca un país (ej: Chile, España, Japón)')}" style="width:100%;padding:12px;border:1px solid #333;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--t-primary)">
           <datalist id="ob-country-list"></datalist>
           <div id="ob-country-selected" style="margin-top:10px;font-size:0.85rem;color:var(--t-secondary)"></div>
         </div>

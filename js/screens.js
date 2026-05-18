@@ -1103,16 +1103,15 @@ const SCREENS = {
           </div>
           
           <div class="card">
-            <div class="section-eyebrow">Gestión de Construcción</div>
-            <div class="section-title mb-2">Pase Mensual VIP</div>
-            <p style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:var(--s-3)">Acelera la construcción instantáneamente usando Tokens, o despacha 2 mejoras simultáneas con el Pase VIP.</p>
+            <div class="section-eyebrow">${__('garage_construction_title', 'Gestión de Construcción')}</div>
             ${c.active ? `
-              <button class="btn btn-gold w-full" onclick="GL_SCREENS.showBoostModal()">
-                ⚡ Acelerar ${GL_DATA.FACILITIES.find(f=>f.id===c.buildingId)?.name} (5 Tokens)
+              <button class="btn btn-gold w-full mb-3" onclick="GL_SCREENS.showBoostModal()">
+                ⚡ ${__('garage_boost_btn', 'Acelerar')} ${GL_DATA.FACILITIES.find(f=>f.id===c.buildingId)?.name} (5 ${__('tokens', 'Tokens')})
               </button>
             ` : `
-              <button class="btn btn-secondary w-full disabled">Sin construcciones activas</button>
+              <button class="btn btn-secondary w-full mb-3" disabled>${__('garage_no_active', 'Sin construcciones activas')}</button>
             `}
+            ${this._renderVipCard(state)}
           </div>
         </div>
       </div>`;
@@ -1167,7 +1166,91 @@ const SCREENS = {
     }
   },
 
+  _renderVipCard(state) {
+    const vipUntil = state.team && state.team.vipUntil;
+    const vipActive = vipUntil && vipUntil > Date.now();
+    const daysLeft = vipActive ? Math.ceil((vipUntil - Date.now()) / 86400000) : 0;
+    const benefits = [
+      __('vip_benefit_1', '-20% tiempo de construcción'),
+      __('vip_benefit_2', '+1 Token diario de login'),
+      __('vip_benefit_3', 'Acceso a patrocinadores VIP exclusivos'),
+      __('vip_benefit_4', 'Slot extra de investigación I+D'),
+    ];
+    const premiumBenefits = [
+      __('vip_benefit_5', 'Logos VIP exclusivos para tu escudería'),
+      __('vip_benefit_6', 'Paleta de colores ampliada (12 colores extra)'),
+    ];
+    const canRenew = vipActive && daysLeft <= 7;
+    return vipActive
+      ? `<div style="background:linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.04));border:1px solid rgba(245,197,24,0.4);border-radius:10px;padding:12px;margin-top:var(--s-3)">
+           <div style="font-size:0.8rem;font-weight:700;color:var(--c-gold)">⭐ ${__('vip_active_title', 'Pase VIP Activo')}</div>
+           <div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:3px">${__('vip_days_left', '{d} días restantes').replace('{d}', daysLeft)}</div>
+           <div style="margin-top:8px;font-size:0.75rem;color:var(--t-secondary)">${[...benefits,...premiumBenefits].map(b=>`✓ ${b}`).join('<br>')}</div>
+           ${canRenew ? `<button class="btn btn-gold w-full btn-sm" style="margin-top:8px;font-size:0.78rem" onclick="GL_SCREENS.renewVip()">🔄 ${__('vip_renew_btn', 'Renovar ahora por 40 Tokens')} (–20%)</button>` : ''}
+         </div>`
+      : `<div style="background:rgba(255,255,255,0.03);border:1px solid var(--c-border);border-radius:10px;padding:12px;margin-top:var(--s-3)">
+           <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary)">⭐ ${__('vip_title', 'Pase VIP — 30 días')}</div>
+           <div style="margin:6px 0 10px;font-size:0.75rem;color:var(--t-secondary)">${[...benefits,...premiumBenefits].map(b=>`• ${b}`).join('<br>')}</div>
+           <div style="display:flex;gap:8px;flex-wrap:wrap">
+             <button class="btn btn-gold btn-sm" onclick="GL_SCREENS.activateVip()" style="font-size:0.8rem;flex:1">${__('vip_activate_btn', 'Activar por 50 Tokens ⭐')}</button>
+             <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.activateVip3Month()" style="font-size:0.78rem;flex:1">📦 ${__('vip_3month_btn', '3 meses × 120 Tokens (–20%)')}</button>
+           </div>
+         </div>`;
+  },
+
+  async activateVip() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const state = GL_STATE.getState();
+    if (state.team && state.team.vipUntil && state.team.vipUntil > Date.now()) {
+      GL_UI.toast(__('vip_already_active', 'El Pase VIP ya está activo'), 'info'); return;
+    }
+    const ok = await GL_UI.confirm(
+      `⭐ ${__('vip_confirm_title', 'Activar Pase VIP')}`,
+      __('vip_confirm_msg', 'Gasta 50 Tokens para activar el Pase VIP durante 30 días. Incluye: -20% tiempo de construcción, +1 Token diario, acceso a patrocinadores exclusivos, slot extra de I+D y logos VIP exclusivos.'),
+      `${__('vip_confirm_ok', 'Gastar 50 Tokens ⭐')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(50, 'vip_pass');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    if (!state.team) state.team = {};
+    state.team.vipUntil = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    GL_STATE.saveState();
+    GL_UI.toast(`⭐ ${__('vip_activated', '¡Pase VIP activado por 30 días!')}`, 'success');
+    this.renderGarage();
+  },
+
+  async renewVip() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const ok = await GL_UI.confirm('🔄 Renovar Pase VIP', 'Renueva tu Pase VIP por 40 Tokens (precio especial por renovación anticipada). Se añaden 30 días a tu pase actual.', 'Gastar 40 Tokens 🔄', 'Cancelar');
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(40, 'vip_renew');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    const state = GL_STATE.getState();
+    if (!state.team) state.team = {};
+    const base = Math.max(state.team.vipUntil || Date.now(), Date.now());
+    state.team.vipUntil = base + 30 * 24 * 60 * 60 * 1000;
+    GL_STATE.saveState();
+    GL_UI.toast('⭐ ¡Pase VIP renovado por 30 días más!', 'success');
+    this.renderGarage();
+  },
+
+  async activateVip3Month() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const ok = await GL_UI.confirm('📦 Pase VIP Trimestral', 'Activa el Pase VIP por 90 días por solo 120 Tokens. ¡Ahorra 30 Tokens versus activar mes a mes!', 'Gastar 120 Tokens 📦', 'Cancelar');
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(120, 'vip_3month');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    const state = GL_STATE.getState();
+    if (!state.team) state.team = {};
+    state.team.vipUntil = Date.now() + 90 * 24 * 60 * 60 * 1000;
+    GL_STATE.saveState();
+    GL_UI.toast('📦 ¡Pase VIP Trimestral activado por 90 días!', 'success');
+    this.renderGarage();
+  },
+
   showBoostModal() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
     GL_UI.confirm('Acelerar Construcción', '¿Usar 5 Tokens para acortar el tiempo restante de construcción al 30% del original?', 'Gastar 5 Tokens ⚡', 'Cancelar').then(async ok => {
       if (!ok) return;
       const r = await GL_STATE.spendTokens(5, 'construction_boost');
@@ -1186,6 +1269,60 @@ const SCREENS = {
          }
       }
     });
+  },
+
+  async tokenTrainPilot(pid) {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const state = GL_STATE.getState();
+    const p = state.pilots && state.pilots.find(x => x.id === pid);
+    if (!p) return;
+    const ok = await GL_UI.confirm(
+      `⚡ ${__('token_train_title', 'Reentrenar piloto')}`,
+      `${__('token_train_msg', 'Gasta 3 Tokens para que')} <strong>${p.name}</strong> ${__('token_train_msg2', 'pueda entrenarse hoy de nuevo. Los Tokens son limitados, ¡úsalos con cuidado!')}`,
+      `${__('token_train_confirm', 'Gastar 3 Tokens ⚡')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(3, 'pilot_retrain');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    p.lastTrained = new Date(0).getTime();
+    GL_STATE.saveState();
+    GL_ENGINE.trainPilot(pid);
+    this.renderPilots();
+  },
+
+  async tokenRefreshMarket() {
+    const ok = await GL_UI.confirm(
+      `⚡ ${__('token_market_title', 'Refrescar Mercado')}`,
+      __('token_market_msg', 'Gasta 2 Tokens para regenerar la lista de pilotos y patrocinadores disponibles. Los contratos activos no se ven afectados.'),
+      `${__('token_market_confirm', 'Gastar 2 Tokens ⚡')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(2, 'market_refresh');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    if (typeof GL_DATA.refreshMarket === 'function') GL_DATA.refreshMarket();
+    GL_UI.toast(__('token_market_done', '¡Mercado actualizado!'), 'success');
+    this.renderMarket();
+  },
+
+  async tokenBoostRnd() {
+    const state = GL_STATE.getState();
+    const rnd = state.car && state.car.rnd;
+    if (!rnd || !rnd.active) { GL_UI.toast(__('token_rnd_no_active', 'No hay investigación activa'), 'warning'); return; }
+    const ok = await GL_UI.confirm(
+      `⚡ ${__('token_rnd_title', 'Acelerar I+D')}`,
+      __('token_rnd_msg', 'Gasta 4 Tokens para completar instantáneamente la investigación activa.'),
+      `${__('token_rnd_confirm', 'Gastar 4 Tokens ⚡')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(4, 'rnd_boost');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    rnd.active.completesAt = Date.now() - 1;
+    GL_STATE.saveState();
+    GL_UI.toast(__('token_rnd_done', '¡Investigación completada!'), 'success');
+    this.renderCarDev();
   },
 
   computePilotMarketSalary(pilot) {
@@ -1237,7 +1374,7 @@ const SCREENS = {
           <div>
             <div class="pilot-full-name">${p.name}</div>
             <div class="pilot-full-meta">${p.nat} · ${__('age')} ${p.age}</div>
-            <span class="badge badge-orange">${__('overall')}: ${overall}</span>
+            <span class="badge badge-orange" title="Puntuación global actual del piloto (0-99). Combina clasificación, ritmo de carrera, consistencia, lluvia, neumáticos y mentalidad.">${__('overall')}: ${overall}</span>
           </div>
           <div class="pilot-full-number">${p.number||'77'}</div>
         </div>
@@ -1254,13 +1391,14 @@ const SCREENS = {
           <div style="display:flex;justify-content:space-between;margin-top:var(--s-4)">
             <div><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_salary')}</div><div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(p.salary)}${__('per_week')}</div></div>
             <div style="text-align:center"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_contract')}</div><div style="font-family:var(--font-display);font-weight:800">${p.contractWeeks||20}${__('market_weeks').substring(0,2)}</div></div>
-            <div style="text-align:center"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_potential')}</div><div style="font-family:var(--font-display);font-weight:800;color:var(--c-purple)">${p.potential}%</div></div>
+            <div style="text-align:center" title="Potencial de crecimiento del piloto. Cuánto puede mejorar su puntuación global con entrenamiento (0-100%)."><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_potential')} ❓</div><div style="font-family:var(--font-display);font-weight:800;color:var(--c-purple)">${p.potential}%</div></div>
           </div>
           <div style="margin-top:var(--s-4)">${GL_UI.progressBar(p.morale||75,100,'green')}</div>
           <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--t-tertiary);margin-top:4px"><span>${__('pilots_morale')}</span><span>${p.morale||75}/100</span></div>
           <button class="btn w-full mt-4 ${canTrain ? 'btn-secondary' : ''}" onclick="GL_ENGINE.trainPilot('${p.id}')" ${canTrain ? '' : 'disabled'}>
             ${canTrain ? '🏋️ ' + (__('pilots_train')||'Train') : '⏳ ' + (__('pilots_trained_today')||'Trained')}
           </button>
+          ${!canTrain ? `<button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.tokenTrainPilot('${p.id}')" title="Gasta 3 Tokens para entrenar hoy de nuevo">⚡ ${__('token_train_btn', 'Reentrenar con 3 Tokens')}</button>` : ''}
           <button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.dismissPilot('${p.id}')" ${pilots.length <= 2 ? 'disabled title="Necesitas al menos 2 pilotos en el equipo"' : ''}>${__('pilots_dismiss_btn') || 'Despedir piloto'}</button>
         </div>
       </div>`;
@@ -1466,14 +1604,17 @@ const SCREENS = {
             <span style="font-family:var(--font-display);font-weight:800;color:var(--c-green);font-size:1rem">+${GL_UI.fmtCR(income)}<span style="font-size:0.65rem;font-weight:400">/sem</span></span>
             ${bonusVal > 0 ? `<span style="font-size:0.72rem;color:var(--c-gold)">+${GL_UI.fmtCR(bonusVal)} bonus</span>` : ''}
           </div>
-          <div style="padding:8px;background:rgba(255,255,255,0.04);border-radius:6px">
+          <div style="padding:8px;background:rgba(255,255,255,0.04);border-radius:6px;display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:0.68rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.06em">Objetivo cada carrera</div>
             <div style="font-size:0.76rem;font-weight:600;color:var(--t-primary)">🎯 ${demandText}</div>
             ${lastRaceHint}
+            <div style="font-size:0.68rem;color:var(--t-tertiary);margin-top:2px">Si no cumples: acumulas un aviso. Al agotar avisos, el contrato se rescinde sin compensación.</div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
             <div>
+              <div style="font-size:0.66rem;color:var(--t-tertiary);margin-bottom:3px">Avisos acumulados:</div>
               <div style="display:flex;gap:4px;margin-bottom:3px">${failureDots}</div>
-              <div style="font-size:0.68rem;color:${statusColor}">${isAtRisk ? '⚠️ Última oportunidad' : failures === 0 ? 'Sin advertencias' : `${remaining} fallo${remaining!==1?'s':''} restante${remaining!==1?'s':''}`}</div>
+              <div style="font-size:0.68rem;color:${statusColor}">${isAtRisk ? '⚠️ ¡Último aviso! Otro fallo cancela el contrato' : failures === 0 ? '✅ Sin fallos — contrato estable' : `${remaining} aviso${remaining!==1?'s':''} restante${remaining!==1?'s':''} antes de la rescisión`}</div>
             </div>
             <button class="btn btn-ghost btn-sm" style="font-size:0.65rem;color:var(--t-tertiary);padding:3px 7px" onclick="GL_SCREENS.rescindSponsor('${sp.id}')">Rescindir</button>
           </div>
@@ -1914,7 +2055,10 @@ const SCREENS = {
   toggleAnalystReport() {
     const el = document.getElementById('postrace-analyst-panel');
     if (!el) return;
-    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    const open = el.style.display === 'none';
+    el.style.display = open ? 'block' : 'none';
+    const chevron = document.getElementById('postrace-analyst-chevron');
+    if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
   },
 
   renderRaceComparisonTable(result) {
@@ -2083,20 +2227,28 @@ const SCREENS = {
     const thFirstStyle = 'font-size:0.7rem;font-weight:600;color:var(--t-secondary);text-align:left;padding:6px 10px;border-bottom:1px solid var(--c-border)';
 
     return `
+      ${hasTimingData ? `
+      <div style="margin-bottom:14px;border-radius:12px;background:rgba(139,92,246,0.07);border:2px solid rgba(139,92,246,0.28);overflow:hidden">
+        <button onclick="GL_SCREENS.toggleAnalystReport()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:none;border:none;cursor:pointer;text-align:left">
+          <div>
+            <div style="font-size:0.88rem;font-weight:700;color:var(--c-accent)">🧠 Informe del Analista</div>
+            <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:1px">Métricas de tu equipo vs el campo · toca para ver</div>
+          </div>
+          <span id="postrace-analyst-chevron" style="font-size:1.1rem;color:var(--c-accent);transition:transform 0.2s">▼</span>
+        </button>
+        <div id="postrace-analyst-panel" style="display:none;padding:0 14px 14px 14px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${analystLines || '<div style="font-size:0.78rem;color:var(--t-secondary)">No hay datos suficientes para generar el informe.</div>'}
+          </div>
+        </div>
+      </div>` : ''}
+
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <div>
           <div class="postrace-report-title" style="font-size:0.9rem;font-weight:700">📊 Información de tiempos de carrera</div>
           <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:2px">Pilotos ordenados por posición final · ★ vuelta rápida</div>
         </div>
-        ${hasTimingData ? `<button class="btn btn-secondary" style="font-size:0.76rem;padding:6px 12px" onclick="GL_SCREENS.toggleAnalystReport()">🧠 Informe del Analista</button>` : ''}
       </div>
-
-      ${hasTimingData ? `<div id="postrace-analyst-panel" style="display:none;margin-bottom:14px;padding:14px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border)">
-        <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary);margin-bottom:10px">Análisis de tu equipo vs el campo</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${analystLines || '<div style="font-size:0.78rem;color:var(--t-secondary)">No hay datos suficientes para generar el informe.</div>'}
-        </div>
-      </div>` : ''}
 
       ${!hasTimingData ? `<div style="font-size:0.72rem;color:var(--t-tertiary);padding:4px 0 8px 0">⚠️ Datos de timing no disponibles para carreras multijugador (columnas de tiempo muestran —)</div>` : ''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -2351,7 +2503,7 @@ const SCREENS = {
   _liveRaceRemainingMs(divData) {
     const ls = divData && divData.liveRaceState;
     if (!ls || ls.status !== 'live' || !ls.startTime) return 0;
-    const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+    const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : ls.durationMode === 'medium' ? (4 * 60 * 1000) : (8 * 60 * 1000);
     const startMs = ls.startTime.toMillis ? ls.startTime.toMillis() : (ls.startTime.seconds ? ls.startTime.seconds * 1000 : 0);
     if (!startMs) return 0;
     return Math.max(0, startMs + 10000 + durMs - Date.now());
@@ -2805,9 +2957,12 @@ const SCREENS = {
           <div class="screen-subtitle">${__('market_subtitle')}</div>
         </div>
       </div>
-      <div class="tabs mb-6" style="max-width:400px" id="market-tabs">
-        <button class="tab ${tab==='pilots'?'active':''}" onclick="GL_SCREENS.marketTab('pilots',this)">${__('market_tab_pilots')}</button>
-        <button class="tab ${tab==='sponsors'?'active':''}" onclick="GL_SCREENS.marketTab('sponsors',this)">${__('market_tab_sponsors')}</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:var(--s-4)">
+        <div class="tabs" style="max-width:400px" id="market-tabs">
+          <button class="tab ${tab==='pilots'?'active':''}" onclick="GL_SCREENS.marketTab('pilots',this)">${__('market_tab_pilots')}</button>
+          <button class="tab ${tab==='sponsors'?'active':''}" onclick="GL_SCREENS.marketTab('sponsors',this)">${__('market_tab_sponsors')}</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.tokenRefreshMarket()" title="${__('token_market_msg', 'Gasta 2 Tokens para regenerar la lista')}">⚡ ${__('token_market_btn', 'Refrescar (2 Tokens)')}</button>
       </div>
       <div id="market-content">
         ${tab === 'sponsors' ? this.marketSponsorList() : this.marketPilotList(available)}
@@ -2843,9 +2998,9 @@ const SCREENS = {
           <div style="font-size:0.75rem;color:var(--t-tertiary);margin-top:4px;font-style:italic">"${p.bio||''}"</div>
         </div>
         <div class="market-pilot-attrs">
-          <div class="market-attr"><div class="market-attr-val">${p.attrs.pace}</div><div class="market-attr-label">PACE</div></div>
-          <div class="market-attr"><div class="market-attr-val">${p.attrs.racePace}</div><div class="market-attr-label">RACE</div></div>
-          <div class="market-attr"><div class="market-attr-val">${p.attrs.rain}</div><div class="market-attr-label">RAIN</div></div>
+          <div class="market-attr" title="Clasificación: velocidad en vuelta rápida (0-99)"><div class="market-attr-val">${p.attrs.pace}</div><div class="market-attr-label">CLASIF.</div></div>
+          <div class="market-attr" title="Ritmo de carrera: consistencia en stints largos (0-99)"><div class="market-attr-val">${p.attrs.racePace}</div><div class="market-attr-label">RITMO</div></div>
+          <div class="market-attr" title="Rendimiento en lluvia (0-99)"><div class="market-attr-val">${p.attrs.rain}</div><div class="market-attr-label">LLUVIA</div></div>
         </div>
         <div class="market-pilot-salary">
           <div class="market-pilot-salary-val">${GL_UI.fmtCR(p._marketSalary)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
@@ -2926,6 +3081,7 @@ const SCREENS = {
     if (!sp) return;
     const state = GL_STATE.getState();
     const active = state.sponsors.filter(s => !s.expired);
+    if (active.some(s => s.id === id)) { GL_UI.toast('Ya tienes un contrato activo con este patrocinador.', 'warning'); return; }
     if (active.length >= 3) { GL_UI.toast('Slots llenos. Rescinde un contrato antes de firmar uno nuevo.', 'warning'); return; }
     const fans = Number(state?.team?.fans || 0);
     if (fans < (sp.minFans || 0)) { GL_UI.toast(`Necesitas ${sp.minFans.toLocaleString()} fans para acceder a este sponsor.`, 'warning'); return; }
@@ -3132,6 +3288,7 @@ const SCREENS = {
         <table class="standings-table-full">
           <thead><tr>
             <th>${__('standings_pos')}</th>
+            <th title="Cambio de posición respecto a la última carrera">±</th>
             <th>${__('standings_team')}</th>
             <th>${__('standings_points')}</th>
             <th>${__('standings_wins')}</th>
@@ -3139,14 +3296,29 @@ const SCREENS = {
             <th>${__('standings_status')}</th>
           </tr></thead>
           <tbody>
-            ${standings.map((s, idx) => {
+            ${(()=>{
+              // GL-024: deterministic team icon from teamId/teamName hash to distinguish teams visually
+              const _TEAM_ICONS = ['🦁','🐯','🦊','🐺','🦅','🐉','🦈','🦋','🐬','🦏','🐆','🦁','🦝','🐘','🦚','🐻','🦉','🐋','🦙','🐊','🦂','🦇','🐗','🏴','🔱','⚡','🌪️','💥'];
+              const _teamIconHash = (str) => { let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; } return Math.abs(h); };
+              const myLogo = GL_STATE.getState()?.team?.logo || '';
+              return standings.map((s, idx) => {
               const isMe   = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
               const isPromo = idx < promoZone;
               const isReleg = idx >= totalTeams - relegZone && relegZone > 0;
+              const curPos = s.position || idx + 1;
+              const prev = Number(s.prevPosition);
+              const posChange = (prev > 0 && prev !== curPos) ? prev - curPos : 0;
+              const posChangeHtml = posChange > 0
+                ? `<span style="color:var(--c-green);font-size:0.78rem;font-weight:700">▲${posChange}</span>`
+                : posChange < 0
+                  ? `<span style="color:var(--c-red);font-size:0.78rem;font-weight:700">▼${Math.abs(posChange)}</span>`
+                  : `<span style="color:var(--t-tertiary);font-size:0.72rem">—</span>`;
+              const teamIcon = isMe ? (myLogo || '⭐') : (s.logo || _TEAM_ICONS[_teamIconHash(s.teamId || s.teamName || String(idx)) % _TEAM_ICONS.length]);
               return `<tr class="${isMe ? 'my-row' : ''} ${isPromo ? 'promoted' : ''} ${isReleg ? 'relegated' : ''}">
-                <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${s.position || idx + 1}</div></td>
+                <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${curPos}</div></td>
+                <td style="text-align:center">${posChangeHtml}</td>
                 <td style="min-width:200px">
-                  <span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${escapeHtml(s.teamName || 'Team')}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+                  <span style="font-size:1rem;margin-right:5px">${teamIcon}</span><span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${escapeHtml(s.teamName || 'Team')}${isMe ? '' : (!s.isPlayer ? ' 🤖' : '')}</span>
                   ${isMe ? `<span style="font-size:0.8rem;color:var(--c-accent);margin-left:6px">${__('standings_you')}</span>` : ''}
                 </td>
                 <td><strong style="color:var(--c-gold)">${s.points || 0}</strong></td>
@@ -3154,7 +3326,8 @@ const SCREENS = {
                 <td>${s.podiums || 0}</td>
                 <td>${isPromo ? `<span class="badge badge-green">${__('standings_promote')}</span>` : isReleg ? `<span class="badge badge-red">${__('standings_relegate')}</span>` : '–'}</td>
               </tr>`;
-            }).join('')}
+            }).join('');
+            })()}
           </tbody>
         </table>
         ${promoZone > 0 ? `<div style="padding:8px 16px;font-size:0.72rem;color:var(--c-green)">▲ Top ${promoZone}: zona de ascenso</div>` : ''}
@@ -3176,6 +3349,11 @@ const SCREENS = {
     }
     const cal = state.season.calendar || [];
     const next = cal.find(r=>r.status==='next');
+    // GL-022/048: lock forecast once user opens prep screen so probability doesn't drift
+    if (next && next.forecast && !next.forecast.lockedForPrep) {
+      next.forecast.lockedForPrep = true;
+      GL_STATE.saveState();
+    }
     const el = document.getElementById('screen-prerace');
     if (!el) return;
     if (!next) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('prerace_no_race')}</p></div>`; return; }
@@ -3293,6 +3471,13 @@ const SCREENS = {
                         <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>${this.getEngineModeLabel('normal')}</option>
                         <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>${this.getEngineModeLabel('push')}</option>
                       </select>
+                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:3px">
+                        ${{
+                          eco: '⚡ Menor ritmo · mayor durabilidad de motor y menor consumo',
+                          normal: '⚖️ Equilibrio entre ritmo y desgaste',
+                          push: '🔥 Ritmo máximo · mayor desgaste de motor y consumo de combustible'
+                        }[cfg.engineMode || 'normal']}
+                      </div>
                     </div>
                     <div class="ds-select-wrap">
                       <label class="ds-select-label">Plan de boxes</label>
@@ -4107,7 +4292,7 @@ const SCREENS = {
         updateDebug(liveState ? liveState.status || 'sin status' : 'sin liveRaceState');
         return false;
       }
-      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
+      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : liveState.durationMode === 'medium' ? (7 * 60 * 1000) : (11 * 60 * 1000);
       const tsMs = liveState.startTime
         ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : 0))
         : 0;
@@ -4306,7 +4491,7 @@ const SCREENS = {
     const lapEl = document.getElementById('liverace-lap');
     if (log) log.innerHTML = '';
 
-    const LIVE_RACE_DURATION_MS = durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+    const LIVE_RACE_DURATION_MS = durationMode === 'qa' ? (2 * 60 * 1000) : durationMode === 'medium' ? (4 * 60 * 1000) : (8 * 60 * 1000);
     const allEvents = Array.isArray(result.events) ? result.events : [];
     const totalLaps = result.totalLaps || 30;
     const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
@@ -4483,7 +4668,7 @@ const SCREENS = {
         // Bloquear postrace mientras la carrera en vivo sigue corriendo
         const ls = divData.liveRaceState;
         if (ls && ls.status === 'live' && ls.startTime) {
-          const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+          const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : ls.durationMode === 'medium' ? (4 * 60 * 1000) : (8 * 60 * 1000);
           const startMs = ls.startTime.toMillis ? ls.startTime.toMillis() : (ls.startTime.seconds ? ls.startTime.seconds * 1000 : 0);
           const raceEndMs = startMs + 10000 + durMs;
           if (startMs > 0 && Date.now() < raceEndMs) {
@@ -4654,6 +4839,35 @@ const SCREENS = {
         </div>`;
       })
       .join('');
+
+    // GL-017: Race highlights — top player-related events + milestone moments
+    const _highlightEvents = (result.events || []).filter(ev =>
+      this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ||
+      ev.type === 'incident' || ev.type === 'pit'
+    );
+    const _seen = new Set();
+    const _topHighlights = _highlightEvents.filter(ev => {
+      const key = ev.text.slice(0, 40);
+      if (_seen.has(key)) return false;
+      _seen.add(key);
+      return true;
+    }).slice(0, 5);
+    const _typeIcon = { incident: '⚠️', pit: '🔧', info: 'ℹ️', good: '✅', bad: '❌' };
+    const highlightsHtml = _topHighlights.length ? `
+      <div class="card mb-4" style="border-left:3px solid var(--c-accent)">
+        <div style="font-size:0.82rem;font-weight:700;margin-bottom:10px">✨ Momentos clave</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${_topHighlights.map(ev => `
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;background:var(--c-surface-2)">
+              <span style="font-size:0.7rem;color:var(--t-tertiary);white-space:nowrap;padding-top:2px">L${ev.lap}</span>
+              <span style="font-size:0.8rem;line-height:1.4">${ev.text}</span>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:8px;text-align:right">
+          <a href="#postrace-event-log" style="font-size:0.72rem;color:var(--c-accent);text-decoration:none" onclick="document.getElementById('postrace-event-log')?.scrollIntoView({behavior:'smooth'});return false;">Ver log completo →</a>
+        </div>
+      </div>` : '';
+
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -4689,6 +4903,7 @@ const SCREENS = {
         </div>
       </div>
       ${crashReviewHtml}
+      ${highlightsHtml}
       <div class="card mb-4 postrace-podium-card">
         <div class="postrace-podium-title">🏁 ${__('postrace_class')}</div>
         <div class="postrace-podium-wrap">${podiumHtml || `<div style="color:var(--t-secondary)">No podium data</div>`}</div>
@@ -4704,7 +4919,7 @@ const SCREENS = {
               <div class="fin-item"><span>${car.pilotName}</span><strong>${car.isDNF ? 'DNF' : ('P'+car.position)} · ${car.points || 0} pts</strong></div>
             `).join('')}
           </div>
-          <div class="section-eyebrow">${__('postrace_events')}</div>
+          <div class="section-eyebrow" id="postrace-event-log">${__('postrace_events')}</div>
           <div class="race-event-log" style="max-height:250px;overflow-y:auto">
             ${result.events.map(ev => `<div class="race-event ${ev.type} ${this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : ''}"><span class="race-event-lap">L${ev.lap}</span><span class="race-event-text">${ev.text}</span></div>`).join('')}
           </div>
