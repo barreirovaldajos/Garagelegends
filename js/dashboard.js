@@ -5,10 +5,44 @@ const DASHBOARD = {
   init() {
     this.refresh();
     this.startEventPoller();
-    // Check for admin system messages
     if (window.GL_ADMIN && typeof GL_ADMIN.checkSystemMessage === 'function') {
       GL_ADMIN.checkSystemMessage();
     }
+    this._maybeShowWelcomeTour();
+  },
+
+  _maybeShowWelcomeTour() {
+    const state = GL_STATE.getState();
+    if (!state || state._onboardTourDone) return;
+    const completedRaces = (state.season?.calendar || []).filter(r => r.status === 'completed').length;
+    if (completedRaces > 0) { state._onboardTourDone = true; GL_STATE.saveState(); return; }
+    state._onboardTourDone = true;
+    GL_STATE.saveState();
+    setTimeout(() => {
+      if (window.GL_UI && typeof GL_UI.confirm === 'function') {
+        const t = (k, fb) => (typeof __ === 'function' ? __(k, fb) : fb);
+        const msg = `
+          <div style="line-height:1.7;font-size:0.93rem">
+            <p style="margin-bottom:12px">${t('tour_welcome_intro', 'Eres el director de tu propia escudería de carreras. Aquí va lo esencial para empezar:')}</p>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px">
+                <strong>💰 ${t('tour_credits_title', 'Créditos (CR)')}</strong>
+                <div style="font-size:0.85rem;color:var(--t-secondary);margin-top:4px">${t('tour_credits_text', 'Tu presupuesto operativo. Pagas sueldos, construyes instalaciones y contratas patrocinadores.')}</div>
+              </div>
+              <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px">
+                <strong>🔬 ${t('tour_rnd_title', 'Puntos I+D')}</strong>
+                <div style="font-size:0.85rem;color:var(--t-secondary);margin-top:4px">${t('tour_rnd_text', 'Moneda de investigación. Se ganan compitiendo y se usan para desbloquear mejoras tecnológicas en I+D.')}</div>
+              </div>
+              <div style="background:rgba(74,158,255,0.12);border:1px solid rgba(74,158,255,0.3);border-radius:10px;padding:12px">
+                <strong>🏁 ${t('tour_first_step_title', 'Tu primer paso')}</strong>
+                <div style="font-size:0.85rem;color:var(--t-secondary);margin-top:4px">${t('tour_first_step_text', 'Ve al Calendario → carrera "Siguiente" → "Preparar Carrera" para configurar tu estrategia.')}</div>
+              </div>
+            </div>
+          </div>`;
+        GL_UI.confirm(`👋 ${t('tour_welcome_title', '¡Bienvenido a Garage Legends!')}`, msg, t('tour_go_btn', '¡Vamos a correr! 🏎️'), t('tour_skip_btn', 'Ver después'))
+          .then(go => { if (go) GL_APP.navigateTo('calendar'); });
+      }
+    }, 800);
   },
 
   refresh() {
@@ -131,9 +165,52 @@ const DASHBOARD = {
   openSeasonSummaryModal(summary) {
     if (!summary) return;
 
-    const resultKey = summary.result === 'promoted'
-      ? 'season_summary_transition_promoted'
-      : (summary.result === 'relegated' ? 'season_summary_transition_relegated' : 'season_summary_transition_stayed');
+    const isChampion  = summary.finishPosition === 1;
+    const isPromoted  = summary.result === 'promoted';
+    const isRelegated = summary.result === 'relegated';
+
+    // Header colours per result
+    const headerBg = isChampion  ? 'linear-gradient(135deg,#b8860b 0%,#ffd700 50%,#b8860b 100%)'
+                   : isPromoted  ? 'linear-gradient(135deg,#166534 0%,#22c55e 50%,#166534 100%)'
+                   : isRelegated ? 'linear-gradient(135deg,#7c2d12 0%,#f97316 50%,#7c2d12 100%)'
+                   :               'linear-gradient(135deg,#1e3a5f 0%,#3b82f6 50%,#1e3a5f 100%)';
+
+    const trophy   = isChampion ? '🏆' : isPromoted ? '📈' : isRelegated ? '📉' : '🏁';
+    const headline = isChampion
+      ? (__('season_champion_headline') || '¡Campeón de temporada!')
+      : isPromoted
+        ? (__('season_promoted_headline') || '¡Ascenso conseguido!')
+        : isRelegated
+          ? (__('season_relegated_headline') || 'Temporada finalizada')
+          : (__('season_stayed_headline') || 'Temporada finalizada');
+
+    // Podium top-3
+    const top3 = Array.isArray(summary.top3) ? summary.top3 : [];
+    const podiumOrder = [1, 0, 2]; // trophy display order: 2nd-1st-3rd
+    const podiumHtml = top3.length >= 2 ? `
+      <div style="display:flex;align-items:flex-end;justify-content:center;gap:8px;margin:16px 0 4px">
+        ${podiumOrder.filter(i => top3[i]).map(i => {
+          const t = top3[i];
+          const pos = i + 1;
+          const heights = ['80px','100px','66px'];
+          const medals = ['🥈','🥇','🥉'];
+          const bgColors = ['rgba(192,192,192,0.15)','rgba(255,215,0,0.18)','rgba(205,127,50,0.13)'];
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;max-width:90px">
+            <div style="font-size:${pos===1?'1.6rem':'1.2rem'}">${t.logo || (t.isPlayer ? '⭐' : '🏎️')}</div>
+            <div style="font-size:0.62rem;font-weight:700;color:var(--t-primary);text-align:center;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.isPlayer ? (__('season_you') || 'Tú') : t.teamName}</div>
+            <div style="font-size:0.6rem;color:var(--t-secondary)">${t.points} pts</div>
+            <div style="width:100%;height:${heights[i]};background:${bgColors[i]};border-radius:6px 6px 0 0;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;font-size:1.2rem">${medals[i]}</div>
+          </div>`;
+        }).join('')}
+      </div>` : '';
+
+    const divisionLabel = (typeof Divisions !== 'undefined' && Divisions.divisionLabel)
+      ? (d, g) => Divisions.divisionLabel(d, g)
+      : (d) => String(d || '-');
+
+    const resultKey = isPromoted ? 'season_summary_transition_promoted'
+      : isRelegated ? 'season_summary_transition_relegated'
+      : 'season_summary_transition_stayed';
 
     const campaign = summary.campaign || null;
     const campaignRow = campaign
@@ -143,16 +220,21 @@ const DASHBOARD = {
       : '';
 
     GL_UI.openModal({
-      title: __('season_summary_title'),
+      title: '',
       content: `
-        <p style="color:var(--t-secondary);margin-bottom:12px">${__('season_summary_subtitle')} ${summary.year}</p>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
+        <div style="margin:-16px -16px 0;border-radius:12px 12px 0 0;background:${headerBg};padding:20px 16px 16px;text-align:center">
+          <div style="font-size:2.4rem;line-height:1;margin-bottom:6px">${trophy}</div>
+          <div style="font-size:1rem;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,0.5)">${headline}</div>
+          <div style="font-size:0.72rem;color:rgba(255,255,255,0.75);margin-top:3px">${__('season_summary_subtitle') || 'Temporada'} ${summary.year}</div>
+        </div>
+        ${podiumHtml}
+        <div style="display:flex;flex-direction:column;gap:8px;margin:16px 0">
           <div class="fin-item"><span>${__('season_summary_finish')}</span><strong>P${summary.finishPosition || '-'}</strong></div>
           <div class="fin-item"><span>${__('season_summary_points')}</span><strong>${summary.points || 0}</strong></div>
-          <div class="fin-item"><span>${__('season_summary_wins')}</span><strong>${summary.wins || 0}</strong></div>
-          <div class="fin-item"><span>${__('season_summary_division')}</span><strong>${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.division, summary.divisionGroup) : (summary.division || '-')} → ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(summary.nextDivision, summary.nextDivisionGroup) : (summary.nextDivision || '-')}</strong></div>
-          <div class="fin-item"><span>${__('season_summary_transition')}</span><strong>${__(resultKey)}</strong></div>
-          <div class="fin-item"><span>${__('season_summary_bonus')}</span><strong>+${GL_UI.fmtCR(summary.bonusCredits || 0)}</strong></div>
+          <div class="fin-item"><span>${__('season_summary_wins') || 'Victorias'}</span><strong>${summary.wins || 0}${summary.podiums ? ` <span style="font-weight:400;color:var(--t-tertiary);font-size:0.78rem">(${summary.podiums} podios)</span>` : ''}</strong></div>
+          <div class="fin-item"><span>${__('season_summary_division')}</span><strong>${divisionLabel(summary.division, summary.divisionGroup)} → ${divisionLabel(summary.nextDivision, summary.nextDivisionGroup)}</strong></div>
+          <div class="fin-item"><span>${__('season_summary_transition')}</span><strong style="color:${isPromoted?'var(--c-good)':isRelegated?'var(--c-warn)':'var(--t-primary)'}">${__(resultKey)}</strong></div>
+          ${summary.bonusCredits > 0 ? `<div class="fin-item"><span>${__('season_summary_bonus')}</span><strong style="color:var(--c-good)">+${GL_UI.fmtCR(summary.bonusCredits)}</strong></div>` : ''}
           ${campaignRow}
         </div>
         <button class="btn btn-primary w-full" style="justify-content:center" onclick="GL_UI.closeTopModal()">${__('continue')}</button>
@@ -351,6 +433,12 @@ const DASHBOARD = {
     const el = document.getElementById('dash-standings');
     if (!el) return;
 
+    // Clear any running live-race countdown before fetching fresh data
+    if (window._dashStandingsCountdown) {
+      clearInterval(window._dashStandingsCountdown);
+      window._dashStandingsCountdown = null;
+    }
+
     // MMG: always fetch from Firestore
     if (!GL_AUTH.mp || !GL_AUTH.mp.divKey || !GL_AUTH._db) {
       el.innerHTML = '<div style="font-size:0.78rem;color:var(--t-tertiary);padding:8px 0">📡 Conectando a la división...</div>';
@@ -363,51 +451,81 @@ const DASHBOARD = {
       if (!snap.exists) return;
       const data = snap.data();
 
-      // ── Standings ─────────────────────────────────────────────────────────
-      const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
-      if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = mpStandings;
-      const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
-      const promotionSpots = divInfo.promotions || 0;
-      const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
-      const myPos = myEntry ? myEntry.position : '-';
-      const myPts = myEntry ? myEntry.points : 0;
-      const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
-      const pj = (data.calendar || []).filter(r => r && r.status === 'completed').length;
-      el.innerHTML = `
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
-          <div>
-            <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(data.division, data.group) : `${data.division}-${data.group}`} · ${divInfo.name || ''}</div>
+      const liveRaceState = data.liveRaceState;
+      const isLiveRace = liveRaceState && liveRaceState.status === 'live';
+
+      const remMsCheck = isLiveRace && typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS._liveRaceRemainingMs === 'function'
+        ? GL_SCREENS._liveRaceRemainingMs(data)
+        : -1;
+
+      if (isLiveRace && remMsCheck > 0 && typeof GL_SCREENS !== 'undefined' && typeof GL_SCREENS._liveRaceRemainingMs === 'function') {
+        // ── Live-race countdown: hide standings, tick until race ends ────────
+        let remMs = remMsCheck;
+        el.innerHTML = GL_SCREENS._liveRaceBlockHtml(remMs);
+
+        window._dashStandingsCountdown = setInterval(() => {
+          const standingsEl = document.getElementById('dash-standings');
+          if (!standingsEl) {
+            clearInterval(window._dashStandingsCountdown);
+            window._dashStandingsCountdown = null;
+            return;
+          }
+          remMs -= 1000;
+          if (remMs <= 0) {
+            clearInterval(window._dashStandingsCountdown);
+            window._dashStandingsCountdown = null;
+            if (window.GL_DASHBOARD) GL_DASHBOARD.renderStandings(state);
+            return;
+          }
+          standingsEl.innerHTML = GL_SCREENS._liveRaceBlockHtml(Math.max(0, remMs));
+        }, 1000);
+      } else {
+        // ── Normal standings table ────────────────────────────────────────────
+        const mpStandings = (data.standings || []).slice().sort((a, b) => (a.position || 99) - (b.position || 99));
+        if (window.GL_TEAM_PROFILE) GL_TEAM_PROFILE._divStandings = mpStandings;
+        const divInfo = GL_DATA && GL_DATA.DIVISIONS ? (GL_DATA.DIVISIONS.find(d => d.div === data.division) || {}) : {};
+        const promotionSpots = divInfo.promotions || 0;
+        const myEntry = mpStandings.find(s => s.isPlayer && s.teamId === GL_AUTH.user?.uid);
+        const myPos = myEntry ? myEntry.position : '-';
+        const myPts = myEntry ? myEntry.points : 0;
+        const inPromoZone = typeof myPos === 'number' && promotionSpots > 0 && myPos <= promotionSpots;
+        const pj = (data.calendar || []).filter(r => r && r.status === 'completed').length;
+        el.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--c-border)">
+            <div>
+              <div style="font-size:0.58rem;font-weight:700;letter-spacing:0.1em;color:var(--t-tertiary);text-transform:uppercase;margin-bottom:2px">📡 ${__('division')} ${(typeof Divisions !== 'undefined' && Divisions.divisionLabel) ? Divisions.divisionLabel(data.division, data.group) : `${data.division}-${data.group}`} · ${divInfo.name || ''}</div>
+            </div>
+            <div style="text-align:right">
+              <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
+              <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
+            </div>
           </div>
-          <div style="text-align:right">
-            <span style="font-size:1.3rem;font-weight:800;color:var(--c-gold)">P${myPos}</span>
-            <span style="font-size:0.72rem;color:${inPromoZone?'var(--c-green)':'var(--t-secondary)'};margin-left:6px">${myPts} ${__('points')}${inPromoZone?' · ✔':''}</span>
-          </div>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;table-layout:fixed">
-          <thead>
-            <tr style="font-size:0.6rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.05em">
-              <th style="width:22px;text-align:right;padding:2px 0;font-weight:700">#</th>
-              <th style="text-align:left;padding:2px 6px;font-weight:700">${__('standings_team')}</th>
-              <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_played_short')}</th>
-              <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_wins_short')}</th>
-              <th style="width:28px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_podiums_short')}</th>
-              <th style="width:30px;text-align:right;padding:2px 0;font-weight:700">${__('standings_pts_short')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${mpStandings.map((s, idx) => {
-              const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
-              return `<tr style="border-bottom:1px solid var(--c-border);${isMe?'background:var(--c-surface-2)':''}">
-                <td style="text-align:right;padding:4px 0;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</td>
-                <td style="padding:4px 6px;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</td>
-                <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${pj}</td>
-                <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.wins || 0}</td>
-                <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.podiums || 0}</td>
-                <td style="text-align:right;padding:4px 0;font-weight:${isMe?'700':'600'};color:${isMe?'var(--c-gold)':'var(--t-primary)'}">${s.points || 0}</td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>`;
+          <table style="width:100%;border-collapse:collapse;font-size:0.78rem;table-layout:fixed">
+            <thead>
+              <tr style="font-size:0.6rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.05em">
+                <th style="width:22px;text-align:right;padding:2px 0;font-weight:700">#</th>
+                <th style="text-align:left;padding:2px 6px;font-weight:700">${__('standings_team')}</th>
+                <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_played_short')}</th>
+                <th style="width:24px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_wins_short')}</th>
+                <th style="width:28px;text-align:center;padding:2px 2px;font-weight:700">${__('standings_podiums_short')}</th>
+                <th style="width:30px;text-align:right;padding:2px 0;font-weight:700">${__('standings_pts_short')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${mpStandings.map((s, idx) => {
+                const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
+                return `<tr style="border-bottom:1px solid var(--c-border);${isMe?'background:var(--c-surface-2)':''}">
+                  <td style="text-align:right;padding:4px 0;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</td>
+                  <td style="padding:4px 6px;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</td>
+                  <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${pj}</td>
+                  <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.wins || 0}</td>
+                  <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.podiums || 0}</td>
+                  <td style="text-align:right;padding:4px 0;font-weight:${isMe?'700':'600'};color:${isMe?'var(--c-gold)':'var(--t-primary)'}">${s.points || 0}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+      }
 
       // ── Circuit preview (right panel) – reads from Firestore calendar ─────
       const previewEl = document.getElementById('dash-circuit-preview');

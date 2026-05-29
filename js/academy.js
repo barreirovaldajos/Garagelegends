@@ -50,10 +50,12 @@ const Academy = {
         this.improveAttribute(state, item.pilotId, item.targetAttr);
         if (typeof window !== 'undefined' && window.GL_STATE) {
           const attrLabel = (window.__ && window.__(`attr_${item.targetAttr}`, item.targetAttr)) || item.targetAttr;
-          const logText = ((window.__ && window.__('academy_training_complete', '{trainingType}: {attrLabel} improved for driver {pilotId}.')) || '{trainingType}: {attrLabel} improved for driver {pilotId}.')
+          const pilot = (state.pilots || []).find(p => p.id === item.pilotId);
+          const pilotName = pilot ? (pilot.name || pilot.id) : item.pilotId;
+          const logText = ((window.__ && window.__('academy_training_complete', '{trainingType}: {attrLabel} improved for {pilotName}.')) || '{trainingType}: {attrLabel} improved for {pilotName}.')
             .replace('{trainingType}', item.trainingType)
             .replace('{attrLabel}', attrLabel)
-            .replace('{pilotId}', item.pilotId);
+            .replace('{pilotName}', pilotName);
           window.GL_STATE.addLog(`🎓 ${logText}`, 'good');
         }
         changed = true;
@@ -81,13 +83,24 @@ const Academy = {
       'Kai','Noa','Sasha','Avery','Quinn','Reese','Blake','Emery','Skyler','Dakota',
       'Luca','Mika','Tariq','Soren','Zara','Nico','Yael','Cleo','Ezra','Remy',
       'Finn','Sage','Beau','Cruz','Juno','Ren','Briar','Dani','Mace','Shay',
-      'Ara','Rex','Vito','Sol','Ines','Kofi','Tao','Lexi','Rafe','Gael'
+      'Ara','Rex','Vito','Sol','Ines','Kofi','Tao','Lexi','Rafe','Gael',
+      'Ivan','Priya','Amara','Hiro','Fatou','Lukas','Sienna','Omar','Petra','Idris',
+      'Vera','Koby','Aiko','Sven','Cora','Nate','Elif','Ravi','Zelda','Dayo',
+      'Henri','Nadia','Elias','Linh','Tobias','Yemi','Cian','Sofía','Arjun','Isla',
+      'Kira','Mateo','Zuri','Leon','Amira','Paco','Hana','Viktor','Luna','Seun',
+      'Abel','Nora','Rafiq','Vivienne','Joko','Elena','Bruno','Mei','Asher','Imani'
     ];
     const lastNames = [
       'Vega','Park','Diaz','Chen','Müller','Rossi','Novak','Obi','Souza','Patel',
       'Kowalski','Nakamura','Ferreira','Costa','Ibarra','Johansson','Okafor','Yıldız',
       'Santos','Berg','Reis','Kato','Flores','Andersen','Mensah','Rivera','Dubois',
-      'Moreau','Tremblay','Hoffman','Walsh','Reyes','Kim','Sato','Gomez','Nkosi'
+      'Moreau','Tremblay','Hoffman','Walsh','Reyes','Kim','Sato','Gomez','Nkosi',
+      'Adeyemi','Strand','Moura','Szabo','Petrov','Tanaka','Okoro','Lavoie','Bernal',
+      'Nilsen','Ferraro','Webb','Khoury','Braun','Diallo','Saito','Rueda','Asante',
+      'Morozova','Montoya','Lemos','Haverford','Polanski','Ade','Adesanya','Huang',
+      'Lindqvist','Camacho','Osei','Mbeki','Tran','Vasiliev','Delacroix','Nakagawa',
+      'Alves','Bautista','Eriksson','Farouk','Guerrero','Haddad','Iwata','Jansen',
+      'Kaur','Larsson','Mancini','Nwachukwu','Ortega','Pham','Ramirez','Spence'
     ];
 
     // Collect all names already in use across the whole game

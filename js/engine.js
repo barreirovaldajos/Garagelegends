@@ -281,7 +281,7 @@ function getHqCapabilities(state) {
     academyTrainingSlots: academyLv >= 3 ? 2 : 1,
     academyTrainingSpeedMultiplier: 1 + (academyLv >= 2 ? 0.1 : 0) + (academyLv >= 3 ? 0.2 : 0) + (academyLv >= 4 ? 0.25 : 0) + (academyLv >= 5 ? 0.45 : 0),
     academyInjuryRiskMultiplier: academyLv >= 5 ? 0.5 : 1,
-    weatherResearchUnlocked: true
+    weatherResearchUnlocked: windLv >= 2
   };
 }
 
@@ -312,47 +312,135 @@ function startResearch(treeId) {
   let duration = tree.durationPerLevel(nextLevel);
   duration = Math.floor(duration / caps.rndSpeedMultiplier);
   if ((state.team.engineSupplier || '').toLowerCase() === 'vulcan') {
-    duration = Math.floor(duration * 0.8);
+    duration = Math.floor(duration * 0.85);
   }
   if (state.finances.credits < cost) return { error: 'Insufficient funds' };
   if ((rnd.points || 0) < pointCost) return { error: `Not enough R&D points (need ${pointCost})` };
   state.finances.credits -= cost;
   rnd.points = (rnd.points || 0) - pointCost;
-  rnd.active = { treeId, startTime: getNowMs(), duration, targetLevel: nextLevel, progress: 0 };
+  const durationWeeks = Math.max(1, Math.ceil(duration / (7 * DAY_MS)));
+  rnd.active = {
+    treeId,
+    startTime: getNowMs(),
+    startWeek: state.season.week,
+    duration,
+    durationWeeks,
+    targetLevel: nextLevel,
+    progress: 0,
+    statusPercent: 0,
+    weeksLeft: durationWeeks
+  };
   S.saveState();
-  return { success: true, treeId, cost, pointCost, duration, targetLevel: nextLevel };
+  return { success: true, treeId, cost, pointCost, duration, durationWeeks, targetLevel: nextLevel };
+}
+
+function _completeResearch(state) {
+  const rnd = state.car.rnd;
+  const active = rnd.active;
+  if (!active) return null;
+  const tree = RESEARCH_TREES[active.treeId];
+  if (!tree) { rnd.active = null; return null; }
+
+  if (!rnd.queue) rnd.queue = {};
+  rnd.queue[active.treeId] = active.targetLevel;
+
+  const component = state.car.components[tree.componentBoost];
+  if (component) component.score = Math.min(99, component.score + tree.boostPerLevel);
+
+  if (!Array.isArray(rnd.history)) rnd.history = [];
+  rnd.history.unshift({
+    treeId: active.treeId,
+    targetLevel: active.targetLevel,
+    completedWeek: state.season.week,
+    boostApplied: tree.boostPerLevel,
+    componentBoosted: tree.componentBoost
+  });
+  if (rnd.history.length > 20) rnd.history = rnd.history.slice(0, 20);
+
+  const completed = { ...active };
+  rnd.active = null;
+
+  // Auto-start siguiente proyecto en cola
+  if (Array.isArray(rnd.pendingQueue) && rnd.pendingQueue.length) {
+    const next = rnd.pendingQueue.shift();
+    if (next && RESEARCH_TREES[next.treeId]) {
+      const nextResult = startResearch(next.treeId);
+      if (nextResult.success) {
+        S.addLog(`🔬 Cola I+D activada: ${RESEARCH_TREES[next.treeId].name}`, 'info');
+      }
+    }
+  }
+
+  return completed;
 }
 
 function processResearch(state) {
   const rnd = state.car.rnd;
   if (!rnd.active) return null;
   const tree = RESEARCH_TREES[rnd.active.treeId];
-  const elapsed = getNowMs() - rnd.active.startTime;
-  const progress = Math.min(100, (elapsed / rnd.active.duration) * 100);
-  rnd.active.progress = progress;
-  if (elapsed >= rnd.active.duration) {
-    const treeId = rnd.active.treeId;
-    const targetLevel = rnd.active.targetLevel;
-    if (!rnd.queue) rnd.queue = {};
-    rnd.queue[treeId] = targetLevel;
-    const component = state.car.components[tree.componentBoost];
-    if (component) component.score += tree.boostPerLevel;
-    const completed = { ...rnd.active };
-    rnd.active = null;
+  if (!tree) { rnd.active = null; return null; }
+
+  const currentWeek = state.season.week;
+
+  // Migrar saves legacy sin startWeek: estimar semanas transcurridas desde startTime
+  if (typeof rnd.active.startWeek !== 'number') {
+    const nowMs = (state.meta && typeof state.meta.saveTime === 'number') ? state.meta.saveTime : Date.now();
+    const elapsedMs = Math.max(0, nowMs - (rnd.active.startTime || nowMs));
+    rnd.active.startWeek = currentWeek - Math.floor(elapsedMs / (7 * DAY_MS));
+    rnd.active.durationWeeks = Math.max(1, Math.ceil(rnd.active.duration / (7 * DAY_MS)));
+  }
+
+  const durationWeeks = rnd.active.durationWeeks;
+  const weeksElapsed = Math.max(0, currentWeek - rnd.active.startWeek);
+
+  // Progreso primario: semanas de juego. Fallback: tiempo real via meta.saveTime
+  const nowMs = (state.meta && typeof state.meta.saveTime === 'number') ? state.meta.saveTime : Date.now();
+  const realElapsedMs = Math.max(0, nowMs - (rnd.active.startTime || nowMs));
+  const completedByWeeks = weeksElapsed >= durationWeeks;
+  const completedByRealTime = realElapsedMs >= rnd.active.duration;
+
+  const statusPercent = Math.min(100, Math.round((weeksElapsed / durationWeeks) * 100));
+  const weeksLeft = Math.max(0, durationWeeks - weeksElapsed);
+
+  rnd.active.progress = statusPercent;
+  rnd.active.statusPercent = statusPercent;
+  rnd.active.weeksLeft = weeksLeft;
+
+  if (completedByWeeks || completedByRealTime) {
+    const completed = _completeResearch(state);
     S.saveState();
     return completed;
   }
-  return rnd.active;
+  return null;
 }
 
 function getResearchStatus() {
   const state = S.getState();
+  // Detecta completiones pendientes antes de leer el estado (p.ej. modal abierto sin tick previo)
+  if (state.car.rnd.active) {
+    const completed = processResearch(state);
+    if (completed) {
+      const tree = RESEARCH_TREES[completed.treeId];
+      if (tree) S.addLog(`${tree.icon} Research: ${tree.name} Lv${completed.targetLevel} completado!`, 'good');
+    }
+  }
   const rnd = state.car.rnd;
   const caps = getHqCapabilities(state);
+  const currentWeek = state.season.week;
   return Object.keys(RESEARCH_TREES).map(treeId => {
     const tree = RESEARCH_TREES[treeId];
     const currentLevel = (rnd.queue && rnd.queue[treeId]) || 0;
-    const isActive = rnd.active && rnd.active.treeId === treeId;
+    const isActive = !!(rnd.active && rnd.active.treeId === treeId);
+    // Calcular progreso en tiempo real desde season.week, no desde el valor guardado
+    let progress = 0, statusPercent = 0, weeksLeft = null;
+    if (isActive) {
+      const startWeek = typeof rnd.active.startWeek === 'number' ? rnd.active.startWeek : currentWeek;
+      const durationWeeks = rnd.active.durationWeeks || Math.max(1, Math.ceil(rnd.active.duration / (7 * DAY_MS)));
+      const weeksElapsed = Math.max(0, currentWeek - startWeek);
+      statusPercent = Math.min(100, Math.round((weeksElapsed / durationWeeks) * 100));
+      progress = statusPercent;
+      weeksLeft = Math.max(0, durationWeeks - weeksElapsed);
+    }
     return {
       treeId,
       name: tree.name,
@@ -362,7 +450,9 @@ function getResearchStatus() {
       nextCost: tree.costPerLevel(currentLevel + 1),
       nextDuration: tree.durationPerLevel(currentLevel + 1),
       isActive,
-      progress: isActive ? rnd.active.progress : 0,
+      progress,
+      statusPercent,
+      weeksLeft,
       nextComponentBoost: tree.componentBoost,
       unlocked: caps.rndUnlocked && (treeId !== 'weather' || caps.weatherResearchUnlocked)
     };
@@ -551,7 +641,7 @@ function getDefaultPitTyres(strategy = {}, weather = 'dry') {
   if (preset.length === 2) return preset;
   const startTyre = strategy.tyre || getDefaultRaceTyre(weather);
   if (weather === 'wet') {
-    return [preset[0] || (startTyre === 'wet' ? 'intermediate' : 'intermediate'), preset[1] || 'intermediate'];
+    return [preset[0] || 'intermediate', preset[1] || 'intermediate'];
   }
   if (startTyre === 'soft') return [preset[0] || 'hard', preset[1] || 'medium'];
   if (startTyre === 'hard') return [preset[0] || 'medium', preset[1] || 'soft'];
@@ -836,26 +926,36 @@ function buildRaceGrid(playerPilot, weather, circuit, strategy = {}, rng) {
 }
 
 // ---- tyre degradation per compound ----
+// paceDeltaMs: ms added to each lap time vs medium/dry baseline (negative = faster)
+// durabilityPct [min,max]: % of race laps before degradation cliff
 const TYRE_COMPOUNDS = {
   soft: {
-    dry: { durabilityPct: [0.15, 0.30], paceDeltaMs: -550 },
-    wet: { durabilityPct: [0.10, 0.20], paceDeltaMs: 4200 }
+    // Fastest in dry, fragile — optimal for ~12-15% of laps before cliff
+    dry: { durabilityPct: [0.13, 0.25], paceDeltaMs: -550 },
+    // Slick in rain: loses ~4s/lap, degrades extremely fast
+    wet: { durabilityPct: [0.08, 0.16], paceDeltaMs: 3800 }
   },
   medium: {
+    // Baseline compound, versatile
     dry: { durabilityPct: [0.30, 0.50], paceDeltaMs: 0 },
-    wet: { durabilityPct: [0.15, 0.25], paceDeltaMs: 5200 }
+    wet: { durabilityPct: [0.13, 0.22], paceDeltaMs: 5000 }
   },
   hard: {
-    dry: { durabilityPct: [0.50, 0.70], paceDeltaMs: 500 },
-    wet: { durabilityPct: [0.20, 0.30], paceDeltaMs: 6200 }
+    // ~0.5s slower in dry, built for long stints
+    dry: { durabilityPct: [0.52, 0.72], paceDeltaMs: 500 },
+    wet: { durabilityPct: [0.18, 0.28], paceDeltaMs: 6000 }
   },
   intermediate: {
-    dry: { durabilityPct: [0.10, 0.25], paceDeltaMs: 4200 },
-    wet: { durabilityPct: [0.40, 0.70], paceDeltaMs: 800 }
+    // Designed for damp/mixed. Ruins itself on dry asphalt in ~5 laps
+    dry: { durabilityPct: [0.07, 0.16], paceDeltaMs: 3800 },
+    // Competitive in light/medium rain, very durable
+    wet: { durabilityPct: [0.42, 0.72], paceDeltaMs: 550 }
   },
   wet: {
-    dry: { durabilityPct: [0.05, 0.15], paceDeltaMs: 6500 },
-    wet: { durabilityPct: [0.20, 0.40], paceDeltaMs: 0 }
+    // Only for extreme rain. Catastrophic on dry
+    dry: { durabilityPct: [0.04, 0.10], paceDeltaMs: 6200 },
+    // Optimal in heavy rain, but shorter window than inters
+    wet: { durabilityPct: [0.22, 0.42], paceDeltaMs: 0 }
   }
 };
 
@@ -875,7 +975,17 @@ function getTyreUsefulLife(tyre, weather = 'dry', totalLaps = 60) {
 }
 
 function getTyreWearStep(tyre, weather) {
-  return 1;
+  // Wear units accumulated per lap. Determines how fast a compound reaches its cliff.
+  // Also controls degradation slope past the cliff (wearOveruse grows at this rate).
+  const rates = {
+    soft:         { dry: 1.38, wet: 1.90 },
+    medium:       { dry: 1.00, wet: 1.30 },
+    hard:         { dry: 0.73, wet: 0.94 },
+    intermediate: { dry: 2.20, wet: 0.80 },
+    wet:          { dry: 3.10, wet: 1.12 }
+  };
+  const r = rates[tyre] || rates.medium;
+  return weather === 'wet' ? r.wet : r.dry;
 }
 
 function getTyrePaceDeltaMs(tyre, weather = 'dry') {
@@ -1962,8 +2072,9 @@ function simulateRace(options = {}) {
       const currentTyre = entry.tyre || s.tyre || 'medium';
       if (rt) {
         const baseWear = getTyreWearStep(currentTyre, liveWeather) * lapProfile.tyreDegMult * (1 + engineFx.tyre) * setup.tyreMult;
-        const aggressionWear = Math.max(0, ((s.aggression || 50) - 50) * 0.003);
-        rt.wear += baseWear + aggressionWear;
+        // Conservative driving reduces wear; aggressive driving increases it
+        const aggressionWear = ((s.aggression || 50) - 50) * 0.0028;
+        rt.wear = Math.max(0, rt.wear + baseWear + aggressionWear);
       }
 
       const rawPace = clamp(Number(entry.base || entry.score || entry.gridScore || 60), 35, 99);
@@ -1973,7 +2084,7 @@ function simulateRace(options = {}) {
       const engineMs = (engineFx.pace || 0) * 2200;
       const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
       const wearOveruse = rt ? Math.max(0, rt.wear - usefulLife) : 0;
-      const wearMs = wearOveruse * 1100;
+      const wearMs = wearOveruse * 460;
       const lapBaseMs = safetyCarActive ? 110000 : 94500;
       const consistency = clamp(Number(entry.consistency || 60), 20, 99);
       const playerNoiseHalfRange = clamp(500 - (consistency * 3), 120, 520);
@@ -2121,6 +2232,53 @@ function simulateRace(options = {}) {
 
     updateRunningOrder();
 
+    // Narrative events: AI overtakes and race story moments
+    if (!safetyCarActive) {
+      // AI-vs-AI overtake every ~8 laps
+      if (lap % 8 === 3) {
+        const activeAI = positions.filter(e => !e.isPlayer && !e.retired).sort((a, b) => a.pos - b.pos);
+        if (activeAI.length >= 2) {
+          const attackerIdx = Math.floor(rng.next() * Math.min(activeAI.length - 1, 8));
+          const attacker = activeAI[attackerIdx + 1];
+          const defender = activeAI[attackerIdx];
+          if (attacker && defender && rng.next() < 0.55 * lapProfile.overtakeBias) {
+            const tmp = attacker.pos; attacker.pos = defender.pos; defender.pos = tmp;
+            attacker.timeMs = Math.max(0, attacker.timeMs - 700);
+            defender.timeMs += 700;
+            events.push({ lap, type: 'info', text: `🔄 ${formatTranslatedText('race_event_ai_overtake', { attacker: attacker.name, defender: defender.name, pos: attacker.pos }, '<strong>{attacker}</strong> overtakes <strong>{defender}</strong> for P{pos}!')}` });
+          }
+        }
+      }
+
+      // Spin/incident for a random AI car every ~12 laps
+      if (lap % 12 === 7 && rng.next() < 0.35) {
+        const activeAI = positions.filter(e => !e.isPlayer && !e.retired && e.pos > 3);
+        if (activeAI.length > 0) {
+          const victim = activeAI[Math.floor(rng.next() * activeAI.length)];
+          victim.timeMs += 2400;
+          events.push({ lap, type: 'incident', text: `🌀 ${formatTranslatedText('race_event_ai_spin', { name: victim.name }, '<strong>{name}</strong> has a spin and loses time!')}` });
+        }
+      }
+
+      // Race status update at 25%, 50%, 75% of race
+      const quarterLap = Math.floor(totalLaps / 4);
+      if (quarterLap > 0 && (lap === quarterLap || lap === quarterLap * 2 || lap === quarterLap * 3)) {
+        const active = positions.filter(e => !e.retired).sort((a, b) => a.pos - b.pos);
+        const leader = active[0];
+        const playerCar = active.find(e => e.isPlayer);
+        if (leader && playerCar && !playerCar.retired) {
+          const pct = Math.round((lap / totalLaps) * 100);
+          const gapToLeaderMs = Math.max(0, playerCar.timeMs - leader.timeMs);
+          const gapSec = (gapToLeaderMs / 1000).toFixed(1);
+          if (playerCar.pos === 1) {
+            events.push({ lap, type: 'good', text: `📍 ${pct}% ${translateText('race_narrative_leading', 'Laps completed.')} <strong>${playerCar.pilotName}</strong> ${translateText('race_narrative_leads', 'leads the race!')}` });
+          } else {
+            events.push({ lap, type: 'info', text: `📍 ${pct}% ${translateText('race_narrative_laps_done', 'Laps completed.')} <strong>${playerCar.pilotName}</strong> P${playerCar.pos} · +${gapSec}s ${translateText('race_narrative_gap', 'behind leader')} <strong>${leader.name}</strong>.` });
+          }
+        }
+      }
+    }
+
     const leaderTime = positions.filter((entry) => !entry.retired).reduce((best, entry) => Math.min(best, entry.timeMs), Number.POSITIVE_INFINITY);
     lapSnapshots.push({
       lap,
@@ -2200,11 +2358,24 @@ function simulateRace(options = {}) {
   const prizeMap = prizeBase.map(v => Math.round(v * _pMult / 100) * 100);
   const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || Math.max(100, Math.round(200 * _pMult / 100) * 100)), 0);
 
+  // pendingPoints: championship points earned, keyed by teamId.
+  // They must NOT be applied to state.standings until finalizeRace() is called.
+  const pendingPoints = {};
+  playerCars.forEach((c) => { if (!c.isDNF) pendingPoints['player'] = (pendingPoints['player'] || 0) + (c.points || 0); });
+  (Array.isArray(finalGrid) ? finalGrid : []).forEach((car, idx) => {
+    if (!car.isPlayer) {
+      const tid = car.teamId || car.id;
+      pendingPoints[tid] = (pendingPoints[tid] || 0) + (D.POINTS_TABLE[idx] || 0);
+    }
+  });
+
   return {
+    status: 'pending',   // only finalizeRace() may promote this to 'finished'
     round,
     position: leadResult.position,
     isDNF: leadResult.isDNF,
     points: teamPoints,
+    pendingPoints,
     events,
     lapSnapshots,
     finalGrid,
@@ -2638,15 +2809,18 @@ function endSeason() {
     return aPos - bPos;
   });
   const myStanding = standings.find((s) => s.id === 'player') || S.getMyStanding() || { position: 10, points: 0, wins: 0 };
-  const finalPosition = Number(myStanding.position) || 10;
+  const _rawPos = Number(myStanding.position);
+  const finalPosition = Number.isFinite(_rawPos) && _rawPos > 0 ? _rawPos : 10;
   const finalPoints = Number(myStanding.points) || 0;
   const finalWins = Number(myStanding.wins) || 0;
   const finalPodiums = Number(myStanding.podiums) || 0;
   const transition = getDivisionTransition(state, finalPosition);
 
-  const bonusCredits = finalPosition <= 3 ? 100000 : 0;
+  const _posBonus = { 1: 200000, 2: 120000, 3: 80000, 4: 50000, 5: 30000 };
+  const bonusCredits = _posBonus[finalPosition] || 0;
   if (bonusCredits > 0) {
     S.addCredits(bonusCredits);
+    S.addLog(`🏆 Bonus de posición final P${finalPosition}: +${bonusCredits.toLocaleString()} CR`, 'good');
   }
 
   state.season.division = transition.nextDivision;
@@ -2663,6 +2837,15 @@ function endSeason() {
   }
   state.season.divisionGroup = nextDivisionGroup;
 
+  // GL-034: snapshot top-3 for the ceremony podium display
+  const top3Snapshot = standings.slice(0, 3).map(s => ({
+    teamName: s.teamName || s.id || '?',
+    logo: s.logo || '',
+    points: Number(s.points) || 0,
+    wins: Number(s.wins) || 0,
+    isPlayer: s.id === 'player'
+  }));
+
   const seasonSummary = {
     year: completedYear,
     division: completedDivision,
@@ -2675,6 +2858,7 @@ function endSeason() {
     nextDivision: transition.nextDivision,
     nextDivisionGroup,
     bonusCredits,
+    top3: top3Snapshot,
     ts: Date.now()
   };
 
@@ -2695,7 +2879,7 @@ function endSeason() {
   state.season.lastSummaryPending = true;
 
   // Reiniciar tecnología (I+D) por cambio de temporada.
-  state.car.rnd = { points: 0, active: null, queue: [] };
+  state.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {}, history: [], pendingQueue: [] };
 
   // Nueva temporada
   state.season.year = completedYear + 1;
@@ -2866,69 +3050,81 @@ function buildInitialStandings(division) {
   return standings;
 }
 
+// ---- standings finalization gate ----
+// simulateRace() returns status:'pending'. Only finalizeRace() may promote it to 'finished'
+// and commit points to state.standings. This is the ONLY valid commit path.
+let _pendingRaceResult = null;
+
+function finalizeRace(result) {
+  if (!result || result.status !== 'pending') return false;
+  result.status = 'finished';
+  _pendingRaceResult = result;
+  updateStandings(result);
+  _pendingRaceResult = null;
+  return true;
+}
+
 // ---- update standings after race ----
+// Must only be called via finalizeRace(). Direct external calls with status:'pending'
+// results are rejected by the guard below.
 function updateStandings(raceResult) {
+  if (!raceResult || raceResult.status !== 'finished') return;
   const state = S.getState();
   if (!Array.isArray(state.standings) || state.standings.length === 0) {
     state.standings = buildInitialStandings((state.season && state.season.division) || 8);
   }
-  let standings = state.standings;
+
+  // Work on a shallow clone — state.standings is not touched until atomic swap at the end.
+  const standings = state.standings.map(s => ({ ...s }));
+
   const visualTeams = Object.fromEntries(getVisualAiTeams().map((team) => [team.id, team]));
   standings.forEach((entry) => {
-    if (entry.id === 'player') {
-      entry.color = state.team.colors.primary;
-      return;
-    }
-    const visualTeam = visualTeams[entry.id];
-    if (visualTeam) {
-      entry.color = visualTeam.color;
-      entry.flag = visualTeam.flag;
-      entry.name = visualTeam.name;
-    }
+    if (entry.id === 'player') { entry.color = state.team.colors.primary; return; }
+    const vt = visualTeams[entry.id];
+    if (vt) { entry.color = vt.color; entry.flag = vt.flag; entry.name = vt.name; }
   });
-  const { position, points, finalGrid, playerCars } = raceResult;
-  const earnedPoints = Number.isFinite(points) ? points : 0;
+
+  const { position, pendingPoints = {}, finalGrid, playerCars } = raceResult;
   const bestPlayerPos = Array.isArray(playerCars) && playerCars.length
     ? playerCars.reduce((best, c) => Math.min(best, c && Number.isFinite(c.position) ? c.position : 99), 99)
     : (Number.isFinite(position) ? position : 99);
 
-  // Update player
+  // Apply pre-computed pendingPoints from simulateRace().
   const playerEntry = standings.find(s => s.id === 'player');
   if (playerEntry) {
-    playerEntry.points += earnedPoints;
-    const hasWin = Array.isArray(playerCars)
-      ? playerCars.some((c) => c && c.position === 1)
-      : position === 1;
-    const hasPodium = Array.isArray(playerCars)
-      ? playerCars.some((c) => c && c.position >= 1 && c.position <= 3)
-      : (position >= 1 && position <= 3);
+    playerEntry.points += (pendingPoints['player'] || 0);
+    const hasWin   = Array.isArray(playerCars) ? playerCars.some((c) => c && c.position === 1) : position === 1;
+    const hasPodium = Array.isArray(playerCars) ? playerCars.some((c) => c && c.position >= 1 && c.position <= 3) : (position >= 1 && position <= 3);
     if (hasWin) playerEntry.wins++;
     if (hasPodium) playerEntry.podiums = (playerEntry.podiums || 0) + 1;
     if (!playerEntry.bestResult || bestPlayerPos < playerEntry.bestResult) playerEntry.bestResult = bestPlayerPos;
   }
-
-  // Update AI
+  standings.forEach((entry) => {
+    if (entry.id !== 'player' && pendingPoints[entry.id]) {
+      entry.points += pendingPoints[entry.id];
+    }
+  });
+  // wins for AI (first non-player in finalGrid)
   const aiWinners = new Set();
   (Array.isArray(finalGrid) ? finalGrid : []).forEach((car, idx) => {
-    if (!car.isPlayer) {
+    if (!car.isPlayer && idx === 0) {
       const teamId = car.teamId || car.id;
-      const entry = standings.find(s => s.id === teamId);
-      if (entry) {
-        const aiPts = D.POINTS_TABLE[idx] || 0;
-        entry.points += aiPts;
-        if (idx === 0 && !aiWinners.has(teamId)) {
-          entry.wins++;
-          aiWinners.add(teamId);
-        }
+      if (!aiWinners.has(teamId)) {
+        const entry = standings.find(s => s.id === teamId);
+        if (entry) { entry.wins++; aiWinners.add(teamId); }
       }
     }
   });
 
-  // Sort and re-assign positions
+  // GL-019: snapshot position before re-sorting so UI can show ▲/▼ change
+  standings.forEach(s => { s.prevPosition = s.position || null; });
+
+  // Sort and atomically swap in the fully-computed table.
   standings.sort((a, b) => b.points - a.points || b.wins - a.wins);
   standings.forEach((s, i) => { s.position = i + 1; });
   state.standings = standings;
-  S.saveState();
+
+  S.saveState();   // called only here, after ALL mutations are complete
 }
 // ---- get next real-world race date ----
 function getNextRaceDate() {
@@ -3074,6 +3270,9 @@ function refreshForecastForNextRace() {
   const cal = (state && state.season && state.season.calendar) ? state.season.calendar : [];
   const nextRace = cal.find(r => r.status === 'next');
   if (!nextRace || !nextRace.circuit) return null;
+
+  // GL-022/048: once user opens the prep screen, forecast is locked — no more random drift
+  if (nextRace.forecast && nextRace.forecast.lockedForPrep) return nextRace.forecast;
 
   if (!nextRace.forecast) {
     const wetBase = Math.max(5, Math.min(95, 100 - (nextRace.circuit.weather || 70)));
@@ -3525,6 +3724,7 @@ window.GL_ENGINE = {
   shiftTimeToMs,
   ensureNextRaceAvailable,
   generateRandomEvent, applyEventChoice,
+  finalizeRace,
   buildInitialStandings, updateStandings, getNextRaceDate, catchUpOffline, trainPilot,
   endSeason,
   isMultiplayer

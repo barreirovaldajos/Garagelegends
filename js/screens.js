@@ -26,13 +26,39 @@ const SCREENS = {
     this.renderRace();
   },
 
-  getTyreMeta(tyre) {
+  getTyreMeta(tyre, weather) {
+    const isWet = weather === 'wet';
     const compounds = {
-      soft: { label: __('compound_soft', 'Soft'), shortLabel: 'S', color: '#ff4d4f', paceText: __('compound_soft_pace', '+0.5s to +1.0s vs Medium in the dry'), durabilityText: __('compound_soft_durability', 'Lasts 15-30% of the race · drops to 10-20% in the wet') },
-      medium: { label: __('compound_medium', 'Medium'), shortLabel: 'M', color: '#f1c40f', paceText: __('compound_medium_pace', 'Baseline compound and the most versatile'), durabilityText: __('compound_medium_durability', 'Lasts 30-50% of the race · strong for Medium -> Hard plans') },
-      hard: { label: __('compound_hard', 'Hard'), shortLabel: 'H', color: '#f5f7fa', paceText: __('compound_hard_pace', '0.5s to 0.8s slower than Medium'), durabilityText: __('compound_hard_durability', 'Lasts 50-70% of the race · best for one-stop plans') },
-      intermediate: { label: __('compound_intermediate', 'Intermediate'), shortLabel: 'I', color: '#2ecc71', paceText: __('compound_intermediate_pace', 'Reference tyre on a damp track'), durabilityText: __('compound_intermediate_durability', 'Lasts 40-70% in the wet · only 10-25% on dry asphalt') },
-      wet: { label: __('compound_wet', 'Wet'), shortLabel: 'W', color: '#3498db', paceText: __('compound_wet_pace', 'Only for extreme rain · usually slower than Intermediates'), durabilityText: __('compound_wet_durability', 'Lasts 20-40% in the wet · overheats in 5-15% on dry asphalt') }
+      soft: {
+        label: 'Blando', shortLabel: 'S', color: '#ff4d4f',
+        paceText: isWet ? '⚠️ ~3.8s/vuelta más lento · usa lluvia/inters' : '0.55s más rápido que Medio · ventana corta',
+        durabilityText: isWet ? 'Solo 8-16% de la carrera en mojado · se destruye rápido' : 'Cliff a ~12-15% de vueltas · degradación rápida tras el límite',
+        weatherWarning: isWet ? '⚠️ Neumático equivocado para lluvia' : null
+      },
+      medium: {
+        label: 'Medio', shortLabel: 'M', color: '#f1c40f',
+        paceText: isWet ? '⚠️ ~5s/vuelta más lento en lluvia' : 'Compuesto de referencia · equilibrio ritmo/duración',
+        durabilityText: isWet ? '13-22% de la carrera en mojado' : 'Aguanta 30-50% de la carrera · ideal paradas únicas moderadas',
+        weatherWarning: isWet ? '⚠️ Neumático equivocado para lluvia' : null
+      },
+      hard: {
+        label: 'Duro', shortLabel: 'H', color: '#e8e8e8',
+        paceText: isWet ? '⚠️ ~6s/vuelta más lento en lluvia' : '0.5s más lento que Medio · el más duradero en seco',
+        durabilityText: isWet ? '18-28% de la carrera en mojado' : 'Cliff a ~52-72% de vueltas · perfecto para parada única',
+        weatherWarning: isWet ? '⚠️ Neumático equivocado para lluvia' : null
+      },
+      intermediate: {
+        label: 'Intermedio', shortLabel: 'I', color: '#2ecc71',
+        paceText: isWet ? 'Referencia en pista mojada · 0.55s vs lluvia plena' : '⚠️ ~3.8s/vuelta más lento · se destruye en 5-7 vueltas en seco',
+        durabilityText: isWet ? 'Aguanta 42-72% de la carrera en mojado · muy duradero' : 'Solo 7-16% en seco · entrar a boxes urgente',
+        weatherWarning: isWet ? null : '⚠️ Neumático de lluvia en pista seca'
+      },
+      wet: {
+        label: 'Lluvia', shortLabel: 'W', color: '#3498db',
+        paceText: isWet ? 'Óptimo en lluvia extrema · referencia absoluta' : '⚠️ +6.2s/vuelta · se destruye en 3-4 vueltas en seco',
+        durabilityText: isWet ? 'Ventana 22-42% de la carrera · menos que los inters' : 'Solo 4-10% en seco · salida de boxes inmediata',
+        weatherWarning: isWet ? null : '⚠️ Neumático de lluvia extrema en pista seca'
+      }
     };
     return compounds[tyre] || compounds.medium;
   },
@@ -588,7 +614,7 @@ const SCREENS = {
       </svg>`;
   },
 
-  getRaceTrackStageMarkup(circuit, weather, idPrefix = 'race') {
+  getRaceTrackStageMarkup(circuit, weather, idPrefix = 'race', extraStageStyle = '') {
     const layout = circuit?.layout || 'mixed';
     const trackKey = circuit?.id || layout;
 
@@ -638,7 +664,7 @@ const SCREENS = {
 
     const weatherLabel = this.getWeatherLabel(weather);
     return `
-      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="${idPrefix}-track-stage">
+      <div class="race-track-stage ${weather === 'wet' ? 'wet-weather' : 'dry-weather'}" id="${idPrefix}-track-stage"${extraStageStyle ? ` style="${extraStageStyle}"` : ''}>
         <svg class="race-track-svg" viewBox="0 0 1000 620" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
           <defs>
             <filter id="${idPrefix}-track-shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -1077,16 +1103,15 @@ const SCREENS = {
           </div>
           
           <div class="card">
-            <div class="section-eyebrow">Gestión de Construcción</div>
-            <div class="section-title mb-2">Pase Mensual VIP</div>
-            <p style="font-size:0.8rem;color:var(--t-secondary);margin-bottom:var(--s-3)">Acelera la construcción instantáneamente usando Tokens, o despacha 2 mejoras simultáneas con el Pase VIP.</p>
+            <div class="section-eyebrow">${__('garage_construction_title', 'Gestión de Construcción')}</div>
             ${c.active ? `
-              <button class="btn btn-gold w-full" onclick="GL_SCREENS.showBoostModal()">
-                ⚡ Acelerar ${GL_DATA.FACILITIES.find(f=>f.id===c.buildingId)?.name} (5 Tokens)
+              <button class="btn btn-gold w-full mb-3" onclick="GL_SCREENS.showBoostModal()">
+                ⚡ ${__('garage_boost_btn', 'Acelerar')} ${GL_DATA.FACILITIES.find(f=>f.id===c.buildingId)?.name} (5 ${__('tokens', 'Tokens')})
               </button>
             ` : `
-              <button class="btn btn-secondary w-full disabled">Sin construcciones activas</button>
+              <button class="btn btn-secondary w-full mb-3" disabled>${__('garage_no_active', 'Sin construcciones activas')}</button>
             `}
+            ${this._renderVipCard(state)}
           </div>
         </div>
       </div>`;
@@ -1141,7 +1166,91 @@ const SCREENS = {
     }
   },
 
+  _renderVipCard(state) {
+    const vipUntil = state.team && state.team.vipUntil;
+    const vipActive = vipUntil && vipUntil > Date.now();
+    const daysLeft = vipActive ? Math.ceil((vipUntil - Date.now()) / 86400000) : 0;
+    const benefits = [
+      __('vip_benefit_1', '-20% tiempo de construcción'),
+      __('vip_benefit_2', '+1 Token diario de login'),
+      __('vip_benefit_3', 'Acceso a patrocinadores VIP exclusivos'),
+      __('vip_benefit_4', 'Slot extra de investigación I+D'),
+    ];
+    const premiumBenefits = [
+      __('vip_benefit_5', 'Logos VIP exclusivos para tu escudería'),
+      __('vip_benefit_6', 'Paleta de colores ampliada (12 colores extra)'),
+    ];
+    const canRenew = vipActive && daysLeft <= 7;
+    return vipActive
+      ? `<div style="background:linear-gradient(135deg,rgba(245,197,24,0.12),rgba(245,197,24,0.04));border:1px solid rgba(245,197,24,0.4);border-radius:10px;padding:12px;margin-top:var(--s-3)">
+           <div style="font-size:0.8rem;font-weight:700;color:var(--c-gold)">⭐ ${__('vip_active_title', 'Pase VIP Activo')}</div>
+           <div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:3px">${__('vip_days_left', '{d} días restantes').replace('{d}', daysLeft)}</div>
+           <div style="margin-top:8px;font-size:0.75rem;color:var(--t-secondary)">${[...benefits,...premiumBenefits].map(b=>`✓ ${b}`).join('<br>')}</div>
+           ${canRenew ? `<button class="btn btn-gold w-full btn-sm" style="margin-top:8px;font-size:0.78rem" onclick="GL_SCREENS.renewVip()">🔄 ${__('vip_renew_btn', 'Renovar ahora por 40 Tokens')} (–20%)</button>` : ''}
+         </div>`
+      : `<div style="background:rgba(255,255,255,0.03);border:1px solid var(--c-border);border-radius:10px;padding:12px;margin-top:var(--s-3)">
+           <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary)">⭐ ${__('vip_title', 'Pase VIP — 30 días')}</div>
+           <div style="margin:6px 0 10px;font-size:0.75rem;color:var(--t-secondary)">${[...benefits,...premiumBenefits].map(b=>`• ${b}`).join('<br>')}</div>
+           <div style="display:flex;gap:8px;flex-wrap:wrap">
+             <button class="btn btn-gold btn-sm" onclick="GL_SCREENS.activateVip()" style="font-size:0.8rem;flex:1">${__('vip_activate_btn', 'Activar por 50 Tokens ⭐')}</button>
+             <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.activateVip3Month()" style="font-size:0.78rem;flex:1">📦 ${__('vip_3month_btn', '3 meses × 120 Tokens (–20%)')}</button>
+           </div>
+         </div>`;
+  },
+
+  async activateVip() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const state = GL_STATE.getState();
+    if (state.team && state.team.vipUntil && state.team.vipUntil > Date.now()) {
+      GL_UI.toast(__('vip_already_active', 'El Pase VIP ya está activo'), 'info'); return;
+    }
+    const ok = await GL_UI.confirm(
+      `⭐ ${__('vip_confirm_title', 'Activar Pase VIP')}`,
+      __('vip_confirm_msg', 'Gasta 50 Tokens para activar el Pase VIP durante 30 días. Incluye: -20% tiempo de construcción, +1 Token diario, acceso a patrocinadores exclusivos, slot extra de I+D y logos VIP exclusivos.'),
+      `${__('vip_confirm_ok', 'Gastar 50 Tokens ⭐')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(50, 'vip_pass');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    if (!state.team) state.team = {};
+    state.team.vipUntil = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    GL_STATE.saveState();
+    GL_UI.toast(`⭐ ${__('vip_activated', '¡Pase VIP activado por 30 días!')}`, 'success');
+    this.renderGarage();
+  },
+
+  async renewVip() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const ok = await GL_UI.confirm('🔄 Renovar Pase VIP', 'Renueva tu Pase VIP por 40 Tokens (precio especial por renovación anticipada). Se añaden 30 días a tu pase actual.', 'Gastar 40 Tokens 🔄', 'Cancelar');
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(40, 'vip_renew');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    const state = GL_STATE.getState();
+    if (!state.team) state.team = {};
+    const base = Math.max(state.team.vipUntil || Date.now(), Date.now());
+    state.team.vipUntil = base + 30 * 24 * 60 * 60 * 1000;
+    GL_STATE.saveState();
+    GL_UI.toast('⭐ ¡Pase VIP renovado por 30 días más!', 'success');
+    this.renderGarage();
+  },
+
+  async activateVip3Month() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const ok = await GL_UI.confirm('📦 Pase VIP Trimestral', 'Activa el Pase VIP por 90 días por solo 120 Tokens. ¡Ahorra 30 Tokens versus activar mes a mes!', 'Gastar 120 Tokens 📦', 'Cancelar');
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(120, 'vip_3month');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    const state = GL_STATE.getState();
+    if (!state.team) state.team = {};
+    state.team.vipUntil = Date.now() + 90 * 24 * 60 * 60 * 1000;
+    GL_STATE.saveState();
+    GL_UI.toast('📦 ¡Pase VIP Trimestral activado por 90 días!', 'success');
+    this.renderGarage();
+  },
+
   showBoostModal() {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
     GL_UI.confirm('Acelerar Construcción', '¿Usar 5 Tokens para acortar el tiempo restante de construcción al 30% del original?', 'Gastar 5 Tokens ⚡', 'Cancelar').then(async ok => {
       if (!ok) return;
       const r = await GL_STATE.spendTokens(5, 'construction_boost');
@@ -1160,6 +1269,60 @@ const SCREENS = {
          }
       }
     });
+  },
+
+  async tokenTrainPilot(pid) {
+    if (window._raceInProgress || window._liveRaceStarted) { GL_UI.toast(__('token_race_in_progress', 'No puedes gastar tokens mientras hay una carrera en progreso'), 'warning'); return; }
+    const state = GL_STATE.getState();
+    const p = state.pilots && state.pilots.find(x => x.id === pid);
+    if (!p) return;
+    const ok = await GL_UI.confirm(
+      `⚡ ${__('token_train_title', 'Reentrenar piloto')}`,
+      `${__('token_train_msg', 'Gasta 3 Tokens para que')} <strong>${p.name}</strong> ${__('token_train_msg2', 'pueda entrenarse hoy de nuevo. Los Tokens son limitados, ¡úsalos con cuidado!')}`,
+      `${__('token_train_confirm', 'Gastar 3 Tokens ⚡')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(3, 'pilot_retrain');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    p.lastTrained = new Date(0).getTime();
+    GL_STATE.saveState();
+    GL_ENGINE.trainPilot(pid);
+    this.renderPilots();
+  },
+
+  async tokenRefreshMarket() {
+    const ok = await GL_UI.confirm(
+      `⚡ ${__('token_market_title', 'Refrescar Mercado')}`,
+      __('token_market_msg', 'Gasta 2 Tokens para regenerar la lista de pilotos y patrocinadores disponibles. Los contratos activos no se ven afectados.'),
+      `${__('token_market_confirm', 'Gastar 2 Tokens ⚡')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(2, 'market_refresh');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    if (typeof GL_DATA.refreshMarket === 'function') GL_DATA.refreshMarket();
+    GL_UI.toast(__('token_market_done', '¡Mercado actualizado!'), 'success');
+    this.renderMarket();
+  },
+
+  async tokenBoostRnd() {
+    const state = GL_STATE.getState();
+    const rnd = state.car && state.car.rnd;
+    if (!rnd || !rnd.active) { GL_UI.toast(__('token_rnd_no_active', 'No hay investigación activa'), 'warning'); return; }
+    const ok = await GL_UI.confirm(
+      `⚡ ${__('token_rnd_title', 'Acelerar I+D')}`,
+      __('token_rnd_msg', 'Gasta 4 Tokens para completar instantáneamente la investigación activa.'),
+      `${__('token_rnd_confirm', 'Gastar 4 Tokens ⚡')}`,
+      __('btn_cancel', 'Cancelar')
+    );
+    if (!ok) return;
+    const r = await GL_STATE.spendTokens(4, 'rnd_boost');
+    if (!r.ok) { GL_UI.toast(r.msg || __('token_insufficient', 'Tokens insuficientes'), 'error'); return; }
+    rnd.active.completesAt = Date.now() - 1;
+    GL_STATE.saveState();
+    GL_UI.toast(__('token_rnd_done', '¡Investigación completada!'), 'success');
+    this.renderCarDev();
   },
 
   computePilotMarketSalary(pilot) {
@@ -1211,7 +1374,7 @@ const SCREENS = {
           <div>
             <div class="pilot-full-name">${p.name}</div>
             <div class="pilot-full-meta">${p.nat} · ${__('age')} ${p.age}</div>
-            <span class="badge badge-orange">${__('overall')}: ${overall}</span>
+            <span class="badge badge-orange" title="Puntuación global actual del piloto (0-99). Combina clasificación, ritmo de carrera, consistencia, lluvia, neumáticos y mentalidad.">${__('overall')}: ${overall}</span>
           </div>
           <div class="pilot-full-number">${p.number||'77'}</div>
         </div>
@@ -1228,13 +1391,14 @@ const SCREENS = {
           <div style="display:flex;justify-content:space-between;margin-top:var(--s-4)">
             <div><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_salary')}</div><div style="font-family:var(--font-display);font-weight:800;color:var(--c-gold)">${GL_UI.fmtCR(p.salary)}${__('per_week')}</div></div>
             <div style="text-align:center"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_contract')}</div><div style="font-family:var(--font-display);font-weight:800">${p.contractWeeks||20}${__('market_weeks').substring(0,2)}</div></div>
-            <div style="text-align:center"><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_potential')}</div><div style="font-family:var(--font-display);font-weight:800;color:var(--c-purple)">${p.potential}%</div></div>
+            <div style="text-align:center" title="Potencial de crecimiento del piloto. Cuánto puede mejorar su puntuación global con entrenamiento (0-100%)."><div style="font-size:0.72rem;color:var(--t-tertiary)">${__('pilots_potential')} ❓</div><div style="font-family:var(--font-display);font-weight:800;color:var(--c-purple)">${p.potential}%</div></div>
           </div>
           <div style="margin-top:var(--s-4)">${GL_UI.progressBar(p.morale||75,100,'green')}</div>
           <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--t-tertiary);margin-top:4px"><span>${__('pilots_morale')}</span><span>${p.morale||75}/100</span></div>
           <button class="btn w-full mt-4 ${canTrain ? 'btn-secondary' : ''}" onclick="GL_ENGINE.trainPilot('${p.id}')" ${canTrain ? '' : 'disabled'}>
             ${canTrain ? '🏋️ ' + (__('pilots_train')||'Train') : '⏳ ' + (__('pilots_trained_today')||'Trained')}
           </button>
+          ${!canTrain ? `<button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.tokenTrainPilot('${p.id}')" title="Gasta 3 Tokens para entrenar hoy de nuevo">⚡ ${__('token_train_btn', 'Reentrenar con 3 Tokens')}</button>` : ''}
           <button class="btn btn-ghost w-full mt-2" onclick="GL_SCREENS.dismissPilot('${p.id}')" ${pilots.length <= 2 ? 'disabled title="Necesitas al menos 2 pilotos en el equipo"' : ''}>${__('pilots_dismiss_btn') || 'Despedir piloto'}</button>
         </div>
       </div>`;
@@ -1440,14 +1604,17 @@ const SCREENS = {
             <span style="font-family:var(--font-display);font-weight:800;color:var(--c-green);font-size:1rem">+${GL_UI.fmtCR(income)}<span style="font-size:0.65rem;font-weight:400">/sem</span></span>
             ${bonusVal > 0 ? `<span style="font-size:0.72rem;color:var(--c-gold)">+${GL_UI.fmtCR(bonusVal)} bonus</span>` : ''}
           </div>
-          <div style="padding:8px;background:rgba(255,255,255,0.04);border-radius:6px">
+          <div style="padding:8px;background:rgba(255,255,255,0.04);border-radius:6px;display:flex;flex-direction:column;gap:4px">
+            <div style="font-size:0.68rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.06em">Objetivo cada carrera</div>
             <div style="font-size:0.76rem;font-weight:600;color:var(--t-primary)">🎯 ${demandText}</div>
             ${lastRaceHint}
+            <div style="font-size:0.68rem;color:var(--t-tertiary);margin-top:2px">Si no cumples: acumulas un aviso. Al agotar avisos, el contrato se rescinde sin compensación.</div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
             <div>
+              <div style="font-size:0.66rem;color:var(--t-tertiary);margin-bottom:3px">Avisos acumulados:</div>
               <div style="display:flex;gap:4px;margin-bottom:3px">${failureDots}</div>
-              <div style="font-size:0.68rem;color:${statusColor}">${isAtRisk ? '⚠️ Última oportunidad' : failures === 0 ? 'Sin advertencias' : `${remaining} fallo${remaining!==1?'s':''} restante${remaining!==1?'s':''}`}</div>
+              <div style="font-size:0.68rem;color:${statusColor}">${isAtRisk ? '⚠️ ¡Último aviso! Otro fallo cancela el contrato' : failures === 0 ? '✅ Sin fallos — contrato estable' : `${remaining} aviso${remaining!==1?'s':''} restante${remaining!==1?'s':''} antes de la rescisión`}</div>
             </div>
             <button class="btn btn-ghost btn-sm" style="font-size:0.65rem;color:var(--t-tertiary);padding:3px 7px" onclick="GL_SCREENS.rescindSponsor('${sp.id}')">Rescindir</button>
           </div>
@@ -1683,7 +1850,13 @@ const SCREENS = {
                 <div style="font-size:0.78rem;color:var(--t-secondary);margin-top:6px">
                   Mejora: ${compLabel} · ${GL_UI.fmtCR(t.nextCost)} CR · ${pointCost} pts · Duración: ${toTime(t.nextDuration)}
                 </div>
-                ${t.isActive ? `<div style="margin-top:8px">${GL_UI.progressBar(Math.round(t.progress), 100, 'blue')}</div>` : ''}
+                ${t.isActive ? `
+                  <div style="margin-top:8px">${GL_UI.progressBar(Math.round(t.statusPercent), 100, 'blue')}</div>
+                  <div style="font-size:0.75rem;color:var(--t-secondary);margin-top:4px">
+                    ${t.weeksLeft > 0
+                      ? `⏳ Completa en ${t.weeksLeft} semana${t.weeksLeft !== 1 ? 's' : ''} — avanza semana para progresar`
+                      : `✅ Lista para completar — avanza semana`}
+                  </div>` : ''}
                 ${locked ? `<div style="font-size:0.78rem;color:var(--c-orange);margin-top:8px">Requiere Centro de I+D Nivel 2.</div>` : ''}
                 ${canStart ? `<button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="GL_SCREENS.startResearchTree('${t.treeId}')">Iniciar (${pointCost} pts · ${GL_UI.fmtCR(t.nextCost)} CR)</button>` : ''}
                 ${canStartNoPoints ? `<div style="font-size:0.78rem;color:var(--c-red);margin-top:8px">⚠️ Sin puntos suficientes — compite para ganar más.</div>` : ''}
@@ -1882,7 +2055,10 @@ const SCREENS = {
   toggleAnalystReport() {
     const el = document.getElementById('postrace-analyst-panel');
     if (!el) return;
-    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    const open = el.style.display === 'none';
+    el.style.display = open ? 'block' : 'none';
+    const chevron = document.getElementById('postrace-analyst-chevron');
+    if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
   },
 
   renderRaceComparisonTable(result) {
@@ -2051,20 +2227,28 @@ const SCREENS = {
     const thFirstStyle = 'font-size:0.7rem;font-weight:600;color:var(--t-secondary);text-align:left;padding:6px 10px;border-bottom:1px solid var(--c-border)';
 
     return `
+      ${hasTimingData ? `
+      <div style="margin-bottom:14px;border-radius:12px;background:rgba(139,92,246,0.07);border:2px solid rgba(139,92,246,0.28);overflow:hidden">
+        <button onclick="GL_SCREENS.toggleAnalystReport()" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:none;border:none;cursor:pointer;text-align:left">
+          <div>
+            <div style="font-size:0.88rem;font-weight:700;color:var(--c-accent)">🧠 Informe del Analista</div>
+            <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:1px">Métricas de tu equipo vs el campo · toca para ver</div>
+          </div>
+          <span id="postrace-analyst-chevron" style="font-size:1.1rem;color:var(--c-accent);transition:transform 0.2s">▼</span>
+        </button>
+        <div id="postrace-analyst-panel" style="display:none;padding:0 14px 14px 14px">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${analystLines || '<div style="font-size:0.78rem;color:var(--t-secondary)">No hay datos suficientes para generar el informe.</div>'}
+          </div>
+        </div>
+      </div>` : ''}
+
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <div>
           <div class="postrace-report-title" style="font-size:0.9rem;font-weight:700">📊 Información de tiempos de carrera</div>
           <div style="font-size:0.72rem;color:var(--t-secondary);margin-top:2px">Pilotos ordenados por posición final · ★ vuelta rápida</div>
         </div>
-        ${hasTimingData ? `<button class="btn btn-secondary" style="font-size:0.76rem;padding:6px 12px" onclick="GL_SCREENS.toggleAnalystReport()">🧠 Informe del Analista</button>` : ''}
       </div>
-
-      ${hasTimingData ? `<div id="postrace-analyst-panel" style="display:none;margin-bottom:14px;padding:14px;border-radius:10px;background:var(--c-surface-2);border:1px solid var(--c-border)">
-        <div style="font-size:0.8rem;font-weight:700;color:var(--t-primary);margin-bottom:10px">Análisis de tu equipo vs el campo</div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${analystLines || '<div style="font-size:0.78rem;color:var(--t-secondary)">No hay datos suficientes para generar el informe.</div>'}
-        </div>
-      </div>` : ''}
 
       ${!hasTimingData ? `<div style="font-size:0.72rem;color:var(--t-tertiary);padding:4px 0 8px 0">⚠️ Datos de timing no disponibles para carreras multijugador (columnas de tiempo muestran —)</div>` : ''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -2319,7 +2503,7 @@ const SCREENS = {
   _liveRaceRemainingMs(divData) {
     const ls = divData && divData.liveRaceState;
     if (!ls || ls.status !== 'live' || !ls.startTime) return 0;
-    const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+    const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : ls.durationMode === 'medium' ? (4 * 60 * 1000) : (8 * 60 * 1000);
     const startMs = ls.startTime.toMillis ? ls.startTime.toMillis() : (ls.startTime.seconds ? ls.startTime.seconds * 1000 : 0);
     if (!startMs) return 0;
     return Math.max(0, startMs + 10000 + durMs - Date.now());
@@ -2455,8 +2639,11 @@ const SCREENS = {
         ${cal.map(r => {
           const isDone = r.status === (window.RACE_STATUS ? RACE_STATUS.COMPLETED : 'completed');
           const isNext = r.status === (window.RACE_STATUS ? RACE_STATUS.NEXT : 'next');
-          const liveRemMs = isDone ? this._liveRaceRemainingMs({ liveRaceState: window._divLiveRaceState }) : 0;
-          const isLiveBlocked = liveRemMs > 0 && isDone; // ocultar resultado si la carrera en vivo sigue activa
+          const _liveStateRef = window._divLiveRaceState;
+          const _liveActiveRound = _liveStateRef && _liveStateRef.status === 'live' ? _liveStateRef.round : null;
+          const isThisRoundLive = _liveActiveRound != null && r.round === _liveActiveRound;
+          const liveRemMs = isThisRoundLive ? this._liveRaceRemainingMs({ liveRaceState: _liveStateRef }) : 0;
+          const isLiveBlocked = liveRemMs > 0 && isDone && isThisRoundLive;
           const res = r.result;
           const weatherIndicator = this.getCalendarWeatherIndicator(r);
           const raceArchive = this.getRaceArchiveRecord(r.round);
@@ -2480,7 +2667,10 @@ const SCREENS = {
             </div>
             <div class="calendar-weather" title="${weatherIndicator.tooltip}">${weatherIndicator.icon}</div>
             <div class="calendar-result">
-              ${isDone ? (isLiveBlocked ? `<div style="color:var(--t-tertiary);font-size:0.78rem">🏁 En vivo...</div>` : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+              ${isDone ? (isLiveBlocked ? `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                  <div style="color:var(--t-tertiary);font-size:0.78rem">🏁 En vivo...</div>
+                  <button class="btn btn-secondary btn-sm" onclick="GL_APP.navigateTo('liverace')">Ver Carrera en Vivo</button>
+                </div>` : `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
                 ${res && res.position != null ? `<div class="calendar-result-pos" style="color:${res.position<=3?'var(--c-gold)':'var(--t-primary)'}">P${res.position}</div><div class="calendar-result-pts">+${res.points ?? 0} ${__('points')}</div>` : `<div class="calendar-result-pos" style="color:var(--t-secondary)">—</div>`}
                 <button class="btn btn-secondary btn-sm" onclick="GL_SCREENS.openRaceReport(${r.round})">${__('calendar_view_report')}</button>
               </div>`) :
@@ -2688,15 +2878,18 @@ const SCREENS = {
                 .map((sp) => {
                   const incomeVal = Number(sp.weeklyValue || sp.income || 0);
                   const weeksLeft = sp.weeksLeft != null ? Number(sp.weeksLeft) : Number(sp.duration || 0);
+                  const demandBonus = Number(sp.demandBonus || 0);
                   return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--c-border);border-radius:10px;background:var(--c-surface-2)">
-                    <div style="display:flex;align-items:center;gap:8px;min-width:0">
-                      <span style="font-size:1rem">${sp.logo || '💼'}</span>
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+                      <span style="font-size:1.4rem">${sp.logo || '💼'}</span>
                       <div style="min-width:0">
-                        <div style="font-weight:700;color:var(--t-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sp.name || __('finances_sponsors')}</div>
-                        <div style="font-size:0.74rem;color:var(--t-secondary)">${__('market_duration')}: ${weeksLeft} ${__('market_weeks')}</div>
+                        <div style="font-weight:700;color:${sp.color||'var(--t-primary)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sp.name || __('finances_sponsors')}</div>
+                        <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:2px">${weeksLeft} ${__('market_weeks')} · ${sp.demand || ''}</div>
+                        ${demandBonus > 0 ? `<div style="font-size:0.74rem;color:var(--c-gold);margin-top:2px">🎯 Bonus si cumples: +${GL_UI.fmtCR(demandBonus)}</div>` : ''}
+                        <div style="font-size:0.72rem;color:var(--c-green);margin-top:2px">✓ Contrato activo</div>
                       </div>
                     </div>
-                    <div style="font-weight:800;color:var(--c-green)">+${GL_UI.fmtCR(incomeVal)}${__('per_week')}</div>
+                    <div style="font-weight:800;color:var(--c-green);white-space:nowrap">+${GL_UI.fmtCR(incomeVal)}${__('per_week')}</div>
                   </div>`;
                 })
                 .join('')
@@ -2764,9 +2957,12 @@ const SCREENS = {
           <div class="screen-subtitle">${__('market_subtitle')}</div>
         </div>
       </div>
-      <div class="tabs mb-6" style="max-width:400px" id="market-tabs">
-        <button class="tab ${tab==='pilots'?'active':''}" onclick="GL_SCREENS.marketTab('pilots',this)">${__('market_tab_pilots')}</button>
-        <button class="tab ${tab==='sponsors'?'active':''}" onclick="GL_SCREENS.marketTab('sponsors',this)">${__('market_tab_sponsors')}</button>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:var(--s-4)">
+        <div class="tabs" style="max-width:400px" id="market-tabs">
+          <button class="tab ${tab==='pilots'?'active':''}" onclick="GL_SCREENS.marketTab('pilots',this)">${__('market_tab_pilots')}</button>
+          <button class="tab ${tab==='sponsors'?'active':''}" onclick="GL_SCREENS.marketTab('sponsors',this)">${__('market_tab_sponsors')}</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.tokenRefreshMarket()" title="${__('token_market_msg', 'Gasta 2 Tokens para regenerar la lista')}">⚡ ${__('token_market_btn', 'Refrescar (2 Tokens)')}</button>
       </div>
       <div id="market-content">
         ${tab === 'sponsors' ? this.marketSponsorList() : this.marketPilotList(available)}
@@ -2802,9 +2998,9 @@ const SCREENS = {
           <div style="font-size:0.75rem;color:var(--t-tertiary);margin-top:4px;font-style:italic">"${p.bio||''}"</div>
         </div>
         <div class="market-pilot-attrs">
-          <div class="market-attr"><div class="market-attr-val">${p.attrs.pace}</div><div class="market-attr-label">PACE</div></div>
-          <div class="market-attr"><div class="market-attr-val">${p.attrs.racePace}</div><div class="market-attr-label">RACE</div></div>
-          <div class="market-attr"><div class="market-attr-val">${p.attrs.rain}</div><div class="market-attr-label">RAIN</div></div>
+          <div class="market-attr" title="Clasificación: velocidad en vuelta rápida (0-99)"><div class="market-attr-val">${p.attrs.pace}</div><div class="market-attr-label">CLASIF.</div></div>
+          <div class="market-attr" title="Ritmo de carrera: consistencia en stints largos (0-99)"><div class="market-attr-val">${p.attrs.racePace}</div><div class="market-attr-label">RITMO</div></div>
+          <div class="market-attr" title="Rendimiento en lluvia (0-99)"><div class="market-attr-val">${p.attrs.rain}</div><div class="market-attr-label">LLUVIA</div></div>
         </div>
         <div class="market-pilot-salary">
           <div class="market-pilot-salary-val">${GL_UI.fmtCR(p._marketSalary)}<span style="font-size:0.7rem">${__('per_week')}</span></div>
@@ -2885,6 +3081,7 @@ const SCREENS = {
     if (!sp) return;
     const state = GL_STATE.getState();
     const active = state.sponsors.filter(s => !s.expired);
+    if (active.some(s => s.id === id)) { GL_UI.toast('Ya tienes un contrato activo con este patrocinador.', 'warning'); return; }
     if (active.length >= 3) { GL_UI.toast('Slots llenos. Rescinde un contrato antes de firmar uno nuevo.', 'warning'); return; }
     const fans = Number(state?.team?.fans || 0);
     if (fans < (sp.minFans || 0)) { GL_UI.toast(`Necesitas ${sp.minFans.toLocaleString()} fans para acceder a este sponsor.`, 'warning'); return; }
@@ -3091,6 +3288,7 @@ const SCREENS = {
         <table class="standings-table-full">
           <thead><tr>
             <th>${__('standings_pos')}</th>
+            <th title="Cambio de posición respecto a la última carrera">±</th>
             <th>${__('standings_team')}</th>
             <th>${__('standings_points')}</th>
             <th>${__('standings_wins')}</th>
@@ -3098,14 +3296,29 @@ const SCREENS = {
             <th>${__('standings_status')}</th>
           </tr></thead>
           <tbody>
-            ${standings.map((s, idx) => {
+            ${(()=>{
+              // GL-024: deterministic team icon from teamId/teamName hash to distinguish teams visually
+              const _TEAM_ICONS = ['🦁','🐯','🦊','🐺','🦅','🐉','🦈','🦋','🐬','🦏','🐆','🦁','🦝','🐘','🦚','🐻','🦉','🐋','🦙','🐊','🦂','🦇','🐗','🏴','🔱','⚡','🌪️','💥'];
+              const _teamIconHash = (str) => { let h = 0; for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; } return Math.abs(h); };
+              const myLogo = GL_STATE.getState()?.team?.logo || '';
+              return standings.map((s, idx) => {
               const isMe   = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
               const isPromo = idx < promoZone;
               const isReleg = idx >= totalTeams - relegZone && relegZone > 0;
+              const curPos = s.position || idx + 1;
+              const prev = Number(s.prevPosition);
+              const posChange = (prev > 0 && prev !== curPos) ? prev - curPos : 0;
+              const posChangeHtml = posChange > 0
+                ? `<span style="color:var(--c-green);font-size:0.78rem;font-weight:700">▲${posChange}</span>`
+                : posChange < 0
+                  ? `<span style="color:var(--c-red);font-size:0.78rem;font-weight:700">▼${Math.abs(posChange)}</span>`
+                  : `<span style="color:var(--t-tertiary);font-size:0.72rem">—</span>`;
+              const teamIcon = isMe ? (myLogo || '⭐') : (s.logo || _TEAM_ICONS[_teamIconHash(s.teamId || s.teamName || String(idx)) % _TEAM_ICONS.length]);
               return `<tr class="${isMe ? 'my-row' : ''} ${isPromo ? 'promoted' : ''} ${isReleg ? 'relegated' : ''}">
-                <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${s.position || idx + 1}</div></td>
+                <td><div class="pos-badge pos-${idx < 3 ? idx + 1 : 'n'}">${curPos}</div></td>
+                <td style="text-align:center">${posChangeHtml}</td>
                 <td style="min-width:200px">
-                  <span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${escapeHtml(s.teamName || 'Team')}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</span>
+                  <span style="font-size:1rem;margin-right:5px">${teamIcon}</span><span style="cursor:pointer" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${escapeHtml(s.teamName || 'Team')}${isMe ? '' : (!s.isPlayer ? ' 🤖' : '')}</span>
                   ${isMe ? `<span style="font-size:0.8rem;color:var(--c-accent);margin-left:6px">${__('standings_you')}</span>` : ''}
                 </td>
                 <td><strong style="color:var(--c-gold)">${s.points || 0}</strong></td>
@@ -3113,7 +3326,8 @@ const SCREENS = {
                 <td>${s.podiums || 0}</td>
                 <td>${isPromo ? `<span class="badge badge-green">${__('standings_promote')}</span>` : isReleg ? `<span class="badge badge-red">${__('standings_relegate')}</span>` : '–'}</td>
               </tr>`;
-            }).join('')}
+            }).join('');
+            })()}
           </tbody>
         </table>
         ${promoZone > 0 ? `<div style="padding:8px 16px;font-size:0.72rem;color:var(--c-green)">▲ Top ${promoZone}: zona de ascenso</div>` : ''}
@@ -3135,6 +3349,11 @@ const SCREENS = {
     }
     const cal = state.season.calendar || [];
     const next = cal.find(r=>r.status==='next');
+    // GL-022/048: lock forecast once user opens prep screen so probability doesn't drift
+    if (next && next.forecast && !next.forecast.lockedForPrep) {
+      next.forecast.lockedForPrep = true;
+      GL_STATE.saveState();
+    }
     const el = document.getElementById('screen-prerace');
     if (!el) return;
     if (!next) { el.innerHTML = `<div class="card"><p style="color:var(--t-secondary)">${__('prerace_no_race')}</p></div>`; return; }
@@ -3195,7 +3414,7 @@ const SCREENS = {
         <div class="screen-actions">
           ${next.savedStrategy ? `<span style="font-size:0.78rem;color:var(--c-green);display:flex;align-items:center;gap:4px">✔ ${__('prerace_strat_saved_badge') || 'Estrategia guardada'}</span>` : ''}
           <button class="btn btn-primary btn-lg" onclick="GL_SCREENS.saveStrategy()">${next.savedStrategy ? (__('prerace_update_strat') || '💾 Actualizar Estrategia') : (window.__('prerace_save_strat') || '💾 Guardar Estrategia')}</button>
-          <div style="font-size:0.74rem;color:var(--t-secondary);margin-top:4px">${__('prerace_mp_info') || 'La carrera se simula automáticamente el domingo 18:00 UTC'}</div>
+
         </div>
       </div>
       <div class="prerace-grid">
@@ -3209,7 +3428,7 @@ const SCREENS = {
             const slotLabel = pilotSlot === 0 ? 'Piloto 1' : pilotSlot === 1 ? 'Piloto 2' : null;
             const slotColor = pilotSlot === 0 ? 'var(--c-accent)' : '#a78bfa';
             const cfg = this.getDriverStrategyDefaults(window._raceStrategy || baseStrategy, window._raceStrategy?.driverConfigs?.[p.id] || {});
-            const tyreMeta = this.getTyreMeta(cfg.tyre);
+            const tyreMeta = this.getTyreMeta(cfg.tyre, next.weather);
             return `
             <div class="morale-pill" style="margin-bottom:var(--s-3);${selected ? `border:1.5px solid ${slotColor}55;` : ''}">
               <div class="morale-avatar" style="font-size:1.2rem">${p.emoji||'🧑'}</div>
@@ -3230,8 +3449,10 @@ const SCREENS = {
                   <div class="ds-section-label">Neumático de salida</div>
                   <div class="ds-tyre-row">
                     <span class="badge" style="background:${tyreMeta.color}22;color:${tyreMeta.color};border:1px solid ${tyreMeta.color}55;padding:3px 10px">${tyreMeta.label}</span>
-                    <span class="ds-tyre-meta">${tyreMeta.paceText} · ${tyreMeta.durabilityText}</span>
+                    <span class="ds-tyre-meta">${tyreMeta.paceText}</span>
                   </div>
+                  <div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:2px">${tyreMeta.durabilityText}</div>
+                  ${tyreMeta.weatherWarning ? `<div style="font-size:0.74rem;font-weight:700;color:var(--c-accent);background:rgba(232,41,42,0.1);border:1px solid rgba(232,41,42,0.3);border-radius:6px;padding:5px 10px;margin-top:6px">${tyreMeta.weatherWarning}</div>` : ''}
                   <div class="ds-selects-row">
                     <div class="ds-select-wrap">
                       <label class="ds-select-label">Neumático</label>
@@ -3250,6 +3471,13 @@ const SCREENS = {
                         <option value="normal" ${cfg.engineMode === 'normal' || !cfg.engineMode ? 'selected' : ''}>${this.getEngineModeLabel('normal')}</option>
                         <option value="push" ${cfg.engineMode === 'push' ? 'selected' : ''}>${this.getEngineModeLabel('push')}</option>
                       </select>
+                      <div style="font-size:0.7rem;color:var(--t-tertiary);margin-top:3px">
+                        ${{
+                          eco: '⚡ Menor ritmo · mayor durabilidad de motor y menor consumo',
+                          normal: '⚖️ Equilibrio entre ritmo y desgaste',
+                          push: '🔥 Ritmo máximo · mayor desgaste de motor y consumo de combustible'
+                        }[cfg.engineMode || 'normal']}
+                      </div>
                     </div>
                     <div class="ds-select-wrap">
                       <label class="ds-select-label">Plan de boxes</label>
@@ -3802,7 +4030,7 @@ const SCREENS = {
           }, state)
         : null;
 
-      GL_ENGINE.updateStandings(result);
+      GL_ENGINE.finalizeRace(result);
       if (nextIdx >= 0 && cal[nextIdx]) {
         cal[nextIdx].status = 'completed';
         cal[nextIdx].result = archiveRecord || { position: result.position, points: result.points, playerCars: result.playerCars || [] };
@@ -3850,17 +4078,23 @@ const SCREENS = {
       }
       window._advisorStrategySource = 'manual';
 
-      const _bestPos = Array.isArray(result.playerCars) && result.playerCars.length > 0
-        ? result.playerCars.reduce((b, c) => Math.min(b, (c && Number.isFinite(c.position) ? c.position : 99)), 99)
-        : (result.position || 99);
-      const _rndBasePoints = _bestPos === 1 ? 10 : _bestPos === 2 ? 8 : _bestPos === 3 ? 6 : _bestPos <= 10 ? 3 : _bestPos <= 20 ? 1 : 0;
       const _rndBuildingLv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
       const _rndBonus = Math.max(0, _rndBuildingLv - 1);
-      const _rndEarned = _rndBasePoints > 0 ? _rndBasePoints + _rndBonus : 0;
-      if (_rndEarned > 0) {
-        state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
-        const _rndMsg = _rndBonus > 0 ? `🔬 +${_rndEarned} pts de I+D (P${_bestPos}, +${_rndBonus} bonus I+D Lv${_rndBuildingLv})` : `🔬 +${_rndEarned} pts de I+D (P${_bestPos})`;
-        GL_STATE.addLog(_rndMsg, 'good');
+      const _carsForRnd = Array.isArray(result.playerCars) && result.playerCars.length > 0
+        ? result.playerCars
+        : [{ position: result.position || 99 }];
+      let _totalRndEarned = 0;
+      const _rndBreakdown = [];
+      _carsForRnd.forEach(c => {
+        const pos = c && Number.isFinite(c.position) ? c.position : 99;
+        const base = pos === 1 ? 10 : pos === 2 ? 8 : pos === 3 ? 6 : pos <= 10 ? 3 : pos <= 20 ? 1 : 0;
+        const earned = base > 0 ? base + _rndBonus : 0;
+        if (earned > 0) { _totalRndEarned += earned; _rndBreakdown.push(`P${pos}:+${earned}`); }
+      });
+      if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {} };
+      if (_totalRndEarned > 0) {
+        state.car.rnd.points = (state.car.rnd.points || 0) + _totalRndEarned;
+        GL_STATE.addLog(`🔬 +${_totalRndEarned} pts de I+D (${_rndBreakdown.join(', ')})`, 'good');
       }
       if (archiveRecord && GL_ENGINE.upsertRaceArchiveRecord) {
         GL_ENGINE.upsertRaceArchiveRecord(state, archiveRecord);
@@ -3946,6 +4180,20 @@ const SCREENS = {
     if (window._liveRaceAnimFrame) { cancelAnimationFrame(window._liveRaceAnimFrame); window._liveRaceAnimFrame = null; }
     this._raceVisualState = {};
     this._retiredSlotMap = {};
+    window._liveLogFilter = 'all';
+  },
+
+  setLiveLogFilter(mode) {
+    window._liveLogFilter = mode;
+    const btnAll  = document.getElementById('liverace-filter-all');
+    const btnTeam = document.getElementById('liverace-filter-team');
+    if (btnAll)  btnAll.style.opacity  = mode === 'all'  ? '1' : '0.5';
+    if (btnTeam) btnTeam.style.opacity = mode === 'team' ? '1' : '0.5';
+    const log = document.getElementById('liverace-event-log');
+    if (!log) return;
+    Array.from(log.querySelectorAll('.race-event')).forEach(ev => {
+      ev.style.display = (mode === 'team' && !ev.classList.contains('team-highlight')) ? 'none' : '';
+    });
   },
 
   renderLiveRace() {
@@ -3961,7 +4209,9 @@ const SCREENS = {
 
     const state = GL_STATE.getState();
     const cal = state.season.calendar || [];
-    const next = cal.find(r => r.status === 'next');
+    const liveStateInit = window._divLiveRaceState;
+    const liveRoundInit = liveStateInit && liveStateInit.status === 'live' && liveStateInit.round;
+    const next = (liveRoundInit ? cal.find(r => r.round === liveRoundInit) : null) || cal.find(r => r.status === 'next');
     const circuit = next?.circuit || GL_DATA.CIRCUITS[0];
     const weather = next?.weather || 'dry';
     el.innerHTML = `
@@ -3976,26 +4226,43 @@ const SCREENS = {
           <button class="btn btn-secondary" onclick="GL_APP.navigateTo('calendar')">← Calendario</button>
         </div>
       </div>
-      <div class="race-layout">
-        <div class="race-track-view">
-          <div class="race-track-bg"></div>
-          <div class="race-status-bar" id="liverace-status-bar">
-            <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
-            <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
+      <div id="liverace-player-hud" style="display:flex;align-items:center;gap:14px;padding:6px 16px;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--r-md);margin-bottom:var(--s-4);font-size:0.82rem;font-family:var(--font-display);font-weight:800">
+        <span style="color:var(--t-tertiary);font-size:0.75rem;font-weight:600">${__('standings_you')}</span>
+        <span id="liverace-hud-p1" style="color:var(--t-primary)">P1: —</span>
+        <span style="color:var(--c-border)">|</span>
+        <span id="liverace-hud-p2" style="color:var(--t-primary)">P2: —</span>
+      </div>
+      <div class="race-layout" style="align-items:start">
+        <div style="display:flex;flex-direction:column;gap:var(--s-4)">
+          <div class="race-track-view" style="min-height:0">
+            <div class="race-track-bg"></div>
+            <div class="race-status-bar" id="liverace-status-bar">
+              <span class="race-lap-counter" id="liverace-lap">⏳ Esperando inicio...</span>
+              <span class="race-condition">${weather === 'wet' ? '🌧️' : '☀️'} ${weather.charAt(0).toUpperCase() + weather.slice(1)} · ${circuit.laps} vueltas</span>
+            </div>
+            <div style="max-width:452px;width:100%;margin:0 auto">
+              ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace', 'min-height:0;width:100%')}
+            </div>
           </div>
-          ${this.getRaceTrackStageMarkup(circuit, weather, 'liverace')}
-          <div class="race-event-log" id="liverace-event-log">
-            <div class="race-event" style="border-color:var(--c-border)">
-              <span class="race-event-text">⏳ Esperando que el administrador inicie la carrera...</span>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <div class="section-eyebrow" style="margin-bottom:0">Log</div>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-ghost btn-sm" id="liverace-filter-all" onclick="GL_SCREENS.setLiveLogFilter('all')" style="padding:2px 10px;font-size:0.75rem">${__('race_log_filter_all')}</button>
+                <button class="btn btn-ghost btn-sm" id="liverace-filter-team" onclick="GL_SCREENS.setLiveLogFilter('team')" style="padding:2px 10px;font-size:0.75rem;opacity:0.5">${__('race_log_filter_team')}</button>
+              </div>
+            </div>
+            <div class="race-event-log" id="liverace-event-log" style="max-height:200px">
+              <div class="race-event" style="border-color:var(--c-border)">
+                <span class="race-event-text">⏳ Esperando que el administrador inicie la carrera...</span>
+              </div>
             </div>
           </div>
         </div>
-        <div class="flex flex-col gap-4">
-          <div class="card">
-            <div class="section-eyebrow">Grilla en Vivo</div>
-            <div class="race-grid-list" id="liverace-grid-list">
-              <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
-            </div>
+        <div class="card" style="max-height:calc(100vh - 140px);overflow:hidden;display:flex;flex-direction:column">
+          <div class="section-eyebrow">Grilla en Vivo</div>
+          <div class="race-grid-list" id="liverace-grid-list" style="flex:1;min-height:0;overflow-y:auto;max-height:none">
+            <div style="color:var(--t-tertiary);font-size:0.82rem;padding:var(--s-4) 0">La grilla aparecerá al comenzar la carrera.</div>
           </div>
         </div>
       </div>`;
@@ -4025,7 +4292,7 @@ const SCREENS = {
         updateDebug(liveState ? liveState.status || 'sin status' : 'sin liveRaceState');
         return false;
       }
-      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : (11 * 60 * 1000);
+      const maxMs = liveState.durationMode === 'qa' ? (4 * 60 * 1000) : liveState.durationMode === 'medium' ? (7 * 60 * 1000) : (11 * 60 * 1000);
       const tsMs = liveState.startTime
         ? (liveState.startTime.toMillis ? liveState.startTime.toMillis() : (liveState.startTime.seconds ? liveState.startTime.seconds * 1000 : 0))
         : 0;
@@ -4036,6 +4303,21 @@ const SCREENS = {
       window._liveRaceStarted = true;
       if (window._liveRaceListener) { window._liveRaceListener(); window._liveRaceListener = null; }
       if (window._liveRacePollInterval) { clearInterval(window._liveRacePollInterval); window._liveRacePollInterval = null; }
+      const liveRaceCal = cal.find(r => r.round === liveState.round);
+      if (liveRaceCal && liveRaceCal.circuit) {
+        const lc = liveRaceCal.circuit;
+        const lw = liveRaceCal.weather || 'dry';
+        const headerEl  = el.querySelector('.screen-header');
+        const eyebrowEl = headerEl?.querySelector('.screen-eyebrow');
+        const titleEl   = headerEl?.querySelector('.screen-title');
+        const subEl     = headerEl?.querySelector('.screen-subtitle');
+        if (eyebrowEl) eyebrowEl.textContent = `Carrera en Vivo · Ronda ${liveState.round}`;
+        if (titleEl)   titleEl.textContent   = lc.name;
+        if (subEl)     subEl.textContent     = `${lw === 'wet' ? '🌧️' : '☀️'} ${lw} · En vivo`;
+        const condEl = document.getElementById('liverace-status-bar')?.querySelector('.race-condition');
+        if (condEl)    condEl.textContent    = `${lw === 'wet' ? '🌧️' : '☀️'} ${lw.charAt(0).toUpperCase() + lw.slice(1)} · ${lc.laps} vueltas`;
+        this.renderRaceTrackVisualization({ liveOrder: [], progress: 0, totalLaps: lc.laps || 1, currentLap: 1, circuit: lc, weather: lw, idPrefix: 'liverace' });
+      }
       this._startLiveRaceCountdown(liveState, mp.divKey);
       return true;
     };
@@ -4119,9 +4401,43 @@ const SCREENS = {
 
   async _fetchAndStartLiveRace(divKey, round, raceStartMs, durationMode) {
     try {
-      // Use lastRaceRound from the division doc as the authoritative round number
       const divSnap = await GL_AUTH._db.collection('divisions').doc(divKey).get({ source: 'server' });
-      const effectiveRound = (divSnap.exists && divSnap.data().lastRaceRound) || round;
+      const divData = divSnap.exists ? divSnap.data() : {};
+      const effectiveRound = (divData.liveRaceState && divData.liveRaceState.round) || divData.lastRaceRound || round;
+
+      // Build a teamId → unique colour map from division slot snapshots.
+      // Each team keeps its preferred colour if no other team took it first;
+      // duplicates (e.g. everyone on the default red) receive a spare from
+      // the pool so every car in the race view is visually distinct.
+      const SPARE_POOL = [
+        '#00A6FB','#2EC4B6','#8AC926','#6A4C93','#FF9F1C',
+        '#06D6A0','#FFD166','#D65DB1','#3A86FF','#43AA8B',
+        '#118AB2','#7B2CBF','#90BE6D','#F9C74F','#4CC9F0',
+        '#F8961E','#577590','#4D96FF','#C77DFF','#e8292a',
+      ];
+      const teamColorMap = {};
+      const usedColors = new Set();
+      let spareIdx = 0;
+      const nextSpare = () => {
+        while (spareIdx < SPARE_POOL.length && usedColors.has(SPARE_POOL[spareIdx])) spareIdx++;
+        return SPARE_POOL[spareIdx % SPARE_POOL.length];
+      };
+      Object.entries(divData.slots || {})
+        .sort(([a], [b]) => Number(a) - Number(b))
+        .forEach(([, slot]) => {
+          const tid = slot.userId || slot.botTeamId;
+          const pref = slot.teamSnapshot && slot.teamSnapshot.colors && slot.teamSnapshot.colors.primary;
+          if (!tid) return;
+          if (pref && !usedColors.has(pref)) {
+            teamColorMap[tid] = pref;
+            usedColors.add(pref);
+          } else {
+            const spare = nextSpare();
+            teamColorMap[tid] = spare;
+            usedColors.add(spare);
+            spareIdx++;
+          }
+        });
 
       // Retry hasta 4 veces con 2s de espera: Firestore puede tener lag de replicación
       // entre la subcollección raceResults y el documento de división
@@ -4139,6 +4455,26 @@ const SCREENS = {
         return;
       }
       const result = resultSnap.data();
+
+      // Stamp every car entry with its unique team colour.
+      // lap-snapshot entries lack teamId, so build an id→teamId map from finalGrid first.
+      if (Object.keys(teamColorMap).length) {
+        const idToTeam = {};
+        if (Array.isArray(result.finalGrid)) {
+          result.finalGrid.forEach(e => { if (e.id && e.teamId) idToTeam[e.id] = e.teamId; });
+        }
+        const enrichColor = (entry) => {
+          const tid = entry.teamId || idToTeam[entry.id];
+          if (tid && teamColorMap[tid]) entry.color = teamColorMap[tid];
+        };
+        if (Array.isArray(result.finalGrid)) result.finalGrid.forEach(enrichColor);
+        if (Array.isArray(result.lapSnapshots)) {
+          result.lapSnapshots.forEach(snap => {
+            if (Array.isArray(snap.order)) snap.order.forEach(enrichColor);
+          });
+        }
+      }
+
       const uid = GL_AUTH.user && GL_AUTH.user.uid;
       const viewerCars = uid ? (result.allCarsResults || []).filter(c => c.teamId === uid) : [];
       const playerCars = viewerCars.length ? viewerCars : (result.playerCars || []).filter(c => c.teamId === uid);
@@ -4155,7 +4491,7 @@ const SCREENS = {
     const lapEl = document.getElementById('liverace-lap');
     if (log) log.innerHTML = '';
 
-    const LIVE_RACE_DURATION_MS = durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+    const LIVE_RACE_DURATION_MS = durationMode === 'qa' ? (2 * 60 * 1000) : durationMode === 'medium' ? (4 * 60 * 1000) : (8 * 60 * 1000);
     const allEvents = Array.isArray(result.events) ? result.events : [];
     const totalLaps = result.totalLaps || 30;
     const gridStart = Array.isArray(result.gridStart) ? result.gridStart : [];
@@ -4174,6 +4510,7 @@ const SCREENS = {
     let eventCursor = 0;
     let tick = 0;
     let finished = false;
+    let _finalMyTeamCars = [];
 
     const formatRemaining = (ms) => {
       const sec = Math.max(0, Math.ceil(ms / 1000));
@@ -4183,6 +4520,7 @@ const SCREENS = {
     const renderLiveGrid = (live) => {
       const gl = document.getElementById('liverace-grid-list');
       if (!gl) return;
+      let stickyOffset = 0;
       gl.innerHTML = live.slice(0, 20).map((car, idx) => {
         const gapToLeader = idx === 0 ? __('race_leader') : (Number.isFinite(car.gapMs) ? `+${(car.gapMs / 1000).toFixed(1)}s` : `+${(idx * 0.9).toFixed(1)}s`);
         const aheadCar = idx > 0 ? live[idx - 1] : null;
@@ -4191,10 +4529,12 @@ const SCREENS = {
         const dotColor = car.color || '#888';
         const tyreMeta = this.getTyreMeta(car.tyre);
         const status = car.retired ? 'DNF' : car.pit ? `BOX ${Number.isFinite(car.pitLossMs) && car.pitLossMs > 0 ? `· -${(car.pitLossMs / 1000).toFixed(1)}s` : ''}` : gapToLeader;
-        return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}">
+        const stickyStyle = car.isPlayer ? `;position:sticky;top:${stickyOffset}px;z-index:3` : '';
+        if (car.isPlayer) stickyOffset += 32;
+        return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}${stickyStyle}">
           <span class="race-pos-num">${car.pos || (idx + 1)}</span>
           <span class="race-pos-teamdot" style="background:${dotColor}"></span>
-          <span class="race-pos-name">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
+          <span class="race-pos-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
           <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>
           <span class="race-pos-gap" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1">
             <span>${status}</span>
@@ -4208,6 +4548,44 @@ const SCREENS = {
       if (finished) return;
       finished = true;
       if (lapEl) lapEl.textContent = '🏁 ¡Carrera finalizada!';
+
+      // Award R&D points using the final positions captured from the live race HUD.
+      // _finalMyTeamCars is updated each tick with isPlayer-flagged cars and correct positions.
+      // _applyMpPending may also fire later via Firebase; lastAwardedRound prevents double-counting.
+      const _liveResult = window._lastRaceResult;
+      const _liveRound  = (_liveResult && (_liveResult._mpRound || _liveResult.round)) || 0;
+      const _liveState  = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
+      if (_liveState && _liveRound) {
+        if (!_liveState.car) _liveState.car = {};
+        if (!_liveState.car.rnd) _liveState.car.rnd = { points: 0, active: null, queue: {} };
+        const _rnd = _liveState.car.rnd;
+        if (!_rnd.awardedRounds || typeof _rnd.awardedRounds !== 'object') _rnd.awardedRounds = {};
+        if (!_rnd.awardedRounds[_liveRound]) {
+          const _lv    = (_liveState.hq && _liveState.hq.rnd) ? Number(_liveState.hq.rnd) : 1;
+          const _bonus = Math.max(0, _lv - 1);
+          // Use HUD-tracked positions (most reliable), fall back to _lastRaceResult data
+          const _cars = _finalMyTeamCars.length > 0
+            ? _finalMyTeamCars.map(c => ({ position: Math.round(c.displayPos || c.pos || 99) }))
+            : (Array.isArray(_liveResult && _liveResult.playerCars) && _liveResult.playerCars.length > 0
+                ? _liveResult.playerCars
+                : [{ position: (_liveResult && _liveResult.position) || 99 }]);
+          let _earned = 0;
+          const _breakdown = [];
+          _cars.forEach(_c => {
+            const _pos  = (_c && Number.isFinite(_c.position)) ? _c.position : 99;
+            const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
+            const _e    = _base > 0 ? _base + _bonus : 0;
+            if (_e > 0) { _earned += _e; _breakdown.push(`P${_pos}:+${_e}`); }
+          });
+          if (_earned > 0) {
+            _rnd.points = (_rnd.points || 0) + _earned;
+            _rnd.awardedRounds[_liveRound] = true;
+            if (GL_STATE.addLog) GL_STATE.addLog(`🔬 +${_earned} pts de I+D (${_breakdown.join(', ')})`, 'good');
+          }
+          if (GL_STATE.saveState) GL_STATE.saveState();
+        }
+      }
+
       // Sincronizar calendario desde Firestore y esperar antes de navegar a postrace
       const mp = window.GL_AUTH && GL_AUTH.mp;
       if (mp && mp.divKey && GL_AUTH._db) {
@@ -4238,6 +4616,13 @@ const SCREENS = {
 
       if (lapEl) lapEl.textContent = `🏁 Vuelta ${currentLap} / ${totalLaps} · ${formatRemaining(remaining)}`;
 
+      const myTeamCars = liveOrder.filter(c => c.isPlayer).sort((a, b) => (a.displayPos || a.pos || 99) - (b.displayPos || b.pos || 99));
+      if (myTeamCars.length) _finalMyTeamCars = myTeamCars;
+      const hudP1El = document.getElementById('liverace-hud-p1');
+      const hudP2El = document.getElementById('liverace-hud-p2');
+      if (hudP1El) { const c = myTeamCars[0]; hudP1El.textContent = c ? `${c.name || 'P1'}: P${Math.max(1, Math.round(c.displayPos || c.pos || 1))}` : 'P1: —'; }
+      if (hudP2El) { const c = myTeamCars[1]; hudP2El.textContent = c ? `${c.name || 'P2'}: P${Math.max(1, Math.round(c.displayPos || c.pos || 2))}` : 'P2: —'; }
+
       const shouldShowEvents = Math.floor(progress * allEvents.length);
       while (eventCursor < shouldShowEvents) {
         const ev = allEvents[eventCursor];
@@ -4246,8 +4631,9 @@ const SCREENS = {
           const teamHighlightClass = this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : '';
           div.className = `race-event ${ev.type || ''} ${teamHighlightClass}`.trim();
           div.innerHTML = `<span class="race-event-lap">${__('race_lap_short')} ${ev.lap}</span><span class="race-event-text">${ev.text}</span>`;
+          if (window._liveLogFilter === 'team' && !teamHighlightClass) div.style.display = 'none';
           log.appendChild(div);
-          log.scrollTop = log.scrollHeight;
+          if (window._liveLogFilter !== 'team' || teamHighlightClass) log.scrollTop = log.scrollHeight;
         }
         eventCursor += 1;
       }
@@ -4282,7 +4668,7 @@ const SCREENS = {
         // Bloquear postrace mientras la carrera en vivo sigue corriendo
         const ls = divData.liveRaceState;
         if (ls && ls.status === 'live' && ls.startTime) {
-          const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : (8 * 60 * 1000);
+          const durMs = ls.durationMode === 'qa' ? (2 * 60 * 1000) : ls.durationMode === 'medium' ? (4 * 60 * 1000) : (8 * 60 * 1000);
           const startMs = ls.startTime.toMillis ? ls.startTime.toMillis() : (ls.startTime.seconds ? ls.startTime.seconds * 1000 : 0);
           const raceEndMs = startMs + 10000 + durMs;
           if (startMs > 0 && Date.now() < raceEndMs) {
@@ -4356,6 +4742,30 @@ const SCREENS = {
       .join('');
     const posColor = leadCar.position <= 1 ? 'var(--c-gold)' : leadCar.position <= 3 ? '#cd7c32' : leadCar.position <= 8 ? 'var(--c-green)' : 'var(--t-primary)';
     const state = GL_STATE.getState();
+    const _displayTeamPoints = playerCars.length > 0
+      ? playerCars.reduce((s, c) => s + (c.points || 0), 0)
+      : (result.points || 0);
+    const _rndLv = (state && state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
+    const _rndBonus = Math.max(0, _rndLv - 1);
+    const _carsForRndDisplay = playerCars.length > 0 ? playerCars : [{ position: result.position || 99 }];
+    let _rndEarned = 0;
+    _carsForRndDisplay.forEach(c => {
+      const pos = c && Number.isFinite(c.position) ? c.position : 99;
+      const base = pos === 1 ? 10 : pos === 2 ? 8 : pos === 3 ? 6 : pos <= 10 ? 3 : pos <= 20 ? 1 : 0;
+      if (base > 0) _rndEarned += base + _rndBonus;
+    });
+    // Award R&D points here — reliable fallback when _applyMpPending fails (Firebase quota, timing).
+    // lastAwardedRound prevents double-counting if _applyMpPending also fires later.
+    const _rndRound = result._mpRound || result.round || 0;
+    if (_rndEarned > 0 && _rndRound && state && state.car) {
+      if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {} };
+      if (!state.car.rnd.awardedRounds || typeof state.car.rnd.awardedRounds !== 'object') state.car.rnd.awardedRounds = {};
+      if (!state.car.rnd.awardedRounds[_rndRound]) {
+        state.car.rnd.points = (state.car.rnd.points || 0) + _rndEarned;
+        state.car.rnd.awardedRounds[_rndRound] = true;
+        GL_STATE.saveState();
+      }
+    }
     const crashReports = playerCars
       .filter((car) => car && car.isDNF)
       .map((car) => ({
@@ -4429,6 +4839,35 @@ const SCREENS = {
         </div>`;
       })
       .join('');
+
+    // GL-017: Race highlights — top player-related events + milestone moments
+    const _highlightEvents = (result.events || []).filter(ev =>
+      this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ||
+      ev.type === 'incident' || ev.type === 'pit'
+    );
+    const _seen = new Set();
+    const _topHighlights = _highlightEvents.filter(ev => {
+      const key = ev.text.slice(0, 40);
+      if (_seen.has(key)) return false;
+      _seen.add(key);
+      return true;
+    }).slice(0, 5);
+    const _typeIcon = { incident: '⚠️', pit: '🔧', info: 'ℹ️', good: '✅', bad: '❌' };
+    const highlightsHtml = _topHighlights.length ? `
+      <div class="card mb-4" style="border-left:3px solid var(--c-accent)">
+        <div style="font-size:0.82rem;font-weight:700;margin-bottom:10px">✨ Momentos clave</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${_topHighlights.map(ev => `
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;background:var(--c-surface-2)">
+              <span style="font-size:0.7rem;color:var(--t-tertiary);white-space:nowrap;padding-top:2px">L${ev.lap}</span>
+              <span style="font-size:0.8rem;line-height:1.4">${ev.text}</span>
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:8px;text-align:right">
+          <a href="#postrace-event-log" style="font-size:0.72rem;color:var(--c-accent);text-decoration:none" onclick="document.getElementById('postrace-event-log')?.scrollIntoView({behavior:'smooth'});return false;">Ver log completo →</a>
+        </div>
+      </div>` : '';
+
     el.innerHTML = `
       <div class="screen-header">
         <div class="screen-title-group">
@@ -4451,7 +4890,8 @@ const SCREENS = {
             <div style="color:var(--t-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${result.circuit?.name} · ${__('postrace_weather')}: ${this.getWeatherLabel(result.weather)} ${teamResultHeadline}</div>
           <div style="display:grid;gap:6px;margin-top:10px">${heroTeamResults}</div>
           <div class="post-race-metrics">
-              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${result.points}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
+              <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-gold)">${_displayTeamPoints}</div><div class="post-race-metric-label">${__('postrace_team_points')}</div></div>
+              ${_rndEarned > 0 ? `<div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-accent)">+${_rndEarned}</div><div class="post-race-metric-label">🔬 ${__('postrace_rnd_earned', 'Pts I+D')}</div></div>` : ''}
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:var(--c-green)">+${GL_UI.fmtCR(result.economySummary?.prizeDelta ?? result.prizeMoney)}</div><div class="post-race-metric-label">${__('postrace_prize')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.weeklyNetDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.weeklyNetDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.weeklyNetDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_weekly_balance', 'Weekly balance')}</div></div>
               <div class="post-race-metric"><div class="post-race-metric-val" style="color:${(result.economySummary?.totalDelta || 0) >= 0 ? 'var(--c-green)' : 'var(--c-red)'}">${(result.economySummary?.totalDelta || 0) > 0 ? '+' : ''}${GL_UI.fmtCR(Math.abs(result.economySummary?.totalDelta || 0))}</div><div class="post-race-metric-label">${__('postrace_credit_delta', 'Total credit delta')}</div></div>
@@ -4463,6 +4903,7 @@ const SCREENS = {
         </div>
       </div>
       ${crashReviewHtml}
+      ${highlightsHtml}
       <div class="card mb-4 postrace-podium-card">
         <div class="postrace-podium-title">🏁 ${__('postrace_class')}</div>
         <div class="postrace-podium-wrap">${podiumHtml || `<div style="color:var(--t-secondary)">No podium data</div>`}</div>
@@ -4478,7 +4919,7 @@ const SCREENS = {
               <div class="fin-item"><span>${car.pilotName}</span><strong>${car.isDNF ? 'DNF' : ('P'+car.position)} · ${car.points || 0} pts</strong></div>
             `).join('')}
           </div>
-          <div class="section-eyebrow">${__('postrace_events')}</div>
+          <div class="section-eyebrow" id="postrace-event-log">${__('postrace_events')}</div>
           <div class="race-event-log" style="max-height:250px;overflow-y:auto">
             ${result.events.map(ev => `<div class="race-event ${ev.type} ${this.isPlayerRelatedRaceEvent(ev.text, playerEventPilotNames) ? 'team-highlight' : ''}"><span class="race-event-lap">L${ev.lap}</span><span class="race-event-text">${ev.text}</span></div>`).join('')}
           </div>

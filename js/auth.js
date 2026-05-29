@@ -111,6 +111,28 @@
               if (!Array.isArray(sd.raceResults)) sd.raceResults = [];
               if (!sd.raceResults.find(r => r.round === pendingRaceResult.round && r.ts === pendingRaceResult.ts))
                 sd.raceResults.push(pendingRaceResult);
+              // Apply R&D points into save_data so loadState() includes them — prevents timing gap
+              // where _applyMpPending() runs before loadState() replaces _state.
+              const _rndRound = pendingRaceResult.round;
+              if (!sd.car) sd.car = {};
+              if (!sd.car.rnd) sd.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {} };
+              if (!sd.car.rnd.awardedRounds || typeof sd.car.rnd.awardedRounds !== 'object') sd.car.rnd.awardedRounds = {};
+              if (!sd.car.rnd.awardedRounds[_rndRound]) {
+                const _lv = (sd.hq && sd.hq.rnd) ? Number(sd.hq.rnd) : 1;
+                const _bonus = Math.max(0, _lv - 1);
+                const _positions = Array.isArray(pendingRaceResult.carPositions) && pendingRaceResult.carPositions.length > 0
+                  ? pendingRaceResult.carPositions
+                  : [Number(pendingRaceResult.position) || 99];
+                let _earned = 0;
+                _positions.forEach(_p => {
+                  const _base = _p === 1 ? 10 : _p === 2 ? 8 : _p === 3 ? 6 : _p <= 10 ? 3 : _p <= 20 ? 1 : 0;
+                  if (_base > 0) _earned += _base + _bonus;
+                });
+                if (_earned > 0) {
+                  sd.car.rnd.points = (sd.car.rnd.points || 0) + _earned;
+                  sd.car.rnd.awardedRounds[_rndRound] = true;
+                }
+              }
             }
             if (!sd.meta) sd.meta = {};
             sd.meta.saveTime = Date.now();
@@ -185,21 +207,26 @@
         // Award I+D points (once per round)
         const _rndRound = pendingRaceResult.round;
         if (!state.car) state.car = {};
-        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: [] };
-        if (!state.car.rnd.lastAwardedRound || state.car.rnd.lastAwardedRound < _rndRound) {
-          const _pos = Number(pendingRaceResult.position) || 99;
-          const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
+        if (!state.car.rnd) state.car.rnd = { points: 0, active: null, queue: {}, awardedRounds: {} };
+        if (!state.car.rnd.awardedRounds || typeof state.car.rnd.awardedRounds !== 'object') state.car.rnd.awardedRounds = {};
+        if (!state.car.rnd.awardedRounds[_rndRound]) {
           const _lv = (state.hq && state.hq.rnd) ? Number(state.hq.rnd) : 1;
           const _bonus = Math.max(0, _lv - 1);
-          const _earned = _base > 0 ? _base + _bonus : 0;
-          state.car.rnd.lastAwardedRound = _rndRound;
-          if (_earned > 0) {
-            state.car.rnd.points = (state.car.rnd.points || 0) + _earned;
+          const _carPositions = Array.isArray(pendingRaceResult.carPositions) && pendingRaceResult.carPositions.length > 0
+            ? pendingRaceResult.carPositions
+            : [Number(pendingRaceResult.position) || 99];
+          let _totalEarned = 0;
+          const _breakdown = [];
+          _carPositions.forEach(_pos => {
+            const _base = _pos === 1 ? 10 : _pos === 2 ? 8 : _pos === 3 ? 6 : _pos <= 10 ? 3 : _pos <= 20 ? 1 : 0;
+            const _e = _base > 0 ? _base + _bonus : 0;
+            if (_e > 0) { _totalEarned += _e; _breakdown.push(`P${_pos}:+${_e}`); }
+          });
+          if (_totalEarned > 0) {
+            state.car.rnd.points = (state.car.rnd.points || 0) + _totalEarned;
+            state.car.rnd.awardedRounds[_rndRound] = true;
             if (window.GL_STATE && GL_STATE.addLog) {
-              const _msg = _bonus > 0
-                ? `🔬 +${_earned} pts de I+D (P${_pos}, +${_bonus} bonus I+D Lv${_lv})`
-                : `🔬 +${_earned} pts de I+D (P${_pos})`;
-              GL_STATE.addLog(_msg, 'good');
+              GL_STATE.addLog(`🔬 +${_totalEarned} pts de I+D (${_breakdown.join(', ')})`, 'good');
             }
           }
         }
@@ -212,6 +239,13 @@
             if (typeof sp.weeksLeft === 'number') sp.weeksLeft = Math.max(0, sp.weeksLeft - 1);
           });
         }
+      }
+
+      // Persist to localStorage immediately so UI reads the updated value
+      if (window.GL_STATE && GL_STATE.saveState) GL_STATE.saveState();
+      // Re-render car dev screen if it's currently active
+      if (window.GL_APP && GL_APP.currentScreen === 'car' && window.GL_SCREENS && GL_SCREENS.renderCar) {
+        GL_SCREENS.renderCar();
       }
 
       const sd = JSON.parse(JSON.stringify(state));

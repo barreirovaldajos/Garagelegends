@@ -21,3 +21,7 @@ js/auth.supabase.backup.js
 
 # Firebase client configs (cargados via CDN o variables de entorno)
 js/firebase-config.dev.js
+
+# Windows Explorer metadata
+desktop.ini
+**/desktop.ini

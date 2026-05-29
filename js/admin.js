@@ -73,6 +73,7 @@ const GL_ADMIN = {
             <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Duración</label>
             <select id="admin-race-duration" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
               <option value="real">REAL · 8 min</option>
+              <option value="medium">MEDIO · 4 min</option>
               <option value="qa">QA · 2 min</option>
             </select>
           </div>
@@ -119,6 +120,40 @@ const GL_ADMIN = {
       </div>
 
 
+      <!-- GL-036: Per-division Live Race Control -->
+      <div class="card" style="margin-bottom:var(--s-4)">
+        <div class="section-title" style="margin-bottom:4px">📡 Control de Carrera por División</div>
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-bottom:12px">Inicia o reinicia la carrera en vivo para una división específica. Útil para depuración o si una división no recibió el inicio global.</div>
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">División</label>
+            <select id="admin-live-div" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              ${divOptions.map(d => `<option value="${d.div}">${d.div} – ${d.name || ''}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Grupo</label>
+            <select id="admin-live-group" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              ${this._buildGroupOptions(divOptions[0])}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.72rem;color:var(--t-tertiary);display:block;margin-bottom:4px">Duración</label>
+            <select id="admin-live-mode" style="background:var(--c-surface-2);color:var(--t-primary);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:6px 10px;font-size:0.82rem">
+              <option value="real">REAL · 8 min</option>
+              <option value="medium">MEDIO · 4 min</option>
+              <option value="qa">QA · 2 min</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="GL_ADMIN.handleCheckLiveRaceStatus()">🔍 Verificar estado</button>
+          <button class="btn btn-secondary btn-sm" onclick="GL_ADMIN.handleStartLiveRace()" style="border-color:var(--c-green);color:var(--c-green)">▶ Iniciar carrera</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_ADMIN.handleResetLiveRace()" style="color:var(--c-warn)">↩ Resetear estado</button>
+        </div>
+        <div id="admin-live-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
+      </div>
+
       <!-- Season Control -->
       <div class="card" style="margin-bottom:var(--s-4)">
         <div class="section-title" style="margin-bottom:4px">📅 Control de Temporada</div>
@@ -132,6 +167,7 @@ const GL_ADMIN = {
     `;
 
     this._wireGroupSync('admin-tool-div', 'admin-tool-group');
+    this._wireGroupSync('admin-live-div', 'admin-live-group');
 
     // Load current system message
     this.loadSystemMessageIntoInput();
@@ -765,7 +801,7 @@ const GL_ADMIN = {
       : null;
     const durationEl = document.getElementById('admin-race-duration');
     const durationMode = durationEl ? durationEl.value : 'real';
-    const durationLabel = durationMode === 'qa' ? '2 min (QA)' : '8 min (REAL)';
+    const durationLabel = durationMode === 'qa' ? '2 min (QA)' : durationMode === 'medium' ? '4 min (MEDIO)' : '8 min (REAL)';
 
     const confirmMsg = roundFilter
       ? `Correr ronda ${roundFilter} e iniciar carrera en vivo (${durationLabel})?`
@@ -1047,7 +1083,7 @@ const GL_ADMIN = {
     if (!divEl || !groupEl) return;
     const divKey = `${divEl.value}_${groupEl.value}`;
     const durationMode = modeEl ? modeEl.value : 'real';
-    const durationLabel = durationMode === 'qa' ? '2 min (QA)' : '8 min (REAL)';
+    const durationLabel = durationMode === 'qa' ? '2 min (QA)' : durationMode === 'medium' ? '4 min (MEDIO)' : '8 min (REAL)';
 
     const ok = await GL_UI.confirm('Iniciar Carrera en Vivo', `¿Iniciar carrera en vivo para ${divKey}? Duración: ${durationLabel}. Los jugadores verán el contador en 10 segundos.`, 'Iniciar', 'Cancelar');
     if (!ok) return;

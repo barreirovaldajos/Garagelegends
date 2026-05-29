@@ -47,7 +47,7 @@ const APP = {
     { id:'dashboard', labelKey:'nav_dashboard', icon:'🏠', screen:'dashboard' },
     { id:'mi-equipo', labelKey:'nav_mi_equipo', icon:'🏎️', screen:'mi-equipo' },
     { id:'garage',    labelKey:'nav_garage',    icon:'🏗️', screen:'garage' },
-    { id:'pilots',    labelKey:'nav_pilots',    icon:'🧑‍✈️', screen:'pilots' },
+    { id:'pilots',    labelKey:'nav_pilots',    icon:'⛑️', screen:'pilots' },
     { id:'car',       labelKey:'nav_car',       icon:'⚙️', screen:'car' },
     { id:'staff',     labelKey:'nav_staff',     icon:'👥', screen:'staff' },
     { id:'calendar',  labelKey:'nav_calendar',  icon:'📅', screen:'calendar' },
@@ -337,6 +337,9 @@ const APP = {
       admin:      () => { if (window.GL_ADMIN) GL_ADMIN.renderAdminPanel(); },
     };
     if (renderMap[screenId]) renderMap[screenId]();
+
+    // GL-029: contextual assistant tip
+    if (window.GL_ASSISTANT) GL_ASSISTANT.maybe(screenId);
 
     // Scroll main to top
     const main = document.getElementById('main');

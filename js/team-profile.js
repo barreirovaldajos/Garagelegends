@@ -2,10 +2,41 @@
 'use strict';
 
 const TEAM_PROFILE = {
-  // Temp storage for standings so onclick callbacks can reference by index (avoids escaping issues)
   _divStandings: null,
-  // Standings fetched by the division browser
   _browserStandings: null,
+
+  setTeamColor(type, value) {
+    const state = GL_STATE.getState();
+    if (!state.team.colors) state.team.colors = { primary: '#e8292a', secondary: '#0a0b0f' };
+    state.team.colors[type] = value;
+    GL_STATE.saveState();
+    const preview = document.getElementById('tp-car-preview');
+    if (preview) preview.innerHTML = this._renderCarPreview(state);
+    if (window.GL_UI && typeof GL_UI.toast === 'function') GL_UI.toast('Color actualizado', 'success');
+  },
+
+  setTeamLogo(logo) {
+    const state = GL_STATE.getState();
+    state.team.logo = logo;
+    GL_STATE.saveState();
+    this.renderMyTeam();
+  },
+
+  _renderCarPreview(state) {
+    const primary = (state.team.colors && state.team.colors.primary) || '#e8292a';
+    const secondary = (state.team.colors && state.team.colors.secondary) || '#0a0b0f';
+    const logo = state.team.logo || '🏎️';
+    const name = state.team.name || 'Mi Equipo';
+    return `
+      <div style="width:180px;height:60px;border-radius:8px;background:linear-gradient(135deg,${secondary} 40%,${primary} 100%);display:flex;align-items:center;justify-content:center;gap:8px;font-size:1.6rem;box-shadow:0 0 0 2px ${primary}66;position:relative;overflow:hidden">
+        <div style="position:absolute;inset:0;background:linear-gradient(90deg,transparent,${primary}44,transparent);pointer-events:none"></div>
+        ${logo}
+      </div>
+      <div>
+        <div style="font-weight:700;color:var(--t-primary)">${name}</div>
+        <div style="font-size:0.75rem;color:var(--t-tertiary);margin-top:2px">${primary.toUpperCase()} · ${secondary.toUpperCase()}</div>
+      </div>`;
+  },
 
   // ===== PANTALLA COMPLETA: MI EQUIPO =====
   renderMyTeam() {
@@ -109,6 +140,73 @@ const TEAM_PROFILE = {
             <span style="background:var(--c-gold)22;color:var(--c-gold);padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:700">P${position} ${__('standings_eyebrow', 'División')}</span>
             ${state.team.fans ? `<span style="background:var(--c-surface-2);color:var(--t-secondary);padding:3px 10px;border-radius:20px;font-size:0.73rem">👥 ${GL_UI.fmtCR(state.team.fans)} fans</span>` : ''}
             <span style="background:${primaryColor}22;color:${primaryColor};padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:600">${primaryColor.toUpperCase()}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Personalización de escudería -->
+      <div class="section-header" style="margin-bottom:var(--s-2)">
+        <span class="section-title" style="font-size:0.85rem">🎨 ${__('customization_title', 'Personalización de Escudería')}</span>
+      </div>
+      <div class="card" style="margin-bottom:var(--s-4)">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--s-4)">
+          <!-- Color primario -->
+          <div>
+            <div style="font-size:0.72rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">${__('customization_primary_color', 'Color principal (libre)')}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              ${['#e8292a','#ff6b00','#f5c518','#22c55e','#4a9eff','#a855f7','#ec4899','#ffffff','#888888','#0a0b0f'].map(c =>
+                `<div onclick="GL_TEAM_PROFILE.setTeamColor('primary','${c}')" style="width:32px;height:32px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${'${primaryColor}' === c ? '#fff' : 'transparent'};transition:transform 0.15s" title="${c}"></div>`
+              ).join('')}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="color" id="tp-color-primary" value="${primaryColor}" oninput="GL_TEAM_PROFILE.setTeamColor('primary',this.value)" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:8px">
+              <span style="font-size:0.8rem;color:var(--t-secondary)">${__('customization_custom_color', 'Color personalizado')}</span>
+            </div>
+          </div>
+          <!-- Color secundario -->
+          <div>
+            <div style="font-size:0.72rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">${__('customization_secondary_color', 'Color secundario (libre)')}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+              ${['#0a0b0f','#1e293b','#111827','#1c1917','#e8292a','#ff6b00','#22c55e','#4a9eff','#f5c518','#ffffff'].map(c =>
+                `<div onclick="GL_TEAM_PROFILE.setTeamColor('secondary','${c}')" style="width:32px;height:32px;border-radius:50%;background:${c};cursor:pointer;border:2px solid rgba(255,255,255,0.15);transition:transform 0.15s" title="${c}"></div>`
+              ).join('')}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="color" id="tp-color-secondary" value="${(state.team.colors && state.team.colors.secondary) || '#0a0b0f'}" oninput="GL_TEAM_PROFILE.setTeamColor('secondary',this.value)" style="width:40px;height:40px;border:none;background:none;cursor:pointer;border-radius:8px">
+              <span style="font-size:0.8rem;color:var(--t-secondary)">${__('customization_custom_color', 'Color personalizado')}</span>
+            </div>
+          </div>
+          <!-- Logo de escudería — GL-031: expanded icon system with VIP tier -->
+          <div>
+            <div style="font-size:0.72rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">${__('customization_logo', 'Logo de escudería')}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+              ${['🏎️','🚀','⚡','🔥','🦅','🐉','💎','🛡️','🌟','🏆','⚙️','🦁','🐺','🦊','🐯','🌙','☄️','🎯','💥','🏁','🦋','🌊','🎪','⚔️','🏔️','🌪️','🔱','⚓','🎖️','🎗️','🧿','🔮','🪬','🪄','🎭','🃏'].map(em =>
+                `<span onclick="GL_TEAM_PROFILE.setTeamLogo('${em}')" style="font-size:1.6rem;cursor:pointer;padding:4px;border-radius:8px;background:${state.team.logo===em?primaryColor+'33':'transparent'};transition:background 0.15s" title="${em}">${em}</span>`
+              ).join('')}
+            </div>
+            ${(()=>{
+              const isVip = state.team && state.team.vipUntil && state.team.vipUntil > Date.now();
+              const vipLogos = ['👑','🏅','🎇','✨','💫','🌈','🦄','🐉‍🔥','⚜️','🔰','🕊️','🌟'];
+              if (isVip) {
+                return `<div style="font-size:0.7rem;color:var(--c-accent);font-weight:700;margin-bottom:4px">⭐ Logos VIP exclusivos</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    ${vipLogos.map(em =>
+                      `<span onclick="GL_TEAM_PROFILE.setTeamLogo('${em}')" style="font-size:1.6rem;cursor:pointer;padding:4px;border-radius:8px;background:${state.team.logo===em?primaryColor+'33':'rgba(139,92,246,0.12)'};border:1px solid rgba(139,92,246,0.3);transition:background 0.15s" title="VIP: ${em}">${em}</span>`
+                    ).join('')}
+                  </div>`;
+              }
+              return `<div style="font-size:0.72rem;color:var(--t-tertiary);margin-top:4px;padding:8px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px dashed var(--c-border)">
+                🔒 ${__('customization_vip_logos', '12 logos exclusivos desbloqueables con Pase VIP')}
+                <button class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:0.7rem;padding:2px 8px" onclick="GL_SCREENS.renderGarage();GL_APP.navigateTo('garage')">Activar VIP →</button>
+              </div>`;
+            })()}
+          </div>
+        </div>
+        <!-- Preview del auto -->
+        <div style="margin-top:var(--s-4);padding-top:var(--s-4);border-top:1px solid var(--c-border)">
+          <div style="font-size:0.72rem;color:var(--t-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px">${__('customization_car_preview', 'Preview de librea')}</div>
+          <div id="tp-car-preview" style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:10px;background:rgba(255,255,255,0.03)">
+            ${this._renderCarPreview(state)}
           </div>
         </div>
       </div>

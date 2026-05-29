@@ -244,3 +244,98 @@ window.GL_UI = {
   sponsorChipHTML, colorSwatchesHTML, TEAM_COLORS, statRow,
   showRandomEvent, handleEventChoice, circuitSVG
 };
+
+// ===== GL_ASSISTANT — GL-029: Context-sensitive assistant hint framework =====
+window.GL_ASSISTANT = (() => {
+  const SCREEN_TIPS = {
+    dashboard:  ['💡 Revisa tus patrocinadores activos y sus objetivos de carrera.', '📊 Las recomendaciones del panel te muestran qué mejorar primero.'],
+    calendar:   ['📅 Haz clic en una carrera completada para ver el informe detallado.', '🌧️ El pronóstico del tiempo se fija cuando abres la pantalla de preparación.'],
+    prerace:    ['⚙️ El modo motor "Eco" alarga los neumáticos; "Push" mejora el ritmo pero los degrada.', '🔧 Ajusta la agresividad según el circuito — más alto en trazados con pocas curvas lentas.'],
+    pilots:     ['🏆 Entrena a tus pilotos con regularidad para mejorar sus estadísticas.', '🔄 Puedes usar Fichas para refrescar el mercado y ver nuevas opciones.'],
+    car:        ['🔬 Los proyectos de I+D dan bonus permanentes a tu coche.', '⚡ Los tokens aceleran cualquier proyecto activo de construcción.'],
+    staff:      ['👥 El Ingeniero de Carrera reduce errores en boxes y mejora el undercut.', '🔎 Un Ojeador desbloquea más pilotos visibles en el mercado.'],
+    standings:  ['📈 Los indicadores ▲/▼ muestran el cambio de posición tras la última carrera.', '🏁 Terminar en zona de ascenso al final de temporada te sube de división.'],
+    finances:   ['💰 Si llevas 3 semanas en déficit entra el modo crítico — mantén ingresos > gastos.', '📋 Los patrocinadores de mayor nivel exigen más fans — crece tu base antes de firmarlos.'],
+    market:     ['🔍 Los pilotos con mayor "Potencial" pueden superar a los de mayor nivel actual con entrenamiento.', '💎 Los atributos de lluvia son clave en circuitos de alto índice de humedad.'],
+    garage:     ['🏗️ Prioriza el Centro de I+D y la Academia para crecer a largo plazo.', '🪙 El Pase VIP da beneficios de calidad de vida sin ventaja competitiva.'],
+    postrace:   ['🧠 El Informe del Analista muestra dónde mejorar tu ritmo vs el campo.', '✨ Mira los Momentos Clave para un resumen rápido de tu carrera.'],
+  };
+
+  let _currentEl = null;
+  let _currentScreen = null;
+
+  function _getDismissed() {
+    try { return JSON.parse(localStorage.getItem('gl_assistant_dismissed') || '{}'); } catch(_) { return {}; }
+  }
+  function _setDismissed(key) {
+    try {
+      const d = _getDismissed();
+      d[key] = Date.now();
+      localStorage.setItem('gl_assistant_dismissed', JSON.stringify(d));
+    } catch(_) {}
+  }
+  function _isFresh(key, maxAgeDays = 14) {
+    const d = _getDismissed();
+    if (!d[key]) return true;
+    return Date.now() - d[key] > maxAgeDays * 86400000;
+  }
+
+  function hide() {
+    if (_currentEl) { _currentEl.remove(); _currentEl = null; }
+    _currentScreen = null;
+  }
+
+  function show(screen) {
+    hide();
+    const tips = SCREEN_TIPS[screen];
+    if (!tips || !tips.length) return;
+    // Pick a tip not recently dismissed
+    const tip = tips.find(t => _isFresh(`${screen}_${t.slice(0, 20)}`)) || null;
+    if (!tip) return;
+    _currentScreen = screen;
+    const tipKey = `${screen}_${tip.slice(0, 20)}`;
+
+    const el = document.createElement('div');
+    el.id = 'gl-assistant-card';
+    el.style.cssText = 'position:fixed;bottom:76px;right:16px;z-index:1100;max-width:280px;background:var(--c-surface-2,#1a1b2e);border:1px solid var(--c-accent,#4a9eff);border-radius:12px;padding:12px 14px;box-shadow:0 4px 20px rgba(0,0,0,0.4);animation:assistantSlideIn 0.3s ease;display:flex;gap:10px;align-items:flex-start';
+    el.innerHTML = `
+      <div style="font-size:1.4rem;flex-shrink:0;line-height:1">👩‍💼</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:0.7rem;color:var(--c-accent,#4a9eff);font-weight:700;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em">Elena</div>
+        <div style="font-size:0.78rem;color:var(--t-primary,#eee);line-height:1.45">${tip}</div>
+      </div>
+      <button onclick="GL_ASSISTANT._dismiss('${tipKey}')" style="flex-shrink:0;background:none;border:none;color:var(--t-tertiary,#888);font-size:1rem;cursor:pointer;padding:0;line-height:1;margin-top:-2px">✕</button>`;
+
+    if (!document.getElementById('gl-assistant-style')) {
+      const s = document.createElement('style');
+      s.id = 'gl-assistant-style';
+      s.textContent = '@keyframes assistantSlideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}';
+      document.head.appendChild(s);
+    }
+
+    document.body.appendChild(el);
+    _currentEl = el;
+
+    setTimeout(() => {
+      if (_currentEl === el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.4s'; setTimeout(() => { if (_currentEl === el) hide(); }, 400); }
+    }, 9000);
+  }
+
+  function _dismiss(key) {
+    _setDismissed(key);
+    hide();
+  }
+
+  function maybe(screen, delayMs = 1500) {
+    if (screen === _currentScreen) return;
+    setTimeout(() => {
+      const state = window.GL_STATE && GL_STATE.getState ? GL_STATE.getState() : null;
+      if (!state || !state.team || !state.team.name) return;
+      const completedRaces = (state.season?.calendar || []).filter(r => r.status === 'completed').length;
+      if (completedRaces < 1) return;
+      show(screen);
+    }, delayMs);
+  }
+
+  return { show, hide, maybe, _dismiss };
+})();

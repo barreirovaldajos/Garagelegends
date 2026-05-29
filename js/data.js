@@ -33,15 +33,27 @@ const PILOT_POOL = [
   { id:'p10', name:'Anya Petrov',       nat:'🇷🇺', age:25, emoji:'👩',
     attrs:{ pace:68, racePace:70, consistency:76, rain:80, tyre:76, aggression:65, overtake:66, techFB:72, mental:74, charisma:64 },
     potential:80, salary:12500, bio:'Rain specialist. Cold-headed under pressure.' },
-  // AI-only pilots (for opponent teams)
-  { id:'ai1', name:'Diego Bernal',      nat:'🇦🇷', age:29, emoji:'🧑', attrs:{pace:65,racePace:72,consistency:70,rain:60,tyre:68,aggression:70,overtake:68,techFB:64,mental:68,charisma:60}, potential:75, salary:14000 },
-  { id:'ai2', name:'Freya Nilsen',      nat:'🇳🇴', age:24, emoji:'👩', attrs:{pace:70,racePace:68,consistency:72,rain:75,tyre:70,aggression:62,overtake:65,techFB:68,mental:70,charisma:70}, potential:82, salary:11500 },
-  { id:'ai3', name:'Tomás Kramer',      nat:'🇨🇿', age:31, emoji:'🧔', attrs:{pace:62,racePace:74,consistency:80,rain:65,tyre:78,aggression:55,overtake:58,techFB:80,mental:82,charisma:58}, potential:72, salary:15000 },
-  { id:'ai4', name:'Jin Park',          nat:'🇰🇷', age:22, emoji:'🧑', attrs:{pace:75,racePace:70,consistency:65,rain:68,tyre:62,aggression:75,overtake:76,techFB:65,mental:60,charisma:74}, potential:90, salary:9000 },
-  { id:'ai5', name:'Lucia Ferraro',     nat:'🇮🇹', age:26, emoji:'👩', attrs:{pace:68,racePace:73,consistency:74,rain:70,tyre:72,aggression:66,overtake:68,techFB:70,mental:72,charisma:76}, potential:80, salary:13000 },
-  { id:'ai6', name:'Nathan Webb',       nat:'🇬🇧', age:28, emoji:'🧑', attrs:{pace:72,racePace:75,consistency:76,rain:62,tyre:74,aggression:68,overtake:70,techFB:72,mental:74,charisma:65}, potential:78, salary:16000 },
-  { id:'ai7', name:'Sara Khoury',       nat:'🇱🇧', age:23, emoji:'👩', attrs:{pace:64,racePace:66,consistency:68,rain:78,tyre:68,aggression:60,overtake:62,techFB:66,mental:68,charisma:80}, potential:86, salary:9500 },
-  { id:'ai8', name:'Emil Braun',        nat:'🇩🇪', age:33, emoji:'🧔', attrs:{pace:60,racePace:68,consistency:84,rain:64,tyre:80,aggression:48,overtake:52,techFB:86,mental:88,charisma:55}, potential:68, salary:17000 },
+  // AI-only pilots (for opponent teams) — GL-021: expanded pool to reduce name repetition
+  { id:'ai1',  name:'Diego Bernal',      nat:'🇦🇷', age:29, emoji:'🧑', attrs:{pace:65,racePace:72,consistency:70,rain:60,tyre:68,aggression:70,overtake:68,techFB:64,mental:68,charisma:60}, potential:75, salary:14000 },
+  { id:'ai2',  name:'Freya Nilsen',      nat:'🇳🇴', age:24, emoji:'👩', attrs:{pace:70,racePace:68,consistency:72,rain:75,tyre:70,aggression:62,overtake:65,techFB:68,mental:70,charisma:70}, potential:82, salary:11500 },
+  { id:'ai3',  name:'Tomás Kramer',      nat:'🇨🇿', age:31, emoji:'🧔', attrs:{pace:62,racePace:74,consistency:80,rain:65,tyre:78,aggression:55,overtake:58,techFB:80,mental:82,charisma:58}, potential:72, salary:15000 },
+  { id:'ai4',  name:'Jin Park',          nat:'🇰🇷', age:22, emoji:'🧑', attrs:{pace:75,racePace:70,consistency:65,rain:68,tyre:62,aggression:75,overtake:76,techFB:65,mental:60,charisma:74}, potential:90, salary:9000 },
+  { id:'ai5',  name:'Lucia Ferraro',     nat:'🇮🇹', age:26, emoji:'👩', attrs:{pace:68,racePace:73,consistency:74,rain:70,tyre:72,aggression:66,overtake:68,techFB:70,mental:72,charisma:76}, potential:80, salary:13000 },
+  { id:'ai6',  name:'Nathan Webb',       nat:'🇬🇧', age:28, emoji:'🧑', attrs:{pace:72,racePace:75,consistency:76,rain:62,tyre:74,aggression:68,overtake:70,techFB:72,mental:74,charisma:65}, potential:78, salary:16000 },
+  { id:'ai7',  name:'Sara Khoury',       nat:'🇱🇧', age:23, emoji:'👩', attrs:{pace:64,racePace:66,consistency:68,rain:78,tyre:68,aggression:60,overtake:62,techFB:66,mental:68,charisma:80}, potential:86, salary:9500 },
+  { id:'ai8',  name:'Emil Braun',        nat:'🇩🇪', age:33, emoji:'🧔', attrs:{pace:60,racePace:68,consistency:84,rain:64,tyre:80,aggression:48,overtake:52,techFB:86,mental:88,charisma:55}, potential:68, salary:17000 },
+  { id:'ai9',  name:'Amara Diallo',      nat:'🇸🇳', age:25, emoji:'👩', attrs:{pace:67,racePace:71,consistency:73,rain:72,tyre:69,aggression:63,overtake:67,techFB:68,mental:72,charisma:78}, potential:81, salary:11000 },
+  { id:'ai10', name:'Riku Saito',        nat:'🇯🇵', age:27, emoji:'🧑', attrs:{pace:73,racePace:69,consistency:75,rain:66,tyre:76,aggression:60,overtake:64,techFB:74,mental:76,charisma:62}, potential:77, salary:13500 },
+  { id:'ai11', name:'Caleb Osei',        nat:'🇬🇭', age:21, emoji:'🧑', attrs:{pace:76,racePace:71,consistency:63,rain:65,tyre:60,aggression:78,overtake:79,techFB:60,mental:58,charisma:75}, potential:93, salary:8500 },
+  { id:'ai12', name:'Sofía Rueda',       nat:'🇨🇴', age:28, emoji:'👩', attrs:{pace:66,racePace:74,consistency:77,rain:71,tyre:73,aggression:58,overtake:63,techFB:72,mental:75,charisma:80}, potential:79, salary:14000 },
+  { id:'ai13', name:'Mikael Strand',     nat:'🇸🇪', age:30, emoji:'🧔', attrs:{pace:63,racePace:70,consistency:82,rain:68,tyre:79,aggression:50,overtake:56,techFB:84,mental:84,charisma:59}, potential:71, salary:15500 },
+  { id:'ai14', name:'Olusegun Ade',      nat:'🇳🇬', age:24, emoji:'🧑', attrs:{pace:71,racePace:75,consistency:69,rain:63,tyre:65,aggression:74,overtake:73,techFB:62,mental:64,charisma:70}, potential:85, salary:10500 },
+  { id:'ai15', name:'Vera Morozova',     nat:'🇷🇺', age:26, emoji:'👩', attrs:{pace:69,racePace:72,consistency:76,rain:79,tyre:74,aggression:61,overtake:64,techFB:73,mental:77,charisma:67}, potential:80, salary:12000 },
+  { id:'ai16', name:'Héctor Montoya',    nat:'🇲🇽', age:32, emoji:'🧔', attrs:{pace:61,racePace:69,consistency:83,rain:62,tyre:81,aggression:47,overtake:53,techFB:85,mental:87,charisma:61}, potential:70, salary:16000 },
+  { id:'ai17', name:'Nadia Polanski',    nat:'🇵🇱', age:23, emoji:'👩', attrs:{pace:74,racePace:67,consistency:66,rain:70,tyre:64,aggression:76,overtake:77,techFB:63,mental:62,charisma:73}, potential:89, salary:9200 },
+  { id:'ai18', name:'Kwame Asante',      nat:'🇬🇭', age:29, emoji:'🧑', attrs:{pace:66,racePace:73,consistency:71,rain:69,tyre:70,aggression:67,overtake:69,techFB:67,mental:71,charisma:69}, potential:76, salary:13200 },
+  { id:'ai19', name:'Ingrid Haverford',  nat:'🇩🇰', age:25, emoji:'👩', attrs:{pace:68,racePace:76,consistency:74,rain:77,tyre:75,aggression:59,overtake:61,techFB:76,mental:74,charisma:72}, potential:82, salary:12800 },
+  { id:'ai20', name:'Ricardo Lemos',     nat:'🇵🇹', age:27, emoji:'🧑', attrs:{pace:70,racePace:74,consistency:72,rain:67,tyre:71,aggression:69,overtake:71,techFB:68,mental:70,charisma:74}, potential:78, salary:14500 },
 ];
 
 // ---- STAFF POOL ----
@@ -204,10 +216,6 @@ function getSeasonWetRaceTarget() {
 }
 
 function generateCalendar(division) {
-  if (typeof window !== 'undefined' && typeof window.RACE_STATUS === 'undefined') {
-    // Cargar enums si no están presentes
-    try { window.RACE_STATUS = require('./game_constants.js').RACE_STATUS; } catch(e) {}
-  }
   const RACE_STATUS_ENUM = (typeof window !== 'undefined' && window.RACE_STATUS) ? window.RACE_STATUS : { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
   const count = 8;
   const shuffled = [...CIRCUITS].sort(() => Math.random() - 0.5);
