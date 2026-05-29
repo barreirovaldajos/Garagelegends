@@ -54,3 +54,5 @@ bash tests/run-all.sh
 | 05 | `race-runner` | Carrera completa, guarda `raceResults`, actualiza standings, aplica prize money, consume strategies, guards |
 | 06 | `season-manager` | Ascensos/descensos correctos, archive, `pendingDivision` en profiles, bordes (div 1 / div 8) |
 | 07 | `firestore.rules` | Player escribe su strategy, no la ajena; raceResults read-only; divisions solo lectura para clientes |
+| 08 | `i18n-integrity` | Simetría de claves de traducción, sin patrones técnicos expuestos al usuario |
+| 09 | `economy` | `calculateTeamIncomeBreakdown`, `calculateTeamExpenseBreakdown`, `processWeeklyBalance`, `handleDeficitStatus`, casos borde |

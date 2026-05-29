@@ -7,6 +7,7 @@ node_modules/
 
 # Claude Code local session data
 .claude/
+CLAUDE.md
 
 # Firebase build cache
 .firebase/
