@@ -40,6 +40,8 @@ echo "================================================"
 echo -e "\n${BOLD}== Tests Node (sin emulator) ==${NC}"
 run_node "01 SeededRNG"       "tests/01-seeded-rng.test.js"
 run_node "02 engine-core"     "tests/02-engine-core.test.js"
+run_node "08 i18n-integrity"  "tests/08-i18n-integrity.test.js"
+run_node "09 economy"         "tests/09-economy.test.js"
 
 # ── Tests con Firebase Emulator
 echo -e "\n${BOLD}== Tests con Firestore Emulator ==${NC}"
