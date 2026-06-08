@@ -5,7 +5,15 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(Get-Content .gitignore -ErrorAction SilentlyContinue)"
+      "Bash(Get-Content .gitignore -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Drive Profe Dani Diaz\\\\IA VS\\\\Proyectos GaiteroDade\\\\04_Garage_legend\\\\Garagelegends\\\\\" -Directory | Select-Object Name)",
+      "Bash(grep -nE \"'[^']*\\\\{[0-9]\\\\}|'[^']*%[sd]|'[^']*\\\\$\\\\{|'[a-zA-Z_]*':\\\\s*'[^']*[{]\" \"/d/Drive Profe Dani Diaz/IA VS/Proyectos GaiteroDade/04_Garage_legend/Garagelegends/js/i18n.js\")",
+      "Bash(node tests/08-i18n-integrity.test.js)",
+      "Bash(Get-ChildItem -Path \"d:\\\\Drive Profe Dani Diaz\\\\IA VS\\\\Proyectos GaiteroDade\\\\04_Garage_legend\\\\Garagelegends\\\\js\\\\\" -Filter \"*.js\" -Recurse | Select-Object -ExpandProperty FullName)",
+      "Bash(find \"/mnt/d/Drive Profe Dani Diaz/IA VS/Proyectos GaiteroDade/04_Garage_legend/Garagelegends/js\" -type f -name \"*.js\" | sort)",
+      "Read(//mnt/d/Drive Profe Dani Diaz/IA VS/Proyectos GaiteroDade/04_Garage_legend/Garagelegends/**)",
+      "Read(//mnt/**)",
+      "Bash(xargs grep -l \"\\\\.rnd\\\\.\")"
     ]
   }
 }

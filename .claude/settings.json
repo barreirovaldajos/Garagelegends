@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.js$\")",
+      "Bash(grep -h \"^window\\\\\\\\.GL_\" js/*.js)",
+      "Bash(grep -v \"^//\")",
+      "Bash(grep -c \"window\\\\\\\\.GL_\" js/*.js)",
+      "Bash(awk -F: '{sum+=$2} END {print \"Total GL_ references: \" sum}')",
+      "Bash(git commit -m ' *)",
+      "Bash(git branch *)",
+      "Bash(firebase deploy *)",
+      "mcp__claude_ai_Google_Drive__read_file_content",
+      "Bash(Get-ChildItem -Path \"d:\\\\Drive Profe Dani Diaz\\\\IA VS\\\\Proyectos GaiteroDade\\\\04_Garage_legend\\\\Garagelegends\\\\\" -Recurse -File | Select-Object FullName | Format-Table -AutoSize)"
+    ]
+  }
+}
