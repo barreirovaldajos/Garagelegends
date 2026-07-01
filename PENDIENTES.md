@@ -17,13 +17,13 @@ Proyecto auditado: juego web (Vanilla JS, sin bundler) sobre Firebase Hosting + 
 
 - ~~**[baja]** `Garagelegends/js/onboarding-old.js` — Código muerto: el archivo existe (429 líneas) pero no se referencia en `index.html` ni en ningún otro `.js`. → Eliminar.~~ ✅ **RESUELTO 2026-06-22** — Archivo eliminado. Confirmado: cero referencias en todo el proyecto.
 
-- **[baja]** `Garagelegends/js/supabase-config.js` y `Garagelegends/js/firebase-config.dev.js` — No se cargan desde `index.html` (solo se carga `firebase-config.js`). El de Supabase es residuo documentado de la migración abandonada; el `.dev` se asume que se intercambia durante el deploy dev. → Borrar el de Supabase; documentar/automatizar el swap del `.dev` para que no quede ambiguo.
+- **[baja]** ~~`Garagelegends/js/supabase-config.js` y~~ `Garagelegends/js/firebase-config.dev.js` — No se cargan desde `index.html` (solo se carga `firebase-config.js`). ~~El de Supabase es residuo documentado de la migración abandonada;~~ el `.dev` se asume que se intercambia durante el deploy dev. → ~~Borrar el de Supabase;~~ documentar/automatizar el swap del `.dev` para que no quede ambiguo. ✅ **RESUELTO 2026-07-01** — borrado, 0 referencias en index.html/*.js
 
 - ~~**[baja]** `Garagelegends/js/economy.js` (`processWeeklyBalance`, `handleDeficitStatus`) — El CLAUDE.md afirma que `Economy` "No muta el estado — solo calcula", pero estas funciones SÍ mutan `state.finances.*` y `state.team.fans`. Las funciones `calculateTeam*Breakdown` sí son puras, pero la afirmación general del doc es incorrecta. → Corregir el docstring/CLAUDE.md o separar cálculo puro de mutación.~~ ✅ **RESUELTO 2026-06-22** — CLAUDE.md corregido: `calculateTeamIncomeBreakdown`/`calculateTeamExpenseBreakdown` son puras; `processWeeklyBalance` y `handleDeficitStatus` sí mutan `state.finances.*` y `state.team.fans`.
 
 ## ✨ Mejoras
 
-- **[media]** Eliminar la triplicación de `shared/` mediante un único origen + script de build/copy (o symlink en Linux). Hoy el "no hay build step" obliga a copias manuales; un mini script `sync-shared.sh` invocado antes del deploy evitaría futuras divergencias como la del calendario.
+- ~~**[media]** Eliminar la triplicación de `shared/` mediante un único origen + script de build/copy.~~ ✅ **RESUELTO 2026-06-28** — Creado `Garagelegends/sync-shared.sh`: copia `shared/*.js` → `functions/lib/shared/` con diff de cambios, soporte `--dry-run` y salida clara. Ejecutar antes de `firebase deploy --only functions`.
 
 - **[baja]** `Garagelegends/functions/index.js` — Las funciones programadas (`runScheduledRace`, `weeklyEconomy`) y `adminForceAllRaces` iteran divisiones en serie con `await` dentro de bucles `for...of` y consultas N+1 (p.ej. una query `strategies` por jugador en `weeklyEconomy`). Con 52 divisiones esto puede acercarse al timeout. → Considerar batching/paralelizar con `Promise.all` por lotes y/o denormalizar `lastActiveAt`.
 
