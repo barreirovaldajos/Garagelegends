@@ -1,3 +1,8 @@
+> ⚠️ Existen 2 versiones de este documento (`RACE_IMPACT_NUMERIC_MATRIX.md` y
+> `RACE_IMPACT_NUMERIC_MATRIX_BALANCED.md`). **`_BALANCED` es la vigente**
+> (mismo criterio que `RACE_FORMULAS_MATH.md`). Nota añadida 2026-07-09, ver
+> `PLAN_REVISION_2026-07-09.md` §5.5.
+
 # Matriz Numerica de Impacto en Carrera
 
 ## Objetivo

@@ -1,3 +1,7 @@
+> 🗄️ **ARCHIVADO** (2026-07-09): la migración a Supabase se abandonó; Firebase es
+> el backend activo. `js/supabase-config.js` (que este doc manda editar) fue
+> borrado el 2026-07-01. Movido a `docs/_archive/` — no seguir estos pasos.
+
 # Supabase Auth Setup (safe incremental)
 
 This project now supports **optional Supabase auth**. If Supabase config is empty, the app keeps local-only behavior.

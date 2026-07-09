@@ -167,7 +167,7 @@ const APP = {
 
       const now = (GL_ENGINE && typeof GL_ENGINE.getNowDate === 'function') ? GL_ENGINE.getNowDate() : new Date();
       // Format time safely
-      const formatTime = (d) => d.toLocaleTimeString(GL_I18N.currentLang === 'es' ? 'es-ES' : 'en-US', {weekday: 'short', hour: '2-digit', minute:'2-digit'});
+      const formatTime = (d) => d.toLocaleTimeString(GL_I18N.lang === 'es' ? 'es-ES' : 'en-US', {weekday: 'short', hour: '2-digit', minute:'2-digit'});
       elTime.textContent = formatTime(now).toUpperCase();
 
       const nextRaceObj = GL_ENGINE.getNextRaceDate();
@@ -440,7 +440,7 @@ const APP = {
       if (status?.lastError) {
         GL_UI.toast(status.lastError, 'error');
       } else {
-        GL_UI.toast(__('profile_cloud_sync_ok', 'Cloud save synchronized.'), 'good');
+        GL_UI.toast(__('profile_cloud_sync_ok', 'Cloud save synchronized.'), 'success');
       }
       this.reopenProfileModal();
     } catch (e) {
@@ -455,7 +455,7 @@ const APP = {
       if (status?.lastError) {
         GL_UI.toast(status.lastError, 'error');
       } else {
-        GL_UI.toast(__('profile_cloud_refresh_ok', 'Cloud save reloaded.'), 'good');
+        GL_UI.toast(__('profile_cloud_refresh_ok', 'Cloud save reloaded.'), 'success');
       }
       this.bootForCurrentSession();
       this.reopenProfileModal();

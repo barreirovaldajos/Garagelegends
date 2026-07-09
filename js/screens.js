@@ -1911,7 +1911,7 @@ const SCREENS = {
   },
 
   copyTextToClipboard(content, successMessage, failedMessage) {
-    const onSuccess = () => GL_UI.toast(successMessage, 'good');
+    const onSuccess = () => GL_UI.toast(successMessage, 'success');
     const onFailure = () => GL_UI.toast(failedMessage, 'warning');
 
     const fallbackCopy = () => {
@@ -3623,7 +3623,7 @@ const SCREENS = {
     window._raceStrategy = GL_STATE.deepClone(window._raceRecommendation.strategy);
     if (prevPilotId) window._raceStrategy.pilotId = prevPilotId;
     window._advisorStrategySource = 'recommended';
-    GL_UI.toast('Recommendation applied. You can fine tune before saving.', 'good');
+    GL_UI.toast('Recommendation applied. You can fine tune before saving.', 'success');
   },
 
   applySafeRecommendation() {
@@ -3635,7 +3635,7 @@ const SCREENS = {
     window._raceStrategy = GL_STATE.deepClone(window._raceRecommendation.safeAlternative);
     if (prevPilotId) window._raceStrategy.pilotId = prevPilotId;
     window._advisorStrategySource = 'safe';
-    GL_UI.toast('Safe variant applied. You can fine tune before saving.', 'good');
+    GL_UI.toast('Safe variant applied. You can fine tune before saving.', 'success');
   },
 
   toggleRacePilot(pid) {
@@ -3727,7 +3727,7 @@ const SCREENS = {
     });
     window._advisorStrategySource = 'manual';
     if (!silent) {
-      GL_UI.toast('Estrategia compartida copiada a pilotos en carrera.', 'good');
+      GL_UI.toast('Estrategia compartida copiada a pilotos en carrera.', 'success');
       this.renderPreRace();
     }
   },
@@ -3788,13 +3788,13 @@ const SCREENS = {
           strategy: strategy
         });
       }).then(() => {
-        GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
+        GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'success');
         if (GL_STATE.syncTeamSnapshot) GL_STATE.syncTeamSnapshot();
       }).catch(err => {
         GL_UI.toast('Error al guardar: ' + (err.message || err), 'error');
       });
     } else {
-      GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'good');
+      GL_UI.toast(window.__('prerace_strat_saved') || 'Estrategia guardada con éxito', 'success');
     }
     this.renderPreRace();
   },
@@ -3845,8 +3845,10 @@ const SCREENS = {
           <div class="screen-subtitle">${weather==='wet'?'🌧️':'☀️'} ${weather} ${__('race_conditions')}</div>
         </div>
         <div class="screen-actions">
+          ${(window.GL_AUTH && GL_AUTH.isAdmin && GL_AUTH.isAdmin()) ? `
           <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.setRaceRuntimeMode('real')" ${runtimeMode === 'real' ? 'style="border-color:var(--c-accent);color:var(--c-accent)"' : ''}>REAL 30m</button>
           <button class="btn btn-ghost btn-sm" onclick="GL_SCREENS.setRaceRuntimeMode('qa')" ${runtimeMode === 'qa' ? 'style="border-color:var(--c-accent);color:var(--c-accent)"' : ''}>QA 2m</button>
+          ` : ''}
           <button class="btn btn-primary" id="race-sim-btn" onclick="GL_SCREENS.runSimulation()">${__('race_sim_btn')}</button>
         </div>
       </div>
@@ -4067,7 +4069,7 @@ const SCREENS = {
         const weeklyLabel = economySummary.weeklyNetDelta === 0
           ? ''
           : ` · Balance semanal ${economySummary.weeklyNetDelta > 0 ? '+' : '-'}${GL_UI.fmtCR(Math.abs(economySummary.weeklyNetDelta))} CR`;
-        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(economySummary.prizeDelta)} CR${weeklyLabel} · Saldo ${GL_UI.fmtCR(economySummary.creditsBefore)} -> ${GL_UI.fmtCR(economySummary.creditsAfterWeekly)} CR`, economySummary.totalDelta >= 0 ? 'good' : 'info');
+        GL_UI.toast(`Premio de carrera +${GL_UI.fmtCR(economySummary.prizeDelta)} CR${weeklyLabel} · Saldo ${GL_UI.fmtCR(economySummary.creditsBefore)} -> ${GL_UI.fmtCR(economySummary.creditsAfterWeekly)} CR`, economySummary.totalDelta >= 0 ? 'success' : 'info');
       }
 
       if (GL_ENGINE.recordStrategyOutcome) {

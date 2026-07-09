@@ -1,3 +1,9 @@
+> ⚠️ **PROPUESTA, no implementada tal cual** (marcado 2026-07-09): este documento
+> describe un diseño (paralelos, capacidades, promociones) que difiere de lo que
+> el código realmente hace hoy. Para el comportamiento vigente de divisiones ver
+> `js/divisions.js`, `shared/data-constants.js` (`DIVISIONS`) y
+> `functions/lib/season-manager.js`.
+
 # Division Tree Design (Numeric Node IDs)
 
 ## 1) Goal

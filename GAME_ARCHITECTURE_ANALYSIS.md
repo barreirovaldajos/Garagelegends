@@ -1,3 +1,8 @@
+> ⚠️ **HISTÓRICO** (marcado 2026-07-09): documento del análisis de marzo 2026. Varias
+> carencias que describe como actuales ("Economía rota", "Div 10→Div 1") ya están
+> resueltas en el código. No usar como referencia del estado presente — ver
+> `PENDIENTES.md` y `PLAN_REVISION_2026-07-09.md` para el estado vigente.
+
 # ---
 # RESUMEN DE FASE 2 - PROGRESO (MARZO 2026)
 ## ✅ Completado: Sistema I+D Funcional

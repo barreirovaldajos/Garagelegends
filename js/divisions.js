@@ -151,11 +151,6 @@ const Divisions = {
     return { teams: this.getTeamSlotsPerDivision(), promotions: 2, relegations: 2, parallelDivisions: 1, name: `Division ${targetDiv}` };
   },
 
-  getTeamsInDivision(divNum) {
-    // TODO: Integrar con sistema MMO/multijugador
-    return [];
-  },
-
   calculatePromotion(standings, divNum) {
     const config = this.getDivisionConfig(divNum);
     return standings.slice(0, config.promotions);
@@ -164,18 +159,6 @@ const Divisions = {
   calculateRelegation(standings, divNum) {
     const config = this.getDivisionConfig(divNum);
     return standings.slice(-config.relegations);
-  },
-
-  startDivisionSeason(divNum) {
-    // TODO: Inicializar temporada de división
-  },
-
-  generateDivisionCalendar(divNum) {
-    // TODO: Generar calendario por división
-  },
-
-  endDivisionSeason(divNum) {
-    // TODO: Procesar ascensos/descensos
   }
 };
 

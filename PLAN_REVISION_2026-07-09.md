@@ -23,17 +23,17 @@ El proyecto está **funcionalmente sólido en su capa media** (design system rea
 
 Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entradas 2026-07-09).
 
-### FASE 1 — Integridad de carrera y pipeline (servidor)
+### FASE 1 — Integridad de carrera y pipeline (servidor) ✅ COMPLETADA 2026-07-09
 
 | # | Sev | Dónde | Error |
 |---|-----|-------|-------|
-| 1.1 | 🔴 ALTA | `functions/lib/race-runner.js:27,43` | **Lock de carrera no atómico** (read-then-write fuera de transacción). Si `runScheduledRace` y `adminForceAllRaces` coinciden → doble ejecución de la ronda y **premios duplicados** (`increment` ×2). Fix: claim del lock en `db.runTransaction`. |
-| 1.2 | 🔴 ALTA | `functions/index.js:16-44` | `runScheduledRace` sin `runWith` → **timeout 60s por defecto** con bucle serial sobre todas las divisiones. A escala se corta a mitad (ejecución parcial). Fix: `runWith({timeoutSeconds:540})` + paralelizar como `adminForceAllRaces`. |
-| 1.3 | 🔴 ALTA | `.github/workflows/deploy.yml` | **El CI de prod solo deploya hosting.** Functions y `firestore.rules` van a mano → el repo puede divergir de lo que corre en `garagelegends-1` (los fixes de la Fase 0 no llegarían a prod por CI). Fix: añadir functions+rules al workflow (con `./sync-shared.sh` previo). |
-| 1.4 | 🟡 MEDIA | `functions/index.js:164-174` | `adminStartNewSeason` sin timeout extendido (60s) pese a crear divisiones/bots en serie → temporada medio-creada si corta. |
-| 1.5 | 🟡 MEDIA | `.github/workflows/deploy-dev.yml` | Deploya functions **sin** `./sync-shared.sh --check` — puede subir la copia vieja de `shared/`. |
-| 1.6 | 🟡 MEDIA | `.firebaserc:5-15` | Alias `dev` → proyecto `garagelegends-dev`, pero los hosting targets están definidos solo bajo `garagelegends-1`. Unificar. |
-| 1.7 | 🟢 BAJA | `functions/lib/season-manager.js:98-133` | Reasignación de temporada: un `update` serial por jugador, sin batch ni tolerancia a fallo a mitad de lista. |
+| 1.1 | 🔴 ALTA | `functions/lib/race-runner.js:27,43` | ~~**Lock de carrera no atómico** (read-then-write fuera de transacción). Si `runScheduledRace` y `adminForceAllRaces` coinciden → doble ejecución de la ronda y **premios duplicados** (`increment` ×2). Fix: claim del lock en `db.runTransaction`.~~ ✅ **RESUELTO** — el check de fase/lock/próxima-carrera y el `raceInProgress: true` ahora ocurren dentro de un único `db.runTransaction`; dos llamadas concurrentes ya no pueden pasar ambas la comprobación. |
+| 1.2 | 🔴 ALTA | `functions/index.js:16-44` | ~~`runScheduledRace` sin `runWith` → **timeout 60s por defecto** con bucle serial sobre todas las divisiones. A escala se corta a mitad (ejecución parcial). Fix: `runWith({timeoutSeconds:540})` + paralelizar como `adminForceAllRaces`.~~ ✅ **RESUELTO** — `runWith({timeoutSeconds:540, memory:'512MB'})` + paralelizado con `Promise.all` (mismo patrón que `adminForceAllRaces`). |
+| 1.3 | 🔴 ALTA | `.github/workflows/deploy.yml` | ~~**El CI de prod solo deploya hosting.** Functions y `firestore.rules` van a mano → el repo puede divergir de lo que corre en `garagelegends-1` (los fixes de la Fase 0 no llegarían a prod por CI). Fix: añadir functions+rules al workflow (con `./sync-shared.sh` previo).~~ ✅ **RESUELTO** — añadidos pasos `./sync-shared.sh`, `deploy --only firestore:rules` y `deploy --only functions` al workflow de prod. ⚠️ No probado en un push real a `main` (requiere `secrets.FIREBASE_TOKEN` en CI) — verificar en el próximo deploy. |
+| 1.4 | 🟡 MEDIA | `functions/index.js:164-174` | ~~`adminStartNewSeason` sin timeout extendido (60s) pese a crear divisiones/bots en serie → temporada medio-creada si corta.~~ ✅ **RESUELTO** — `runWith({timeoutSeconds:300})` (mismo valor que `adminForceSeasonAdvance`). |
+| 1.5 | 🟡 MEDIA | `.github/workflows/deploy-dev.yml` | ~~Deploya functions **sin** `./sync-shared.sh --check` — puede subir la copia vieja de `shared/`.~~ ✅ **RESUELTO** — añadido paso `./sync-shared.sh --check` antes del deploy. |
+| 1.6 | 🟡 MEDIA | `.firebaserc:5-15` | ~~Alias `dev` → proyecto `garagelegends-dev`, pero los hosting targets están definidos solo bajo `garagelegends-1`. Unificar.~~ ✅ **RESUELTO** — no existe un proyecto Firebase separado `garagelegends-dev` (los sitios `dani`/`juana`/`dev` son sitios de hosting adicionales *dentro* de `garagelegends-1`, que es donde `.firebaserc` define los targets). Cambiado el alias `dev` → `garagelegends-1`, y `deploy-dev.yml` ahora usa `--only hosting:dev` (target explícito) en vez de `--only hosting` a secas, para no arriesgarse a desplegar los 4 targets (incluido `main`=prod) desde el workflow de dev. |
+| 1.7 | 🟢 BAJA | `functions/lib/season-manager.js:98-133` | ~~Reasignación de temporada: un `update` serial por jugador, sin batch ni tolerancia a fallo a mitad de lista.~~ ✅ **RESUELTO** — promovidos/descendidos/quedan-igual ahora se resuelven en un único paso: `db.getAll()` para confirmar existencia + `db.batch()` en lotes de 500 (mismo patrón que `inactivity.js`). Tests de functions (6/6) siguen en verde. |
 
 ### FASE 2 — Motor duplicado y sincronización cliente/servidor
 
@@ -62,34 +62,34 @@ Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entra
 | 3.7 | 🟢 BAJA | `engine.js:2358` | Premio P16 en D8 redondea a 0 y cae al fallback de 100 CR — incongruente con la tabla. |
 | 3.8 | 🟢 BAJA | data/UI | `potential`, `morale`, `contractWeeks` se muestran y `potential` pesa 30% en el salario, pero no tienen ningún efecto de juego. Staff anunciado sin implementar: Ojeador, Médico (no hay lesiones), Ing. Jefe (+I+D). |
 
-### FASE 4 — Visual / UX
+### FASE 4 — Visual / UX ⚠️ PARCIAL 2026-07-09 (ítems ALTA/BAJA y 2 de MEDIA resueltos; 4.4/4.5/4.9/4.10 quedan pendientes — barridos grandes, no mecánicos)
 
 | # | Sev | Dónde | Error |
 |---|-----|-------|-------|
-| 4.1 | 🔴 ALTA | `css/dashboard.css:721-790` | `.engine-selection-grid`, `.engine-card`, `.hq-progress-*` quedaron **dentro del `@media (max-width:768px)`** (abre en 647) → en escritorio se renderizan sin estilo. Sacarlos del media query. |
-| 4.2 | 🔴 ALTA | varios | **5 variables CSS inexistentes**: `--c-primary`, `--br-lg`, `--bg-primary`, `--c-good`, `--c-warn` (correctos: `--c-accent`, `--r-lg`, `--c-bg`, `--c-green`, `--c-red`) → bordes transparentes, estados promoción/descenso sin color. |
-| 4.3 | 🔴 ALTA | `js/onboarding.js:47`, `js/app.js:170` | `GL_I18N.currentLang` **no existe** (es `.lang`) → países del onboarding siempre en inglés y reloj siempre `en-US`, aunque el juego esté en ES. |
-| 4.4 | 🔴 ALTA | `screens.js`, `ui.js`, `admin.js` | **~140 strings fuera de i18n**: toda la pantalla de estrategia y toasts de carrera en español hardcodeado; cartas de piloto (`Pace/Age/just now`) en inglés hardcodeado. El diccionario está sano (976=976 claves) — el problema es lo que nunca entra. |
-| 4.5 | 🟡 MEDIA | `screens.js`, `app.js:181` | **Carrera de 30 min sin protección**: resultado solo en `window._lastRaceResult`; recargar/cerrar pestaña en el minuto 25 pierde la carrera sin aviso (`beforeunload` inexistente, sin persistencia del playback). |
-| 4.6 | 🟡 MEDIA | `js/screens.js:3849-3850` | Botones QA "REAL 30m / QA 2m" **visibles para cualquier jugador** en la cabecera de carrera. |
-| 4.7 | 🟡 MEDIA | `js/auth.js:327-339` | Fallos de guardado remoto en sesión = solo `console.warn` — el usuario no se entera de que no está guardando en la nube. |
-| 4.8 | 🟡 MEDIA | `js/screens.js:~4071`, `ui.js:16` | Toast tipo `'good'` no existe (success/error/info/warning) → premio de carrera sale genérico. |
-| 4.9 | 🟡 MEDIA | global | Accesibilidad: 1 solo `aria-label`; modales sin foco/ESC; tooltips solo-hover; bottom-bar móvil con 9 ítems a 8px; `--t-tertiary` contraste 2.7:1 (AA pide 4.5). |
-| 4.10 | 🟢 BAJA | `js/onboarding.js:106-127` | Wizard duplica con inline styles grises lo que onboarding.css ya define con tokens + "Fase 1 de" hardcodeado. |
-| 4.11 | 🟢 BAJA | `js/dashboard.js:58,359` | `renderNextEvent` busca `#dash-next-event` que no existe → el botón "avanzar temporada" por esa vía es inalcanzable. |
-| 4.12 | 🟢 BAJA | `js/ui.js:6-13`, `index.html:106` | Doble `#toast-container` (id duplicado). |
+| 4.1 | 🔴 ALTA | `css/dashboard.css:721-790` | ~~`.engine-selection-grid`, `.engine-card`, `.hq-progress-*` quedaron **dentro del `@media (max-width:768px)`** (abre en 647) → en escritorio se renderizan sin estilo. Sacarlos del media query.~~ ✅ **RESUELTO** — movidos fuera del media query, como bloque global antes de `/* ---- MOBILE ---- */`. |
+| 4.2 | 🔴 ALTA | varios | ~~**5 variables CSS inexistentes**: `--c-primary`, `--br-lg`, `--bg-primary`, `--c-good`, `--c-warn` (correctos: `--c-accent`, `--r-lg`, `--c-bg`, `--c-green`, `--c-red`) → bordes transparentes, estados promoción/descenso sin color.~~ ✅ **RESUELTO** — corregidas todas las ocurrencias en `css/dashboard.css`, `js/admin.js`, `js/onboarding.js` y `js/dashboard.js` (verificado con grep, 0 restantes). |
+| 4.3 | 🔴 ALTA | `js/onboarding.js:47`, `js/app.js:170` | ~~`GL_I18N.currentLang` **no existe** (es `.lang`) → países del onboarding siempre en inglés y reloj siempre `en-US`, aunque el juego esté en ES.~~ ✅ **RESUELTO** — ambos cambiados a `GL_I18N.lang`. |
+| 4.4 | 🔴 ALTA | `screens.js`, `ui.js`, `admin.js` | **~140 strings fuera de i18n** — pendiente, barrido grande fuera del alcance de hoy (2026-07-09). |
+| 4.5 | 🟡 MEDIA | `screens.js`, `app.js:181` | **Carrera de 30 min sin protección** (`beforeunload` + persistencia de playback) — pendiente, cambio de comportamiento no trivial fuera del alcance de hoy. |
+| 4.6 | 🟡 MEDIA | `js/screens.js:3849-3850` | ~~Botones QA "REAL 30m / QA 2m" **visibles para cualquier jugador** en la cabecera de carrera.~~ ✅ **RESUELTO** — ambos botones ahora solo se renderizan si `GL_AUTH.isAdmin()`. |
+| 4.7 | 🟡 MEDIA | `js/auth.js:327-339` | ~~Fallos de guardado remoto en sesión = solo `console.warn` — el usuario no se entera de que no está guardando en la nube.~~ ✅ **RESUELTO** — toast `warning` (throttlado a 1/60s) con la clave i18n ya existente `profile_cloud_sync_fail`. |
+| 4.8 | 🟡 MEDIA | `js/screens.js:~4071`, `ui.js:16` | ~~Toast tipo `'good'` no existe (success/error/info/warning) → premio de carrera sale genérico.~~ ✅ **RESUELTO** — corregidas las 12 llamadas `GL_UI.toast(..., 'good')` en `app.js`/`dashboard.js`/`screens.js` a `'success'` (no se tocó `GL_STATE.addLog`/`events.push`, que son sistemas de tipos distintos donde `'good'` sí es válido). |
+| 4.9 | 🟡 MEDIA | global | Accesibilidad — pendiente, barrido grande fuera del alcance de hoy. |
+| 4.10 | 🟢 BAJA | `js/onboarding.js:106-127` | Wizard duplica con inline styles grises lo que onboarding.css ya define — pendiente (cosmético, no priorizado hoy). |
+| 4.11 | 🟢 BAJA | `js/dashboard.js:58,359` | ~~`renderNextEvent` busca `#dash-next-event` que no existe → el botón "avanzar temporada" por esa vía es inalcanzable.~~ ✅ **RESUELTO** — cambiado a `#dash-circuit-preview` (el contenedor real ya presente en `renderSkeleton`, junto a standings). |
+| 4.12 | 🟢 BAJA | `js/ui.js:6-13`, `index.html:106` | ~~Doble `#toast-container` (id duplicado).~~ ✅ **RESUELTO** — eliminado el `<div id="toast-container">` estático de `index.html` (nunca se consultaba por id; `ui.js` crea el suyo dinámicamente). |
 
-### FASE 5 — Documentación y limpieza
+### FASE 5 — Documentación y limpieza ⚠️ PARCIAL 2026-07-09
 
 | # | Sev | Dónde | Error |
 |---|-----|-------|-------|
-| 5.1 | 🟡 MEDIA | `RACE_STRATEGY_PLAYBOOK.md` | Describe un sistema de neumáticos que **ya no existe** (`TYRE_PACE/TYRE_DEG` → hoy `TYRE_COMPOUNDS` con `paceDeltaMs`), fórmula de agresividad con punto neutro equivocado (50 vs 60 real), `pitPlan: adaptive` que degrada a single, y `safetyCarReaction` que el jugador ya no elige. |
-| 5.2 | 🟡 MEDIA | `DIVISION_TREE_DESIGN.md` | Propuesta **nunca implementada tal cual** (paralelos, capacidades, promociones distintas del código) sin marca de "propuesta vs implementado". |
-| 5.3 | 🟡 MEDIA | `GAME_ARCHITECTURE_ANALYSIS.md` | Híbrido confuso: describe carencias **ya resueltas** como actuales ("Economía rota", "Div 10→Div 1"). Marcar HISTÓRICO. |
-| 5.4 | 🟢 BAJA | `SUPABASE_SETUP.md` | Manda editar `js/supabase-config.js`, borrado el 2026-07-01. Archivar o borrar. |
-| 5.5 | 🟢 BAJA | `docs/game-variables/` | `RACE_FORMULAS_MATH.md` (soft −750) vs `_BALANCED.md` (−550, el vigente) sin nota de cuál manda. Ídem `RACE_IMPACT_NUMERIC_MATRIX*`. |
-| 5.6 | 🟢 BAJA | `CLAUDE.md` (×2) | Correcciones: expone `GL_SCREENS` (no `SCREENS`) y `GL_TRACKING` (no `GL_TRACK`); el puntero de `04_Garage_legend/` aún dice "rama de trabajo `Dani`" cuando el modelo es `main` único; "offline-first" contradicho por `spendCredits` que exige Cloud Functions. |
-| 5.7 | 🟢 BAJA | `js/divisions.js:155-178`, `js/dashboard.js` | Código muerto: 4 stubs TODO en divisions.js cuya responsabilidad ya cubre el servidor; `renderPilotMorale`, `renderSponsors`, `renderAdvisorTelemetry` (~500 líneas) nunca invocados; `state.facilities` legacy. |
+| 5.1 | 🟡 MEDIA | `RACE_STRATEGY_PLAYBOOK.md` | ~~Describe un sistema de neumáticos que **ya no existe**...~~ ⚠️ **PARCIAL** — añadida cabecera de aviso "DESACTUALIZADO" con la lista de discrepancias y remisión a `shared/engine-core.js`. La reescritura completa del documento queda pendiente (requiere estudio profundo del motor, Fase 2). |
+| 5.2 | 🟡 MEDIA | `DIVISION_TREE_DESIGN.md` | ~~Propuesta **nunca implementada tal cual**... sin marca de "propuesta vs implementado".~~ ✅ **RESUELTO** — añadida cabecera "PROPUESTA, no implementada tal cual" con remisión a los archivos reales (`js/divisions.js`, `shared/data-constants.js`, `season-manager.js`). |
+| 5.3 | 🟡 MEDIA | `GAME_ARCHITECTURE_ANALYSIS.md` | ~~Híbrido confuso... Marcar HISTÓRICO.~~ ✅ **RESUELTO** — añadida cabecera "HISTÓRICO". |
+| 5.4 | 🟢 BAJA | `SUPABASE_SETUP.md` | ~~Manda editar `js/supabase-config.js`, borrado el 2026-07-01. Archivar o borrar.~~ ✅ **RESUELTO** — movido a `docs/_archive/SUPABASE_SETUP.md` con cabecera "ARCHIVADO". |
+| 5.5 | 🟢 BAJA | `docs/game-variables/` | ~~`RACE_FORMULAS_MATH.md` (soft −750) vs `_BALANCED.md` (−550, el vigente) sin nota de cuál manda. Ídem `RACE_IMPACT_NUMERIC_MATRIX*`.~~ ✅ **RESUELTO** — añadida nota en ambas versiones no-`_BALANCED` señalando que `_BALANCED` es la vigente. |
+| 5.6 | 🟢 BAJA | `CLAUDE.md` (×2) | ~~Correcciones: expone `GL_SCREENS`... "rama de trabajo `Dani`"... "offline-first"...~~ ✅ **RESUELTO** — el `GL_SCREENS`/`GL_TRACKING` resultó ser un falso positivo (el CLAUDE.md de `Garagelegends/` ya decía `SCREENS`/`GL_TRACK` correctamente). Corregidos: el puntero de `04_Garage_legend/CLAUDE.md` (ya no dice "rama `Dani`", documenta que el trabajo es en `main`) y la nota "offline-first" (ahora aclara la excepción server-only de `deductCredits`/`deductTokens`). |
+| 5.7 | 🟢 BAJA | `js/divisions.js:155-178`, `js/dashboard.js` | ⚠️ **PARCIAL** — ✅ eliminados los 4 stubs TODO de `divisions.js` (`getTeamsInDivision`, `startDivisionSeason`, `generateDivisionCalendar`, `endDivisionSeason`, 0 llamadas confirmadas) y ✅ `renderPilotMorale`/`renderSponsors` de `dashboard.js` (0 llamadas, apuntaban a `#dash-morale`/`#dash-sponsors` inexistentes). `renderAdvisorTelemetry` (~90 líneas + varios helpers encadenados) se deja pendiente: verificar que ninguno de sus helpers (`getAdvisorPolicyTimeline`, `updateAdvisorSuggestionTelemetry`, etc.) se usa desde otro flujo alcanzable requiere más estudio del que cabía hoy. `state.facilities` **no es código muerto** — se lee activamente en `dashboard.js:603,1782` como fallback; se deja tal cual. Extra (no listado originalmente): eliminada también `functions/shared/data-constants.js`, copia huérfana trackeada en git del mismo patrón que causó el bug de `engine-core.js` en junio (0 `require` la referenciaba). |
 
 ---
 
@@ -122,6 +122,14 @@ Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entra
 - Rate-limit / agregación para `logUserEvent` y stats de admin (costo Firestore a futuro).
 
 ---
+
+## Estado 2026-07-09 (sesión Merlin)
+
+Resueltas hoy: **Fase 1 completa** (backend/CI) y **Fase 4/5 mayormente** (visual/UX y
+docs — quedan 4.4 i18n, 4.5 guardia de carrera, 4.9 accesibilidad y 4.10, todos barridos
+grandes fuera del alcance de la sesión). **Fase 2 (motor duplicado) y Fase 3 (balance)
+siguen sin tocar** — requieren decisiones de diseño de Daniel (ver dudas al final del
+documento) antes de tocar código. `PENDIENTES.md` tiene el detalle fila por fila.
 
 ## Orden de ataque sugerido
 

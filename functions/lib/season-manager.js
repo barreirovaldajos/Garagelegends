@@ -94,41 +94,35 @@ async function endDivisionSeason(db, divKey) {
     completedAt: require('firebase-admin').firestore.FieldValue.serverTimestamp()
   });
 
-  // Process player promotions/relegations
-  for (const entry of [...promoted, ...relegated]) {
-    if (!entry.isPlayer) continue;
+  // Mark pending reassignment (promoted/relegated/stayed) for every player —
+  // will be placed in their new division on next season start. Batched
+  // instead of one update() await per player: same pattern as the batching
+  // already used in inactivity.js for weeklyEconomy.
+  const reassignments = sorted
+    .filter(entry => entry.isPlayer)
+    .map(entry => ({
+      entry,
+      newDiv: entry.seasonOutcome === 'promoted' ? division - 1
+            : entry.seasonOutcome === 'relegated' ? division + 1
+            : division
+    }));
 
-    const newDiv = entry.seasonOutcome === 'promoted' ? division - 1 : division + 1;
-    const userId = entry.teamId;
+  if (reassignments.length > 0) {
+    const profileRefs = reassignments.map(r => db.collection('profiles').doc(r.entry.teamId));
+    const profileSnaps = await db.getAll(...profileRefs);
+    const existing = reassignments.filter((_, i) => profileSnaps[i].exists);
 
-    // Update player profile mp field
-    const profileRef = db.collection('profiles').doc(userId);
-    const profileSnap = await profileRef.get();
-    if (!profileSnap.exists) continue;
-
-    const profileData = profileSnap.data();
-    const mp = profileData.mp || {};
-
-    // Mark pending reassignment — will be placed in new division on next season start
-    await profileRef.update({
-      'mp.pendingDivision': newDiv,
-      'mp.seasonOutcome': entry.seasonOutcome,
-      'mp.lastSeasonYear': seasonYear,
-      'mp.lastSeasonPosition': entry.position
-    });
-  }
-
-  // Also mark stayed players
-  for (const entry of sorted) {
-    if (!entry.isPlayer) continue;
-    if (entry.seasonOutcome === 'stayed') {
-      const profileRef = db.collection('profiles').doc(entry.teamId);
-      await profileRef.update({
-        'mp.pendingDivision': division,
-        'mp.seasonOutcome': 'stayed',
-        'mp.lastSeasonYear': seasonYear,
-        'mp.lastSeasonPosition': entry.position
-      });
+    for (let i = 0; i < existing.length; i += 500) {
+      const batch = db.batch();
+      for (const { entry, newDiv } of existing.slice(i, i + 500)) {
+        batch.update(db.collection('profiles').doc(entry.teamId), {
+          'mp.pendingDivision': newDiv,
+          'mp.seasonOutcome': entry.seasonOutcome,
+          'mp.lastSeasonYear': seasonYear,
+          'mp.lastSeasonPosition': entry.position
+        });
+      }
+      await batch.commit();
     }
   }
 

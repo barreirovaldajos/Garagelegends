@@ -13,7 +13,10 @@ const seasonManager = require('./lib/season-manager.js');
 const eventTracker = require('./lib/event-tracker.js');
 
 // ── 1. Scheduled Race – Runs every Sunday at 18:00 UTC ──────────────────────
-exports.runScheduledRace = functions.pubsub
+// runWith + parallelized like adminForceAllRaces: with 52 divisions, running
+// them serially with a default 60s timeout risked a mid-run cutoff (partial
+// execution left some divisions un-raced for the week).
+exports.runScheduledRace = functions.runWith({ timeoutSeconds: 540, memory: '512MB' }).pubsub
   .schedule('every sunday 18:00')
   .timeZone('UTC')
   .onRun(async (_context) => {
@@ -21,24 +24,16 @@ exports.runScheduledRace = functions.pubsub
       .where('phase', '==', 'season')
       .get();
 
-    const results = [];
-    for (const doc of divisionsSnap.docs) {
-      const divKey = doc.id;
-      const data = doc.data();
-      // Skip if no pending race
-      const hasNext = (data.calendar || []).some(r => r.status === 'next');
-      if (!hasNext) continue;
+    const tasks = divisionsSnap.docs
+      .filter(doc => (doc.data().calendar || []).some(r => r.status === 'next'))
+      .map(doc => raceRunner.runRaceForDivision(db, doc.id, { triggeredBy: 'scheduled' })
+        .then(result => ({ divKey: doc.id, status: 'ok', round: result.round }))
+        .catch(err   => ({ divKey: doc.id, status: 'error', error: err.message }))
+      );
+    const results = await Promise.all(tasks);
 
-      try {
-        const result = await raceRunner.runRaceForDivision(db, divKey, { triggeredBy: 'scheduled' });
-        results.push({ divKey, status: 'ok', round: result.round });
-        functions.logger.info(`Race completed: ${divKey} round ${result.round}`);
-      } catch (err) {
-        results.push({ divKey, status: 'error', error: err.message });
-        functions.logger.error(`Race failed for ${divKey}:`, err);
-      }
-    }
-
+    const errors = results.filter(r => r.status === 'error');
+    if (errors.length) functions.logger.error(`Scheduled race errors: ${JSON.stringify(errors)}`);
     functions.logger.info(`Scheduled race run complete. ${results.length} divisions processed.`);
     return null;
   });
@@ -161,7 +156,9 @@ exports.weeklyEconomy = functions.pubsub
   });
 
 // ── 8. Admin Start New Season ────────────────────────────────────────────────
-exports.adminStartNewSeason = functions.https.onCall(async (_data, context) => {
+// Timeout extendido: crear divisiones/bots en serie para hasta 52 divisiones
+// puede exceder los 60s por defecto (mismo motivo que adminForceSeasonAdvance).
+exports.adminStartNewSeason = functions.runWith({ timeoutSeconds: 300 }).https.onCall(async (_data, context) => {
   if (!context.auth) throw new functions.https.HttpsError('unauthenticated', 'Must be logged in');
 
   const profileSnap = await db.collection('profiles').doc(context.auth.uid).get();

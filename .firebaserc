@@ -2,7 +2,7 @@
   "projects": {
     "default": "garagelegends-1",
     "production": "garagelegends-1",
-    "dev": "garagelegends-dev"
+    "dev": "garagelegends-1"
   },
   "targets": {
     "garagelegends-1": {

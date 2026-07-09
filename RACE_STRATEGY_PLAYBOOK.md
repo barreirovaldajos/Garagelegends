@@ -1,3 +1,10 @@
+> ⚠️ **DESACTUALIZADO** (marcado 2026-07-09): describe un sistema de neumáticos que
+> ya no existe (`TYRE_PACE`/`TYRE_DEG` → hoy `TYRE_COMPOUNDS` con `paceDeltaMs`),
+> un punto neutro de agresividad incorrecto (dice 50, el real es 60) y
+> `pitPlan: adaptive`/`safetyCarReaction` que el jugador ya no elige. Para el
+> comportamiento vigente ver `shared/engine-core.js` directamente hasta que se
+> reescriba este documento (ver `PLAN_REVISION_2026-07-09.md` §5.1).
+
 # Race Strategy Playbook (v1)
 
 Este documento explica como la estrategia pre-carrera impacta el resultado en el modelo actual.

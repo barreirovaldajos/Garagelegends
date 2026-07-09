@@ -1,3 +1,8 @@
+> ⚠️ Existen 2 versiones de este documento (`RACE_FORMULAS_MATH.md` y
+> `RACE_FORMULAS_MATH_BALANCED.md`) con valores distintos (p.ej. soft −750 aquí
+> vs −550 en `_BALANCED`). **`_BALANCED` es la vigente.** Nota añadida
+> 2026-07-09, ver `PLAN_REVISION_2026-07-09.md` §5.5.
+
 # Formulas Matematicas de la Carrera
 
 ## Objetivo

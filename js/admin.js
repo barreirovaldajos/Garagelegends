@@ -149,7 +149,7 @@ const GL_ADMIN = {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="GL_ADMIN.handleCheckLiveRaceStatus()">🔍 Verificar estado</button>
           <button class="btn btn-secondary btn-sm" onclick="GL_ADMIN.handleStartLiveRace()" style="border-color:var(--c-green);color:var(--c-green)">▶ Iniciar carrera</button>
-          <button class="btn btn-ghost btn-sm" onclick="GL_ADMIN.handleResetLiveRace()" style="color:var(--c-warn)">↩ Resetear estado</button>
+          <button class="btn btn-ghost btn-sm" onclick="GL_ADMIN.handleResetLiveRace()" style="color:var(--c-red)">↩ Resetear estado</button>
         </div>
         <div id="admin-live-status" style="font-size:0.72rem;color:var(--t-tertiary);margin-top:8px"></div>
       </div>

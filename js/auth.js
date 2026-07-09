@@ -337,6 +337,18 @@
               console.warn('Economy reconcile failed:', (err && err.message) || err));
           } else {
             console.warn('Remote save warning:', this.lastSyncError);
+            // Surface sync failures to the player (throttled) — previously this was
+            // silent, so the player had no way to know their save wasn't reaching the cloud.
+            const now = Date.now();
+            if (!this._lastSyncErrorToastAt || now - this._lastSyncErrorToastAt > 60000) {
+              this._lastSyncErrorToastAt = now;
+              if (window.GL_UI && typeof GL_UI.toast === 'function') {
+                const msg = (typeof window.__ === 'function')
+                  ? window.__('profile_cloud_sync_fail', 'Could not synchronize the cloud save.')
+                  : 'Could not synchronize the cloud save.';
+                GL_UI.toast(msg, 'warning');
+              }
+            }
           }
         }
       }

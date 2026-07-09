@@ -44,7 +44,7 @@ const OB = {
   },
 
   getCountryCatalog() {
-    const lang = (window.GL_I18N && GL_I18N.currentLang === 'es') ? 'es' : 'en';
+    const lang = (window.GL_I18N && GL_I18N.lang === 'es') ? 'es' : 'en';
     // GL-042: don't persist cache across language changes
     if (this._countryCatalog && this._countryCatalogLang === lang) return this._countryCatalog;
     const display = (typeof Intl !== 'undefined' && Intl.DisplayNames)
@@ -106,7 +106,7 @@ const OB = {
   renderWizardShell() {
     const el = document.getElementById('onboarding-screen');
     el.innerHTML = `
-      <div class="ob-wizard" style="display:flex;flex-direction:column;height:100%;background:var(--bg-primary)">
+      <div class="ob-wizard" style="display:flex;flex-direction:column;height:100%;background:var(--c-bg)">
         <div class="ob-progress-bar-track" style="height:3px;background:#222"><div class="ob-progress-bar-fill" id="ob-prog-fill" style="height:100%;background:#e8292a;width:0%;transition:width 0.3s ease"></div></div>
         <div class="ob-step-indicator" style="padding:20px;border-bottom:1px solid #333">
           <span class="ob-step-num" id="ob-step-num" style="font-size:0.8rem;color:#888;text-transform:uppercase">Fase 1 de ${this.totalSteps}</span>

@@ -19,17 +19,28 @@ async function runRaceForDivision(db, divKey, opts) {
   opts = opts || {};
   const durationMode = opts.durationMode || 'real';
   const divRef  = db.collection('divisions').doc(divKey);
-  const divSnap = await divRef.get();
-  if (!divSnap.exists) throw new Error(`Division ${divKey} not found`);
 
-  const divData = divSnap.data();
-  if (divData.phase !== 'season') throw new Error(`Division ${divKey} is not in season phase`);
-  if (divData.raceInProgress)    throw new Error(`Division ${divKey} already has a race in progress`);
+  // Check preconditions and claim the race lock atomically in a transaction, so
+  // two concurrent callers (e.g. the Sunday schedule and an admin force-race)
+  // can never both pass the raceInProgress check and run the same round twice.
+  const { divData, nextRaceIdx } = await db.runTransaction(async (txn) => {
+    const divSnap = await txn.get(divRef);
+    if (!divSnap.exists) throw new Error(`Division ${divKey} not found`);
+
+    const d = divSnap.data();
+    if (d.phase !== 'season') throw new Error(`Division ${divKey} is not in season phase`);
+    if (d.raceInProgress)    throw new Error(`Division ${divKey} already has a race in progress`);
+
+    const cal = d.calendar || [];
+    const idx = cal.findIndex(r => r.status === 'next');
+    if (idx < 0) throw new Error(`No pending race in division ${divKey}`);
+
+    txn.update(divRef, { raceInProgress: true });
+    return { divData: d, nextRaceIdx: idx };
+  });
 
   // Find the pending race
-  const calendar    = divData.calendar || [];
-  const nextRaceIdx = calendar.findIndex(r => r.status === 'next');
-  if (nextRaceIdx < 0) throw new Error(`No pending race in division ${divKey}`);
+  const calendar = divData.calendar || [];
 
   const raceInfo   = calendar[nextRaceIdx];
   const circuit    = raceInfo.circuit;
@@ -38,9 +49,6 @@ async function runRaceForDivision(db, divKey, opts) {
   const round      = raceInfo.round    || (nextRaceIdx + 1);
   const division   = divData.division  || 8;
   const seasonYear = divData.seasonYear || 1;
-
-  // Lock the division to prevent duplicate races
-  await divRef.update({ raceInProgress: true });
 
   try {
     // ── 1. Load submitted strategies for this round ──────────────────────────

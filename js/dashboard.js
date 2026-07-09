@@ -86,7 +86,7 @@ const DASHBOARD = {
       ? (simulated.totalSimulated || 0)
       : Number(simulated || 0);
     if (totalSimulated > 0) {
-      GL_UI.toast((__('dash_time_autosim_events', 'Auto-simulated: {count} event(s).')).replace('{count}', totalSimulated), 'good');
+      GL_UI.toast((__('dash_time_autosim_events', 'Auto-simulated: {count} event(s).')).replace('{count}', totalSimulated), 'success');
     }
 
     this.refresh();
@@ -233,8 +233,8 @@ const DASHBOARD = {
           <div class="fin-item"><span>${__('season_summary_points')}</span><strong>${summary.points || 0}</strong></div>
           <div class="fin-item"><span>${__('season_summary_wins') || 'Victorias'}</span><strong>${summary.wins || 0}${summary.podiums ? ` <span style="font-weight:400;color:var(--t-tertiary);font-size:0.78rem">(${summary.podiums} podios)</span>` : ''}</strong></div>
           <div class="fin-item"><span>${__('season_summary_division')}</span><strong>${divisionLabel(summary.division, summary.divisionGroup)} → ${divisionLabel(summary.nextDivision, summary.nextDivisionGroup)}</strong></div>
-          <div class="fin-item"><span>${__('season_summary_transition')}</span><strong style="color:${isPromoted?'var(--c-good)':isRelegated?'var(--c-warn)':'var(--t-primary)'}">${__(resultKey)}</strong></div>
-          ${summary.bonusCredits > 0 ? `<div class="fin-item"><span>${__('season_summary_bonus')}</span><strong style="color:var(--c-good)">+${GL_UI.fmtCR(summary.bonusCredits)}</strong></div>` : ''}
+          <div class="fin-item"><span>${__('season_summary_transition')}</span><strong style="color:${isPromoted?'var(--c-green)':isRelegated?'var(--c-red)':'var(--t-primary)'}">${__(resultKey)}</strong></div>
+          ${summary.bonusCredits > 0 ? `<div class="fin-item"><span>${__('season_summary_bonus')}</span><strong style="color:var(--c-green)">+${GL_UI.fmtCR(summary.bonusCredits)}</strong></div>` : ''}
           ${campaignRow}
         </div>
         <button class="btn btn-primary w-full" style="justify-content:center" onclick="GL_UI.closeTopModal()">${__('continue')}</button>
@@ -357,7 +357,7 @@ const DASHBOARD = {
   },
 
   renderNextEvent(state) {
-    const el = document.getElementById('dash-next-event');
+    const el = document.getElementById('dash-circuit-preview');
     if (!el) return;
     if (GL_ENGINE && typeof GL_ENGINE.ensureNextRaceAvailable === 'function') {
       GL_ENGINE.ensureNextRaceAvailable();
@@ -622,27 +622,6 @@ const DASHBOARD = {
     }).join('');
   },
 
-  renderPilotMorale(state) {
-    const el = document.getElementById('dash-morale');
-    if (!el) return;
-    const pilots = state.pilots || [];
-    if (!pilots.length) { el.innerHTML = `<p style="color:var(--t-tertiary);font-size:0.82rem">${__('dash_no_pilots')}</p>`; return; }
-    el.innerHTML = pilots.map(p => {
-      const m = p.morale || 75;
-      const mColor = m > 70 ? 'var(--c-green)' : m > 40 ? 'var(--c-gold)' : 'var(--c-red)';
-      const overall = GL_ENGINE.pilotScore(p);
-      return `<div class="morale-pill">
-        <div class="morale-avatar" style="background:${state.team.colors.primary}33;color:${state.team.colors.primary}">${p.emoji||'🧑'}</div>
-        <div class="morale-info">
-          <div class="morale-name">${p.name}</div>
-          <div style="font-size:0.7rem;color:var(--t-tertiary)">${__('overall')} ${overall} · ${__('dash_contract')} ${p.contractWeeks||20}${__('per_week').replace('/','')}.</div>
-        </div>
-        <div class="morale-bar-wrap">${GL_UI.progressBar(m,100,'green')}</div>
-        <div class="morale-val" style="color:${mColor}">${m}</div>
-      </div>`;
-    }).join('');
-  },
-
   renderActivity(state) {
     const el = document.getElementById('dash-activity');
     if (!el) return;
@@ -657,14 +636,6 @@ const DASHBOARD = {
           <div class="activity-time">${__('topbar_week')} ${l.week}</div>
         </div>
       </div>`).join('');
-  },
-
-  renderSponsors(state) {
-    const el = document.getElementById('dash-sponsors');
-    if (!el) return;
-    const sponsors = (state.sponsors || []).filter(s => !s.expired);
-    if (!sponsors.length) { el.innerHTML = `<p style="color:var(--t-tertiary);font-size:0.82rem">${__('dash_no_sponsors')}</p>`; return; }
-    el.innerHTML = sponsors.map(s => GL_UI.sponsorChipHTML(s)).join('');
   },
 
   getCampaignProgressText(state, objective) {
@@ -986,7 +957,7 @@ const DASHBOARD = {
     const body = timeline.map((line, idx) => `${idx + 1}. ${line}`).join('\n');
     const content = `${header}\n${__('dash_advisor_policy_recent_changes')}:\n${body}`;
 
-    const onSuccess = () => GL_UI.toast(__('dash_advisor_policy_export_success'), 'good');
+    const onSuccess = () => GL_UI.toast(__('dash_advisor_policy_export_success'), 'success');
     const onFailure = () => GL_UI.toast(__('dash_advisor_policy_export_failed'), 'warning');
 
     const fallbackCopy = () => {
@@ -1068,7 +1039,7 @@ const DASHBOARD = {
       };
 
       GL_STATE.saveState();
-      GL_UI.toast(__('dash_advisor_history_archive_done'), 'good');
+      GL_UI.toast(__('dash_advisor_history_archive_done'), 'success');
       this.refresh();
     });
   },
