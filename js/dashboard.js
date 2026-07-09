@@ -516,7 +516,7 @@ const DASHBOARD = {
                 const isMe = s.isPlayer && s.teamId === GL_AUTH.user?.uid;
                 return `<tr style="border-bottom:1px solid var(--c-border);${isMe?'background:var(--c-surface-2)':''}">
                   <td style="text-align:right;padding:4px 0;font-weight:700;color:${isMe?'var(--c-gold)':'var(--t-tertiary)'}">${s.position}</td>
-                  <td style="padding:4px 6px;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${s.teamName || 'Team'}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</td>
+                  <td style="padding:4px 6px;color:${isMe?'var(--t-primary)':'var(--t-secondary)'};cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick="GL_TEAM_PROFILE.openTeamByIndex(${idx})">${escapeHtml(s.teamName || 'Team')}${s.isPlayer ? '' : ' 🤖'}${isMe ? ' ⭐' : ''}</td>
                   <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${pj}</td>
                   <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.wins || 0}</td>
                   <td style="text-align:center;padding:4px 2px;color:var(--t-tertiary)">${s.podiums || 0}</td>

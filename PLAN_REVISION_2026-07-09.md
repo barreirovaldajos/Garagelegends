@@ -13,13 +13,15 @@ El proyecto está **funcionalmente sólido en su capa media** (design system rea
 
 ## ERRORES A CORREGIR (por fases, orden = prioridad)
 
-### FASE 0 — Seguridad crítica (antes que nada; prod está expuesta hoy)
+### FASE 0 — Seguridad crítica (antes que nada; prod está expuesta hoy) ✅ COMPLETADA 2026-07-09
 
 | # | Sev | Dónde | Error |
 |---|-----|-------|-------|
-| 0.1 | 🔴 ALTA | `firestore.rules:103-110` | **Escalada a admin desde el cliente.** Nada impide a un jugador escribir `role: 'admin'` en su propio `profiles/{uid}`; `isAdmin()` lee ese campo → acceso total a `divisions/`, `admin/` y funciones con check de rol. Fix: bloquear cambio de `role` con `diff().affectedKeys()`. |
-| 0.2 | 🔴 ALTA | `firestore.rules:29-43,64-67` | **Anti-cheat de créditos evadible en 2 writes.** El cliente puede escribir `mp.pendingCredits: 1e9` (paso 1) y luego subir sus créditos (paso 2): `isSafeEconomyWrite` valida contra el `mp` previo, que el propio cliente acaba de inflar. Fix: `mp.*` solo-escritura-servidor en reglas. |
-| 0.3 | 🔴 ALTA | `js/dashboard.js:519`, `js/screens.js:4537` | **XSS almacenado.** `s.teamName` (escrito por otros usuarios) y `car.name` se interpolan en `innerHTML` sin escapar. Un nombre de equipo `<img onerror=…>` se ejecuta en el navegador de todos los rivales. Fix: `escapeHtml` en todo `innerHTML` con datos de usuario. |
+| 0.1 | 🔴 ALTA | `firestore.rules:103-110` | ~~**Escalada a admin desde el cliente.** Nada impide a un jugador escribir `role: 'admin'` en su propio `profiles/{uid}`; `isAdmin()` lee ese campo → acceso total a `divisions/`, `admin/` y funciones con check de rol. Fix: bloquear cambio de `role` con `diff().affectedKeys()`.~~ ✅ **RESUELTO** — `isSafeRoleWrite()` añadida: el write no-admin exige `role` idéntico al ya almacenado. |
+| 0.2 | 🔴 ALTA | `firestore.rules:29-43,64-67` | ~~**Anti-cheat de créditos evadible en 2 writes.** El cliente puede escribir `mp.pendingCredits: 1e9` (paso 1) y luego subir sus créditos (paso 2): `isSafeEconomyWrite` valida contra el `mp` previo, que el propio cliente acaba de inflar. Fix: `mp.*` solo-escritura-servidor en reglas.~~ ✅ **RESUELTO** — `isSafeMpWrite()` añadida: `mp.pendingCredits`/`pendingTokens` entrantes deben ser `<=` al valor ya almacenado (el cliente solo consume/borra, nunca sube). |
+| 0.3 | 🔴 ALTA | `js/dashboard.js:519`, `js/screens.js:4537` | ~~**XSS almacenado.** `s.teamName` (escrito por otros usuarios) y `car.name` se interpolan en `innerHTML` sin escapar. Un nombre de equipo `<img onerror=…>` se ejecuta en el navegador de todos los rivales. Fix: `escapeHtml` en todo `innerHTML` con datos de usuario.~~ ✅ **RESUELTO** — ambos envueltos en la `escapeHtml()` global existente. |
+
+Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entradas 2026-07-09).
 
 ### FASE 1 — Integridad de carrera y pipeline (servidor)
 

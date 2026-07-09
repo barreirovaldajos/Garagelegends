@@ -66,6 +66,24 @@ service cloud.firestore {
           && incomingTokens()  <= (existingTokens()  + pendingTokens());
     }
 
+    // ---- Prevent the client from inflating mp.pending* itself ----
+    // mp.pendingCredits/pendingTokens are only ever meant to be raised by Cloud Functions
+    // (Admin SDK, bypasses rules). The client is only allowed to consume them (decrease
+    // or delete down to 0) when applying rewards locally — never to raise them, which
+    // would otherwise let a later write claim credits/tokens against a self-inflated value.
+    function isSafeMpWrite() {
+      return request.resource.data.get('mp', {}).get('pendingCredits', 0) <= pendingCredits()
+          && request.resource.data.get('mp', {}).get('pendingTokens', 0)  <= pendingTokens();
+    }
+
+    // ---- Prevent the client from granting itself the admin role ----
+    // role may only be set by an admin (see the isAdmin() write rule below); a player's
+    // own write must leave role exactly as it already was (defaulting to 'player').
+    function isSafeRoleWrite() {
+      return request.resource.data.get('role', 'player') ==
+             (resource != null ? resource.data.get('role', 'player') : 'player');
+    }
+
     // ---- Validate HQ building levels don't exceed the game maximum (5) ----
     // Defense-in-depth: the server also caps these in _buildSnapshotFromSaveData,
     // but rejecting writes here prevents the cheated value from ever reaching Firestore.
@@ -106,7 +124,9 @@ service cloud.firestore {
                    && request.auth.uid == userId
                    && isSafeEconomyWrite()
                    && isSafeHQWrite()
-                   && isSafeCarWrite();
+                   && isSafeCarWrite()
+                   && isSafeMpWrite()
+                   && isSafeRoleWrite();
       allow read, write: if isAdmin();
     }
 

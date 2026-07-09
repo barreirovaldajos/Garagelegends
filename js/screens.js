@@ -4534,7 +4534,7 @@ const SCREENS = {
         return `<div class="race-pos-row ${car.isPlayer ? 'my-car' : ''}" style="--team-color:${dotColor}${stickyStyle}">
           <span class="race-pos-num">${car.pos || (idx + 1)}</span>
           <span class="race-pos-teamdot" style="background:${dotColor}"></span>
-          <span class="race-pos-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${car.isPlayer ? `<strong>${car.name}</strong>` : car.name}</span>
+          <span class="race-pos-name" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${car.isPlayer ? `<strong>${escapeHtml(car.name)}</strong>` : escapeHtml(car.name)}</span>
           <span class="race-pos-tire" title="${tyreMeta.label}" style="color:${tyreMeta.color};font-weight:800">${tyreMeta.shortLabel}</span>
           <span class="race-pos-gap" style="display:flex;flex-direction:column;align-items:flex-end;gap:1px;line-height:1.1">
             <span>${status}</span>
