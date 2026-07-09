@@ -326,10 +326,41 @@
         } catch (e) {
           this.syncStatus = 'error'; this.lastSyncError = e.message || String(e);
           this.lastSyncErrorAt = Date.now();
-          console.warn('Remote save warning:', this.lastSyncError);
+          if (e && e.code === 'permission-denied') {
+            // The economy anti-cheat rule (isSafeEconomyWrite) rejected this write:
+            // local credits/tokens exceeded what the server authorized via mp.pending*.
+            // Reconcile the local economy down to the authoritative remote value so we
+            // stop looping on the same rejected snapshot (and surface a distinct status).
+            this.syncStatus = 'economy-rejected';
+            console.warn('Remote save rejected by economy rules; reconciling from remote.');
+            this._reconcileEconomyFromRemote().catch(err =>
+              console.warn('Economy reconcile failed:', (err && err.message) || err));
+          } else {
+            console.warn('Remote save warning:', this.lastSyncError);
+          }
         }
       }
       this.savePromise = null;
+    },
+
+    // Pull the authoritative remote economy and clamp local credits/tokens down to it.
+    // Only ever lowers local values (never grants) — server-side pending rewards are
+    // still applied separately by _applyMpPending via the profile snapshot listener.
+    async _reconcileEconomyFromRemote() {
+      if (!this._db || !this.user) return;
+      const snap = await this._db.collection('profiles').doc(this.user.uid).get();
+      if (!snap.exists) return;
+      const data = snap.data() || {};
+      const remoteFin = data.save_data && data.save_data.finances;
+      const state = window.GL_STATE && GL_STATE.getState && GL_STATE.getState();
+      if (!remoteFin || !state || !state.finances) return;
+      const authCredits = Number(remoteFin.credits) || 0;
+      const authTokens  = Number(remoteFin.tokens)  || 0;
+      if (Number(state.finances.credits) > authCredits) state.finances.credits = authCredits;
+      if (Number(state.finances.tokens)  > authTokens)  state.finances.tokens  = authTokens;
+      this.remoteSave = data.save_data || null;
+      this.mp = data.mp || null;
+      if (window.GL_STATE && GL_STATE.saveState) GL_STATE.saveState();
     },
 
     async clearRemoteStateSnapshot() {

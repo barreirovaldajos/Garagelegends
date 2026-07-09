@@ -590,6 +590,7 @@ async function spendCredits(amount, reason) {
   } catch (err) {
     if (err.code === 'failed-precondition') return { ok: false, msg: 'Créditos insuficientes' };
     if (err.code === 'unauthenticated')     return { ok: false, msg: 'Debes iniciar sesión para comprar' };
+    console.warn('spendCredits failed:', err.code || 'unknown', err.message || err);
     return { ok: false, msg: 'Sin conexión. Inténtalo de nuevo.' };
   }
 }
@@ -626,6 +627,7 @@ async function spendTokens(amount, reason) {
   } catch (err) {
     if (err.code === 'failed-precondition') return { ok: false, msg: 'Tokens insuficientes' };
     if (err.code === 'unauthenticated')     return { ok: false, msg: 'Debes iniciar sesión para comprar' };
+    console.warn('spendTokens failed:', err.code || 'unknown', err.message || err);
     return { ok: false, msg: 'Sin conexión. Inténtalo de nuevo.' };
   }
 }

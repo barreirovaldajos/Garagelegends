@@ -157,35 +157,47 @@ exports.weeklyEconomy = functions.pubsub
       .where('phase', '==', 'season')
       .get();
 
-    let inactiveCount = 0;
-
+    // Gather every (division, player) strategy check we need to run.
+    const checks = [];
     for (const doc of divisionsSnap.docs) {
       const data = doc.data();
-      const slots = data.slots || {};
       const lastRound = data.lastRaceRound || 0;
-
       if (lastRound < 2) continue; // Need at least 2 races to judge inactivity
 
-      for (const [slotIdx, slot] of Object.entries(slots)) {
+      const slots = data.slots || {};
+      for (const slot of Object.values(slots)) {
         if (slot.type !== 'player' || !slot.userId) continue;
-
-        // Check if player submitted strategies for recent rounds
-        const recentStrategies = await doc.ref.collection('strategies')
-          .where('userId', '==', slot.userId)
-          .where('raceRound', '>=', lastRound - 1)
-          .get();
-
-        if (recentStrategies.empty) {
-          // Mark as inactive
-          const profileRef = db.collection('profiles').doc(slot.userId);
-          await profileRef.update({ 'mp.status': 'inactive' });
-          inactiveCount++;
-          functions.logger.info(`Marked ${slot.userId} as inactive in ${doc.id}`);
-        }
+        checks.push({ doc, divId: doc.id, userId: slot.userId, lastRound });
       }
     }
 
-    functions.logger.info(`Weekly economy: ${inactiveCount} players marked inactive`);
+    // Run the strategy lookups in parallel, in bounded batches so we don't open
+    // hundreds of simultaneous reads (was a serial N+1: one query per player).
+    const READ_BATCH = 50;
+    const inactive = [];
+    for (let i = 0; i < checks.length; i += READ_BATCH) {
+      const slice = checks.slice(i, i + READ_BATCH);
+      const results = await Promise.all(slice.map(async (c) => {
+        const recentStrategies = await c.doc.ref.collection('strategies')
+          .where('userId', '==', c.userId)
+          .where('raceRound', '>=', c.lastRound - 1)
+          .get();
+        return recentStrategies.empty ? c : null;
+      }));
+      for (const r of results) if (r) inactive.push(r);
+    }
+
+    // Write the "inactive" flags in Firestore batches (batch limit: 500 writes).
+    for (let i = 0; i < inactive.length; i += 500) {
+      const batch = db.batch();
+      for (const c of inactive.slice(i, i + 500)) {
+        batch.update(db.collection('profiles').doc(c.userId), { 'mp.status': 'inactive' });
+      }
+      await batch.commit();
+    }
+
+    inactive.forEach(c => functions.logger.info(`Marked ${c.userId} as inactive in ${c.divId}`));
+    functions.logger.info(`Weekly economy: ${inactive.length} players marked inactive`);
     return null;
   });
 
