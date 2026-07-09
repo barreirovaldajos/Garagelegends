@@ -1,0 +1,4 @@
+# Normaliza los finales de línea a LF en el repo (evita el churn CRLF/LF entre
+# máquinas Windows/Linux que hizo divergir la rama Dani en 2026-07). Los binarios
+# se autodetectan y quedan intactos.
+* text=auto eol=lf
