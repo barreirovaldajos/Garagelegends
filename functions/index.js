@@ -152,39 +152,10 @@ exports.weeklyEconomy = functions.pubsub
   .schedule('every monday 00:00')
   .timeZone('UTC')
   .onRun(async (_context) => {
-    // Mark inactive players (no strategy submitted for 2+ consecutive races)
-    const divisionsSnap = await db.collection('divisions')
-      .where('phase', '==', 'season')
-      .get();
-
-    let inactiveCount = 0;
-
-    for (const doc of divisionsSnap.docs) {
-      const data = doc.data();
-      const slots = data.slots || {};
-      const lastRound = data.lastRaceRound || 0;
-
-      if (lastRound < 2) continue; // Need at least 2 races to judge inactivity
-
-      for (const [slotIdx, slot] of Object.entries(slots)) {
-        if (slot.type !== 'player' || !slot.userId) continue;
-
-        // Check if player submitted strategies for recent rounds
-        const recentStrategies = await doc.ref.collection('strategies')
-          .where('userId', '==', slot.userId)
-          .where('raceRound', '>=', lastRound - 1)
-          .get();
-
-        if (recentStrategies.empty) {
-          // Mark as inactive
-          const profileRef = db.collection('profiles').doc(slot.userId);
-          await profileRef.update({ 'mp.status': 'inactive' });
-          inactiveCount++;
-          functions.logger.info(`Marked ${slot.userId} as inactive in ${doc.id}`);
-        }
-      }
-    }
-
+    // Mark inactive players (no strategy submitted for 2+ consecutive races).
+    // Logic lives in ./lib/inactivity.js so it can be unit-tested with a mock db.
+    const { markInactivePlayers } = require('./lib/inactivity.js');
+    const inactiveCount = await markInactivePlayers(db, functions.logger);
     functions.logger.info(`Weekly economy: ${inactiveCount} players marked inactive`);
     return null;
   });
