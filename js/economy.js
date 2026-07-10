@@ -44,18 +44,28 @@ const Economy = {
     };
   },
 
+  // Salarios/mantenimiento de HQ escalan con la división para dar sumidero a las divisiones
+  // altas (los sponsors ya escalan ×1→×13 por división vía _SP_MULT en screens.js, pero el
+  // gasto se quedaba plano) — sin esto D1 acumulaba superávit sin límite.
+  DIVISION_EXPENSE_MULT: { 1: 2.6, 2: 2.2, 3: 1.9, 4: 1.6, 5: 1.35, 6: 1.15, 7: 1.05, 8: 1.0 },
+
   calculateTeamExpenseBreakdown(state) {
     if (!state) {
       return { salaries: 0, hqCost: 0, contractCost: 0, constructionUpkeep: 0, expenses: 0 };
     }
     const pilots = state.pilots || [];
     const staff = state.staff || [];
-    const salaries = pilots.reduce((sum, p) => sum + (p.salary || 0), 0) + staff.reduce((sum, s) => sum + (s.salary || 0), 0);
+    const baseSalaries = pilots.reduce((sum, p) => sum + (p.salary || 0), 0) + staff.reduce((sum, s) => sum + (s.salary || 0), 0);
     const hq = state.hq || {};
     const HQ_WEEKLY_COST = { admin: 300, wind_tunnel: 450, rnd: 600, factory: 550, academy: 300 };
-    const hqCost = Object.keys(HQ_WEEKLY_COST).reduce((sum, key) => {
+    const baseHqCost = Object.keys(HQ_WEEKLY_COST).reduce((sum, key) => {
       return sum + ((hq[key] || 0) * HQ_WEEKLY_COST[key]);
     }, 0);
+
+    const division = Number(state?.season?.division) || 8;
+    const expenseMult = this.DIVISION_EXPENSE_MULT[division] || 1.0;
+    const salaries = Math.round(baseSalaries * expenseMult);
+    const hqCost = Math.round(baseHqCost * expenseMult);
 
     const contracts = (state.contracts || []).filter(c => !c.expired);
     const contractCost = contracts.reduce((sum, c) => sum + (c.weeklyCost || 0), 0);

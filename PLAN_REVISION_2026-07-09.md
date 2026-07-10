@@ -41,26 +41,26 @@ Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entra
 |---|-----|-------|-------|
 | 2.1 | 🔴 ALTA | `js/engine.js` vs `shared/engine-core.js` | **`engine.js` reimplementa el motor con constantes divergentes** (ej. desgaste `wearOveruse * 460` en cliente vs `* 1100` en core, `engine.js:2087` vs `engine-core.js:1059`). La validación server nunca reproducirá al cliente. Fix de fondo: que el cliente delegue en `GL_ENGINE_CORE` de verdad; mientras tanto, auditar y alinear constantes. |
 | 2.2 | 🔴 ALTA | `shared/engine-core.js:1388` vs `js/data.js:220` | ~~**Calendarios incompatibles**: core genera `min(8+(8−div),12)` carreras; el cliente (el `generateCalendar` de `data.js` que usa `endSeason`) genera siempre 8.~~ ✅ **RESUELTO 2026-07-10** — decisión de Daniel: **8 fijas para todos**. Core cambiado a `var count = 8` (+ sync a `functions/lib/shared/`); `js/data.js` ya generaba 8 → unificado. Verificado en Node: divisiones 1/4/8 → 8 carreras. |
-| 2.3 | 🟡 MEDIA | `functions/shared/data-constants.js` | **Copia huérfana trackeada en git** (solo se borró `engine-core.js` de esa carpeta). Nada la requiere y `sync-shared.sh` no la cubre — mismo patrón que causó el bug de junio. Borrar. |
-| 2.4 | 🔴 ALTA | `js/screens.js:3905` | `runSimulation` sin guard de `_raceInProgress`: volver a `#race` y re-clicar lanza **2 loops rAF** → `finishRace()` ×2 → doble economía, doble semana, doble standings. |
-| 2.5 | 🔴 ALTA | `js/auth.js:83-168,271-276` | **Doble aplicación de recompensas MP**: `ensureProfile` las aplica en memoria sin limpiar `mp.pending*` en Firestore; el listener las aplica otra vez → saldo inflado → write rechazado → reconciliación hacia abajo. El jugador ve créditos que suben y se recortan. |
-| 2.6 | 🔴 ALTA | `js/auth.js:162,272` | El listener MP **nunca se desuscribe** en signOut/cambio de usuario y el guard impide crear el del nuevo usuario → recompensas dejan de aplicarse + listener zombi con permission-denied en bucle. |
-| 2.7 | 🟡 MEDIA | `js/auth.js:265-266` | Llama a `GL_DASHBOARD.renderTopbar`/`GL_APP.refreshTopbar`, que **no existen** (son `updateTopbar`/`buildTopbar`) → topbar no refleja créditos tras recompensas. |
-| 2.8 | 🟡 MEDIA | `js/screens.js:4552-4586` | La carrera en vivo otorga I+D con posiciones **interpoladas del HUD** y marca `awardedRounds`, bloqueando el award exacto del servidor. La fórmula está copiada en 4 sitios y ya diverge. |
-| 2.9 | 🟡 MEDIA | `js/state.js:231-310` | `choosePreferredStateCandidate` prefiere el save "meaningful" sobre el timestamp → un save local viejo **resucita partidas reseteadas** desde otro dispositivo y se re-sube. Además persiste en localStorage antes de aplicar migraciones. |
+| 2.3 | 🟡 MEDIA | `functions/shared/data-constants.js` | ~~**Copia huérfana trackeada en git**...~~ ✅ **RESUELTO 2026-07-09** (ya estaba hecho en la sesión de Fase 1+4+5, ver 5.7). |
+| 2.4 | 🔴 ALTA | `js/screens.js:3905` | ~~`runSimulation` sin guard de `_raceInProgress`...~~ ✅ **RESUELTO 2026-07-10** — guard al inicio de `runSimulation()`: si `_raceInProgress`/`_liveRaceStarted` ya está activo, toast y `return` inmediato. |
+| 2.5 | 🔴 ALTA | `js/auth.js:83-168,271-276` | ~~**Doble aplicación de recompensas MP**...~~ ✅ **RESUELTO 2026-07-10** — `ensureProfile` ahora, tras el merge local, persiste el `mp.pending*` limpio en Firestore (`ref.update`) **antes** de arrancar el listener (`_startMpRewardsListener`), así el listener nunca ve valores pendientes ya aplicados. |
+| 2.6 | 🔴 ALTA | `js/auth.js:162,272` | ~~El listener MP **nunca se desuscribe**...~~ ✅ **RESUELTO 2026-07-10** — se desuscribe en signOut y, en `adoptUser`, si el uid cambia respecto al que tenía el listener activo (se trackea `_mpRewardsListenerUid`). |
+| 2.7 | 🟡 MEDIA | `js/auth.js:265-266` | ~~Llama a `GL_DASHBOARD.renderTopbar`/`GL_APP.refreshTopbar`...~~ ✅ **RESUELTO 2026-07-10** — cambiado a `GL_DASHBOARD.updateTopbar(state)` (el nombre real). |
+| 2.8 | 🟡 MEDIA | `js/screens.js:4552-4586` | ~~La carrera en vivo otorga I+D con posiciones interpoladas del HUD...~~ ✅ **RESUELTO 2026-07-10** — el award ahora prioriza `_liveResult.playerCars` (posiciones finales exactas del servidor, las mismas que usa el postrace) y solo cae a la interpolación del HUD como último recurso si esos datos faltan. La fórmula sigue duplicada en 4 sitios (deuda de 2.1, fuera de alcance hoy). |
+| 2.9 | 🟡 MEDIA | `js/state.js:231-310` | ~~`choosePreferredStateCandidate` prefiere el save "meaningful" sobre el timestamp...~~ ✅ **RESUELTO 2026-07-10** — el timestamp decide primero (meaningfulness/source solo desempatan si el timestamp es igual); la persistencia a localStorage/remoto se movió a después de correr todas las migraciones. |
 
 ### FASE 3 — Balance de juego
 
 | # | Sev | Dónde | Error |
 |---|-----|-------|-------|
-| 3.1 | 🔴 ALTA | `engine-core.js:1127`, `engine.js:2157` | **DNF de la IA: ~54% por carrera** (1.2%/vuelta × 65 vueltas) → ~10 de 18 rivales abandonan; terminar ya es top-10. Bajar a ~0.15-0.2%/vuelta. |
-| 3.2 | 🔴 ALTA | `engine-core.js:1055,1144` | **Agresividad = estrategia dominante**: +800 ms/vuelta a agg 100 (≈52 s/carrera) con costo casi nulo — los incidentes solo miran `riskLevel`. Meter agresividad en la prob. de incidente o bajar el beneficio a ~5 ms/punto. |
+| 3.1 | 🔴 ALTA | `engine-core.js:1127`, `engine.js:2157` | ~~**DNF de la IA: ~54% por carrera**...~~ ✅ **RESUELTO 2026-07-10** — bajado de 0.012 (1.2%/vuelta) a 0.0018 (0.18%/vuelta) en ambos motores (`shared/engine-core.js` + `js/engine.js`, sync a `functions/lib/shared/`). |
+| 3.2 | 🔴 ALTA | `engine-core.js:1055,1144` | ~~**Agresividad = estrategia dominante**...~~ ✅ **RESUELTO 2026-07-10** — beneficio bajado de 16ms/punto a 5ms/punto (agg 100 pasa de ~800ms/vuelta gratis a ~250ms/vuelta) en ambos motores. El riesgo de incidente sigue atado solo a `riskLevel`, no a `aggression` — se optó por la opción más simple del plan (bajar el beneficio) en vez de acoplar agresividad al riesgo. |
 | 3.3 | 🔴 ALTA | `js/data.js:127-152`, `js/engine.js:268` | ~~**HQ vende efectos inexistentes**~~ ✅ **RESUELTO 2026-07-10** — decisión de Daniel: IMPLEMENTAR los bonos. Nueva tabla `HQ_CAR_BONUSES` + `applyHqCarBonuses()` en `shared/engine-core.js` (única fuente cliente/servidor): Túnel +10/20/35/50/75 Aero, I+D +10/22/38/55/80 Potencia, Fábrica +10/20/35/55/80 Fiabilidad (valor absoluto del nivel actual, clamp 99). Aplicado en: grid del core (jugadores Y bots — `race-runner.js` ahora pasa `hq` al grid), y en cliente vía `getEffectiveCarComponents()` en `carScore()`, `buildRaceGrid` y 2º piloto. UI: card "Bonificaciones Activas" muestra los bonos y `getHqUpgradeImpactText` muestra el delta del próximo nivel. |
 | 3.4 | 🔴 ALTA | `js/academy.js:27` | ~~La Academia L2-L5 no compra nada usable; ídem Coach.~~ ✅ **RESUELTO (parcial) 2026-07-10** — `trainPilot` ahora escala la ganancia diaria con la Academia (multiplicador alineado a los textos: L1..L5 = +15/30/50/75/100%, antes +0/10/30/55/100) y con el Coach de Pilotos (`effectKey='pilot_development'`, ×1.25). L5+Coach: 3-5 pts/día vs 1-2 base. `Academy.queueTraining` sigue siendo código muerto (los "slots" L3 no aplican al modelo 1/día actual) — decidir si se elimina o se convierte en el sistema real de entrenamiento. |
-| 3.5 | 🟡 MEDIA | `economy.js`, `screens.js:3090` | **Economía superior sin tensión**: sponsors escalan ×1→×13 por división, gastos casi planos → D1 ≈ +430k/sem sin sumidero; nadie quiebra nunca (créditos clampados a 0, castigo por déficit irrelevante). |
-| 3.6 | 🟡 MEDIA | `engine-core.js:1054,582` | Ventaja oculta del jugador: multiplicador de ritmo 175 vs 160, coche AI escalado 0.82-1.04× del suyo, más ruido de vuelta para la IA. Sumado a 3.1, ascender D8→D1 es casi automático. |
-| 3.7 | 🟢 BAJA | `engine.js:2358` | Premio P16 en D8 redondea a 0 y cae al fallback de 100 CR — incongruente con la tabla. |
-| 3.8 | 🟢 BAJA | data/UI | `potential`, `morale`, `contractWeeks` se muestran y `potential` pesa 30% en el salario, pero no tienen ningún efecto de juego. Staff anunciado sin implementar: Ojeador, Médico (no hay lesiones), Ing. Jefe (+I+D). |
+| 3.5 | 🟡 MEDIA | `economy.js`, `screens.js:3090` | ~~**Economía superior sin tensión**...~~ ⚠️ **PARCIAL 2026-07-10** — añadido `DIVISION_EXPENSE_MULT` en `economy.js`: salarios + mantenimiento HQ escalan ×2.6 en D1 hasta ×1.0 en D8 (los sponsors ya escalaban ×1→×13). Da sumidero real al superávit de D1. **Sigue pendiente:** mecánica de bancarrota/consecuencia real de déficit sostenido (embargo de fichajes) — no implementada, requiere decisión de diseño de Daniel sobre qué tan duro debe ser el castigo; catalogada en Mejoras "Impacto bajo". |
+| 3.6 | 🟡 MEDIA | `engine-core.js:1054,582` | ~~Ventaja oculta del jugador...~~ ✅ **RESUELTO 2026-07-10** — multiplicador de ritmo unificado a 160 para ambos, rango de ruido de la IA igualado al del jugador (antes hasta 900ms vs 520ms), escala de coche de bots recentrada a 0.92-1.08× (antes 0.82-1.04×). Aplicado en `shared/engine-core.js` y `js/engine.js` (sync a `functions/lib/shared/`). |
+| 3.7 | 🟢 BAJA | `engine.js:2358` | ~~Premio P16 en D8 redondea a 0...~~ ✅ **RESUELTO 2026-07-10** — floor de 100 CR en el cálculo del `prizeMap`, en ambos motores. |
+| 3.8 | 🟢 BAJA | data/UI | `potential`, `morale`, `contractWeeks` se muestran y `potential` pesa 30% en el salario, pero no tienen ningún efecto de juego. Staff anunciado sin implementar: Ojeador, Médico (no hay lesiones), Ing. Jefe (+I+D). **No tocado 2026-07-10** — requiere decisiones de diseño (qué efecto dar a cada uno) fuera del alcance acordado para esa sesión. |
 
 ### FASE 4 — Visual / UX ⚠️ PARCIAL 2026-07-09 (ítems ALTA/BAJA y 2 de MEDIA resueltos; 4.4/4.5/4.9/4.10 quedan pendientes — barridos grandes, no mecánicos)
 
@@ -75,7 +75,7 @@ Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entra
 | 4.7 | 🟡 MEDIA | `js/auth.js:327-339` | ~~Fallos de guardado remoto en sesión = solo `console.warn` — el usuario no se entera de que no está guardando en la nube.~~ ✅ **RESUELTO** — toast `warning` (throttlado a 1/60s) con la clave i18n ya existente `profile_cloud_sync_fail`. |
 | 4.8 | 🟡 MEDIA | `js/screens.js:~4071`, `ui.js:16` | ~~Toast tipo `'good'` no existe (success/error/info/warning) → premio de carrera sale genérico.~~ ✅ **RESUELTO** — corregidas las 12 llamadas `GL_UI.toast(..., 'good')` en `app.js`/`dashboard.js`/`screens.js` a `'success'` (no se tocó `GL_STATE.addLog`/`events.push`, que son sistemas de tipos distintos donde `'good'` sí es válido). |
 | 4.9 | 🟡 MEDIA | global | Accesibilidad — pendiente, barrido grande fuera del alcance de hoy. |
-| 4.10 | 🟢 BAJA | `js/onboarding.js:106-127` | Wizard duplica con inline styles grises lo que onboarding.css ya define — pendiente (cosmético, no priorizado hoy). |
+| 4.10 | 🟢 BAJA | `js/onboarding.js:106-127` | Wizard duplica con inline styles grises lo que onboarding.css ya define — pendiente (cosmético, no priorizado hoy). **Revisado 2026-07-10, no tocado:** los inline no son duplicación pura — `renderWizardShell` usa `display:grid` de 2 columnas (retrato NPC + contenido) que `.ob-step-body` en CSS (`display:flex`) no cubre; quitarlos a ciegas sin poder verificar visualmente en este entorno arriesgaba romper el layout. |
 | 4.11 | 🟢 BAJA | `js/dashboard.js:58,359` | ~~`renderNextEvent` busca `#dash-next-event` que no existe → el botón "avanzar temporada" por esa vía es inalcanzable.~~ ✅ **RESUELTO** — cambiado a `#dash-circuit-preview` (el contenedor real ya presente en `renderSkeleton`, junto a standings). |
 | 4.12 | 🟢 BAJA | `js/ui.js:6-13`, `index.html:106` | ~~Doble `#toast-container` (id duplicado).~~ ✅ **RESUELTO** — eliminado el `<div id="toast-container">` estático de `index.html` (nunca se consultaba por id; `ui.js` crea el suyo dinámicamente). |
 
@@ -89,7 +89,7 @@ Detalle de la auditoría y del fix en `PENDIENTES.md` (sección 🐛 Bugs, entra
 | 5.4 | 🟢 BAJA | `SUPABASE_SETUP.md` | ~~Manda editar `js/supabase-config.js`, borrado el 2026-07-01. Archivar o borrar.~~ ✅ **RESUELTO** — movido a `docs/_archive/SUPABASE_SETUP.md` con cabecera "ARCHIVADO". |
 | 5.5 | 🟢 BAJA | `docs/game-variables/` | ~~`RACE_FORMULAS_MATH.md` (soft −750) vs `_BALANCED.md` (−550, el vigente) sin nota de cuál manda. Ídem `RACE_IMPACT_NUMERIC_MATRIX*`.~~ ✅ **RESUELTO** — añadida nota en ambas versiones no-`_BALANCED` señalando que `_BALANCED` es la vigente. |
 | 5.6 | 🟢 BAJA | `CLAUDE.md` (×2) | ~~Correcciones: expone `GL_SCREENS`... "rama de trabajo `Dani`"... "offline-first"...~~ ✅ **RESUELTO** — el `GL_SCREENS`/`GL_TRACKING` resultó ser un falso positivo (el CLAUDE.md de `Garagelegends/` ya decía `SCREENS`/`GL_TRACK` correctamente). Corregidos: el puntero de `04_Garage_legend/CLAUDE.md` (ya no dice "rama `Dani`", documenta que el trabajo es en `main`) y la nota "offline-first" (ahora aclara la excepción server-only de `deductCredits`/`deductTokens`). |
-| 5.7 | 🟢 BAJA | `js/divisions.js:155-178`, `js/dashboard.js` | ⚠️ **PARCIAL** — ✅ eliminados los 4 stubs TODO de `divisions.js` (`getTeamsInDivision`, `startDivisionSeason`, `generateDivisionCalendar`, `endDivisionSeason`, 0 llamadas confirmadas) y ✅ `renderPilotMorale`/`renderSponsors` de `dashboard.js` (0 llamadas, apuntaban a `#dash-morale`/`#dash-sponsors` inexistentes). `renderAdvisorTelemetry` (~90 líneas + varios helpers encadenados) se deja pendiente: verificar que ninguno de sus helpers (`getAdvisorPolicyTimeline`, `updateAdvisorSuggestionTelemetry`, etc.) se usa desde otro flujo alcanzable requiere más estudio del que cabía hoy. `state.facilities` **no es código muerto** — se lee activamente en `dashboard.js:603,1782` como fallback; se deja tal cual. Extra (no listado originalmente): eliminada también `functions/shared/data-constants.js`, copia huérfana trackeada en git del mismo patrón que causó el bug de `engine-core.js` en junio (0 `require` la referenciaba). |
+| 5.7 | 🟢 BAJA | `js/divisions.js:155-178`, `js/dashboard.js` | ✅ **RESUELTO 2026-07-10** — eliminados los 4 stubs TODO de `divisions.js`, ✅ `renderPilotMorale`/`renderSponsors` de `dashboard.js` (0 llamadas, apuntaban a `#dash-morale`/`#dash-sponsors` inexistentes) y ✅ `functions/shared/data-constants.js` huérfano (todo en la sesión previa). **2026-07-10:** confirmado y eliminado también `renderAdvisorTelemetry` (~220 líneas, `js/dashboard.js`) — apuntaba a `#dash-advisor`, id que no existe en ningún template, y no tenía ningún caller. Sus ~20 funciones helper (`getAdvisorPolicyTimeline`, `ensureAdvisorSuggestionMeta`, etc.) se dejaron intactas a propósito: varias tienen múltiples referencias fuera de ese bloque (`ensureAdvisorSuggestionMeta` con 13, por ejemplo), señal de que alimentan otra UI de advisor viva — separarlas una a una requiere más estudio. `state.facilities` **no es código muerto** — se lee activamente en `dashboard.js:603,1782` como fallback; se deja tal cual. |
 
 ---
 
@@ -131,12 +131,25 @@ grandes fuera del alcance de la sesión). **Fase 2 (motor duplicado) y Fase 3 (b
 siguen sin tocar** — requieren decisiones de diseño de Daniel (ver dudas al final del
 documento) antes de tocar código. `PENDIENTES.md` tiene el detalle fila por fila.
 
+## Estado 2026-07-10 (sesión Merlin, 2)
+
+Daniel tomó las 4 decisiones de diseño pendientes (calendario 8 fijas, HQ/Academia
+implementa bonos, dani/juana espejos intencionales, economía → opción A como trabajo
+mayor aparte) → resueltas 3.3, 3.4(parcial), 2.2. Luego, en una segunda sesión el mismo
+día, se pidió cerrar "todos los pendientes"; alcance acordado con Daniel: **Fase 2
+(2.3-2.9) y Fase 3 (3.1/3.2/3.5-parcial/3.6/3.7) completas**, más 5.7 cerrado del todo.
+**Excluidos a propósito** (quedan para sesión(es) propia(s)): 2.1 (unificar motor —
+trabajo mayor), Opción A de economía, 4.4 (i18n ~140 strings), 4.9 (accesibilidad), 4.10
+(inline styles del wizard — riesgo de romper layout sin poder verificar visualmente en
+este entorno) y 3.8 (potential/morale/staff sin implementar — requiere decisiones de
+diseño). Detalle fila por fila en `PENDIENTES.md`.
+
 ## Orden de ataque sugerido
 
-1. **Fase 0 completa + 1.1 + 1.3** en un solo lote (seguridad + que el deploy de reglas/functions salga por CI). Deploy a prod el mismo día.
-2. **Fase 2** (motor + sync cliente/servidor): empezar por 2.4-2.7 (fixes puntuales) y planificar 2.1 (unificación del motor) como trabajo mayor aparte.
-3. **Fase 4.1-4.4** (CSS roto + currentLang): baratos y muy visibles.
-4. **Fase 3** (balance): requiere decisiones de diseño de Daniel (¿HQ aplica stats o cambia el texto? ¿carreras por temporada: 8 fijas o 8-12?). Sesión propia.
-5. **Fase 5 + mejoras** según hueco.
+1. ~~**Fase 0 completa + 1.1 + 1.3**~~ ✅ hecho.
+2. ~~**Fase 2** (2.3-2.9, fixes puntuales)~~ ✅ hecho 2026-07-10. Queda **2.1** (unificación real del motor) como trabajo mayor aparte.
+3. ~~**Fase 4.1-4.4** (CSS roto + currentLang)~~ ✅ hecho (4.4 i18n completo sigue pendiente, es un barrido grande).
+4. ~~**Fase 3** (balance)~~ ✅ hecho 2026-07-10, con los valores que el propio plan sugería (3.1 DNF, 3.2 agresividad, 3.6 ventaja oculta, 3.7 premio, 3.5 sumidero de gastos). Queda 3.8 (requiere decisión de diseño) y la mecánica de bancarrota real de 3.5 (no implementada).
+5. **Fase 5 + mejoras** — 5.7 cerrado del todo 2026-07-10. Resto de mejoras (unificar motor, opción A economía, i18n, accesibilidad, paleta, trocear screens.js) según hueco.
 
-_Dudas que solo Daniel puede resolver: nº de carreras por temporada (2.2), HQ aplica bonos vs reescribir textos (3.3), destino de targets dani/juana, opción A de economía._
+_Dudas que solo Daniel puede resolver, ya resueltas 2026-07-10: nº de carreras por temporada (2.2), HQ aplica bonos vs reescribir textos (3.3), destino de targets dani/juana, opción A de economía (decidida pero no implementada — trabajo mayor)._

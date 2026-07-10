@@ -233,14 +233,17 @@ function choosePreferredStateCandidate(candidates) {
     if (!candidate || !candidate.state) return best;
     if (!best) return candidate;
 
-    const bestMeaningful = isMeaningfulSave(best.state);
-    const candidateMeaningful = isMeaningfulSave(candidate.state);
-
-    if (candidateMeaningful && !bestMeaningful) return candidate;
-    if (!candidateMeaningful && bestMeaningful) return best;
+    // Timestamp decides first — a genuinely newer save (e.g. a legit reset on another
+    // device) must win even if it looks less "meaningful" than a stale local copy.
+    // Meaningfulness/source are tiebreakers only when timestamps can't tell them apart.
     if (candidate.timestamp !== best.timestamp) {
       return candidate.timestamp > best.timestamp ? candidate : best;
     }
+
+    const bestMeaningful = isMeaningfulSave(best.state);
+    const candidateMeaningful = isMeaningfulSave(candidate.state);
+    if (candidateMeaningful && !bestMeaningful) return candidate;
+    if (!candidateMeaningful && bestMeaningful) return best;
     if (candidate.source === 'remote' && best.source !== 'remote') return candidate;
     return best;
   }, null);
@@ -293,21 +296,7 @@ function loadState() {
     const preferred = choosePreferredStateCandidate(candidates);
 
     if (preferred) {
-      const serialized = JSON.stringify(preferred.state);
       _state = deepClone(preferred.state);
-
-      scopedKeys.forEach(key => {
-        localStorage.setItem(key, serialized);
-      });
-
-      if (
-        preferred.source === 'local' &&
-        isMeaningfulSave(preferred.state) &&
-        window.GL_AUTH &&
-        typeof GL_AUTH.saveRemoteStateSnapshot === 'function'
-      ) {
-        GL_AUTH.saveRemoteStateSnapshot(preferred.state);
-      }
 
       // Migración engineSupplier a id minúsculas
       if (_state && _state.team && _state.team.engineSupplier) {
@@ -491,6 +480,19 @@ function loadState() {
                   RACE_STATUS_ENUM.UPCOMING
         }));
       }
+
+      // Persist only now, after every migration ran — never store a pre-migration snapshot.
+      const serialized = JSON.stringify(_state);
+      scopedKeys.forEach(key => { localStorage.setItem(key, serialized); });
+      if (
+        preferred.source === 'local' &&
+        isMeaningfulSave(_state) &&
+        window.GL_AUTH &&
+        typeof GL_AUTH.saveRemoteStateSnapshot === 'function'
+      ) {
+        GL_AUTH.saveRemoteStateSnapshot(_state);
+      }
+
       return true;
     }
   } catch(e) { console.warn('State load error', e); }

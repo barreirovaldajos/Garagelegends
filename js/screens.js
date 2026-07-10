@@ -3922,6 +3922,10 @@ const SCREENS = {
   },
 
   runSimulation() {
+    if (window._raceInProgress || window._liveRaceStarted) {
+      GL_UI.toast(__('race_already_running', 'Ya hay una carrera en curso'), 'warning');
+      return;
+    }
     const state = GL_STATE.getState();
     const cal = state.season.calendar || [];
     const nextIdx = cal.findIndex(r=>r.status==='next');
@@ -4582,11 +4586,13 @@ const SCREENS = {
         if (!_rnd.awardedRounds[_liveRound]) {
           const _lv    = (_liveState.hq && _liveState.hq.rnd) ? Number(_liveState.hq.rnd) : 1;
           const _bonus = Math.max(0, _lv - 1);
-          // Use HUD-tracked positions (most reliable), fall back to _lastRaceResult data
-          const _cars = _finalMyTeamCars.length > 0
-            ? _finalMyTeamCars.map(c => ({ position: Math.round(c.displayPos || c.pos || 99) }))
-            : (Array.isArray(_liveResult && _liveResult.playerCars) && _liveResult.playerCars.length > 0
-                ? _liveResult.playerCars
+          // Use the exact final positions from the server result (same data the postrace
+          // screen and _applyMpPending use) — the HUD's interpolated displayPos is only for
+          // animation and can be off by one, which used to diverge from the server award.
+          const _cars = (Array.isArray(_liveResult && _liveResult.playerCars) && _liveResult.playerCars.length > 0)
+            ? _liveResult.playerCars
+            : (_finalMyTeamCars.length > 0
+                ? _finalMyTeamCars.map(c => ({ position: Math.round(c.displayPos || c.pos || 99) }))
                 : [{ position: (_liveResult && _liveResult.position) || 99 }]);
           let _earned = 0;
           const _breakdown = [];

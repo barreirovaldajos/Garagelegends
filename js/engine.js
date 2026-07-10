@@ -875,7 +875,7 @@ function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenc
       rainSkill,
       tyreSkill,
       driverRating,
-      carScore: clamp(Math.round((referenceCarScore * seededRange(`${seedRoot}_car_scale`, 0.82, 1.04)) + seededRange(`${seedRoot}_car_delta`, -5, 5)), 42, 90)
+      carScore: clamp(Math.round((referenceCarScore * seededRange(`${seedRoot}_car_scale`, 0.92, 1.08)) + seededRange(`${seedRoot}_car_delta`, -5, 5)), 42, 90)
     }
   };
   return { pilot, strategy };
@@ -2100,18 +2100,16 @@ function simulateRace(options = {}) {
       }
 
       const rawPace = clamp(Number(entry.base || entry.score || entry.gridScore || 60), 35, 99);
-      const paceMs = rawPace * (entry.isPlayer ? 175 : 160);
+      const paceMs = rawPace * 160;
       const tyreDeltaMs = getTyrePaceDeltaMs(currentTyre, liveWeather);
-      const aggressionMs = ((s.aggression || 50) - 50) * 16;
+      const aggressionMs = ((s.aggression || 50) - 50) * 5;
       const engineMs = (engineFx.pace || 0) * 2200;
       const usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
       const wearOveruse = rt ? Math.max(0, rt.wear - usefulLife) : 0;
       const wearMs = wearOveruse * 460;
       const lapBaseMs = safetyCarActive ? 110000 : 94500;
       const consistency = clamp(Number(entry.consistency || 60), 20, 99);
-      const playerNoiseHalfRange = clamp(500 - (consistency * 3), 120, 520);
-      const aiNoiseHalfRange = clamp(800 - (consistency * 2), 220, 900);
-      const noiseHalfRange = entry.isPlayer ? playerNoiseHalfRange : aiNoiseHalfRange;
+      const noiseHalfRange = clamp(500 - (consistency * 3), 120, 520);
       const noiseMs = (rng.next() - 0.5) * (noiseHalfRange * 2);
       const lapTimeMs = lapBaseMs - paceMs - aggressionMs - engineMs + tyreDeltaMs + wearMs + noiseMs;
       const clampedLapTimeMs = Math.max(70000, lapTimeMs);
@@ -2176,7 +2174,7 @@ function simulateRace(options = {}) {
     // Incidents
     positions.forEach(p => {
       if (!p.retired && !p.isPlayer) {
-        if (rng.next() < 0.012) {
+        if (rng.next() < 0.0018) {
           p.retired = true;
           events.push({ lap, type: 'incident', text: `💥 ${formatTranslatedText('race_event_ai_retire', { name: p.name }, '<strong>{name}</strong> retires with mechanical failure!')}` });
         }
@@ -2377,7 +2375,9 @@ function simulateRace(options = {}) {
   const _PRIZE_MULT = {1:1.00, 2:0.84, 3:0.67, 4:0.50, 5:0.35, 6:0.22, 7:0.14, 8:0.08};
   const _pMult = _PRIZE_MULT[_divForPrize] || 0.08;
   const prizeBase = [50000,40000,35000,25000,20000,15000,12000,10000,8000,5000,3000,2000,1500,1000,500,300];
-  const prizeMap = prizeBase.map(v => Math.round(v * _pMult / 100) * 100);
+  // Floor at 100 CR so a low-value base (e.g. P16) never rounds down to 0 and
+  // silently falls back to the same 100 CR used for out-of-table positions.
+  const prizeMap = prizeBase.map(v => Math.max(100, Math.round(v * _pMult / 100) * 100));
   const prizeMoney = playerCars.reduce((sum, car) => sum + (prizeMap[car.position - 1] || Math.max(100, Math.round(200 * _pMult / 100) * 100)), 0);
 
   // pendingPoints: championship points earned, keyed by teamId.

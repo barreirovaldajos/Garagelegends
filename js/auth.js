@@ -69,6 +69,7 @@
             GL_APP.resumeAuthenticatedSession();
           }
         } else {
+          if (this._mpRewardsListener) { this._mpRewardsListener(); this._mpRewardsListener = null; this._mpRewardsListenerUid = null; }
           this._stopInactivityTracking();
           this.user = null; this.profile = null; this.role = 'player';
           this.mp = null; this.remoteSave = null; this.remoteSaveUpdatedAt = 0;
@@ -78,7 +79,12 @@
       });
     },
 
-    async adoptUser(user) { this.user = user; this.storageKeySuffix = user.uid; await this.ensureProfile(); },
+    async adoptUser(user) {
+      if (this._mpRewardsListener && this._mpRewardsListenerUid !== user.uid) {
+        this._mpRewardsListener(); this._mpRewardsListener = null; this._mpRewardsListenerUid = null;
+      }
+      this.user = user; this.storageKeySuffix = user.uid; await this.ensureProfile();
+    },
 
     async ensureProfile() {
       if (!this._db || !this.user) return;
@@ -137,6 +143,14 @@
             if (!sd.meta) sd.meta = {};
             sd.meta.saveTime = Date.now();
             data.mp = Object.assign({}, data.mp, { pendingCredits: 0, pendingFans: 0, pendingRaceResult: null });
+            // Persist the clearance now (before the MP listener attaches below) so it
+            // doesn't see the still-pending Firestore fields and re-apply the same reward.
+            const _fsClear = { save_data: sd, save_updated_at: firebase.firestore.FieldValue.serverTimestamp() };
+            if (pendingCredits    > 0) _fsClear['mp.pendingCredits']    = firebase.firestore.FieldValue.delete();
+            if (pendingFans       > 0) _fsClear['mp.pendingFans']       = firebase.firestore.FieldValue.delete();
+            if (pendingRaceResult)     _fsClear['mp.pendingRaceResult'] = firebase.firestore.FieldValue.delete();
+            _fsClear['mp.rewardsRevealAt'] = firebase.firestore.FieldValue.delete();
+            try { await ref.update(_fsClear); } catch (e) { console.warn('Failed to clear applied MP pending:', e); }
           }
           this.profile = data;
           this.role = data.role || 'player';
@@ -262,8 +276,7 @@
       profileRef.update(fsUpdates).then(() => {
         this.remoteSave = sd;
         this.remoteSaveUpdatedAt = sd.meta.saveTime;
-        if (window.GL_DASHBOARD && GL_DASHBOARD.renderTopbar) GL_DASHBOARD.renderTopbar(state);
-        else if (window.GL_APP && GL_APP.refreshTopbar) GL_APP.refreshTopbar();
+        if (window.GL_DASHBOARD && typeof GL_DASHBOARD.updateTopbar === 'function') GL_DASHBOARD.updateTopbar(state);
       }).catch(e => console.warn('Failed to apply MP rewards:', e));
       return true;
     },
@@ -273,6 +286,7 @@
         if (!snap.exists || !this.user) return;
         this._applyMpPending(snap.data(), profileRef);
       });
+      this._mpRewardsListenerUid = this.user ? this.user.uid : null;
     },
 
     getSaveTimestamp(snapshot, fallbackValue) {

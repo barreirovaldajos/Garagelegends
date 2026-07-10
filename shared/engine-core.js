@@ -603,7 +603,7 @@
         rainSkill: rainSkill,
         tyreSkill: tyreSkill,
         driverRating: driverRating,
-        carScore: clamp(Math.round((referenceCarScore * seededRange(seedRoot + '_car_scale', 0.82, 1.04)) + seededRange(seedRoot + '_car_delta', -5, 5)), 42, 90)
+        carScore: clamp(Math.round((referenceCarScore * seededRange(seedRoot + '_car_scale', 0.92, 1.08)) + seededRange(seedRoot + '_car_delta', -5, 5)), 42, 90)
       }
     };
     return { pilot: pilot, strategy: strategy };
@@ -1074,18 +1074,16 @@
         }
 
         var rawPace = clamp(Number(entry.base || entry.score || 60), 35, 99);
-        var paceMs = rawPace * (entry.isPlayer ? 175 : 160);
+        var paceMs = rawPace * 160;
         var tyreDeltaMs = getTyrePaceDeltaMs(currentTyre, liveWeather);
-        var aggressionMs = ((s.aggression || 50) - 50) * 16;
+        var aggressionMs = ((s.aggression || 50) - 50) * 5;
         var engineMs = (engineFx.pace || 0) * 2200;
         var usefulLife = getTyreUsefulLife(currentTyre, liveWeather, totalLaps);
         var wearOveruse = rt ? Math.max(0, rt.wear - usefulLife) : 0;
         var wearMs = wearOveruse * 1100;
         var lapBaseMs = safetyCarActive ? 110000 : 94500;
         var consistency = clamp(Number(entry.consistency || 60), 20, 99);
-        var playerNoiseHalfRange = clamp(500 - (consistency * 3), 120, 520);
-        var aiNoiseHalfRange = clamp(800 - (consistency * 2), 220, 900);
-        var noiseHalfRange = entry.isPlayer ? playerNoiseHalfRange : aiNoiseHalfRange;
+        var noiseHalfRange = clamp(500 - (consistency * 3), 120, 520);
         var noiseMs = rng.range(-noiseHalfRange, noiseHalfRange);
         var lapTimeMs = lapBaseMs - paceMs - aggressionMs - engineMs + tyreDeltaMs + wearMs + noiseMs;
         var clampedLapTimeMs = Math.max(70000, lapTimeMs);
@@ -1148,7 +1146,7 @@
       // Incidents — AI retirements
       positions.forEach(function (p) {
         if (!p.retired && !p.isPlayer) {
-          if (rng.chance(0.012)) {
+          if (rng.chance(0.0018)) {
             p.retired = true;
             events.push({ lap: lap, type: 'incident', text: '\uD83D\uDCA5 ' + formatTranslatedText('race_event_ai_retire', { name: p.name }, '<strong>{name}</strong> retires with mechanical failure!') });
           }
@@ -1311,7 +1309,9 @@
     var PRIZE_MULT = {1:1.00, 2:0.84, 3:0.67, 4:0.50, 5:0.35, 6:0.22, 7:0.14, 8:0.08};
     var pMult = PRIZE_MULT[division] || 0.08;
     var prizeBase = [50000,40000,35000,25000,20000,15000,12000,10000,8000,5000,3000,2000,1500,1000,500,300];
-    var prizeMap = prizeBase.map(function (v) { return Math.round(v * pMult / 100) * 100; });
+    // Floor at 100 CR so a low-value base (e.g. P16) never rounds down to 0 and
+    // silently falls back to the same 100 CR used for out-of-table positions.
+    var prizeMap = prizeBase.map(function (v) { return Math.max(100, Math.round(v * pMult / 100) * 100); });
 
     // Build team summaries (grouped by teamId)
     var teamSummaries = {};
