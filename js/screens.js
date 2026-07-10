@@ -222,6 +222,13 @@ const SCREENS = {
     const beforeCaps = this.getHqCapabilitySnapshot(state);
     const afterCaps = this.getHqCapabilitySnapshot(state, def.id, currentLevel + 1);
     if (!beforeCaps || !afterCaps) return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
+    const bonusDelta = (key) => Number(afterCaps[key] || 0) - Number(beforeCaps[key] || 0);
+
+    if (def.id === 'wind_tunnel') {
+      const aeroDelta = bonusDelta('aeroBonus');
+      if (aeroDelta > 0) return `${currentEffectLine}Prox. nivel: +${aeroDelta} Aerodinamica del coche`;
+      return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
+    }
 
     if (def.id === 'admin') {
       const pct = Math.round((afterCaps.sponsorMultiplier - beforeCaps.sponsorMultiplier) * 100);
@@ -243,21 +250,27 @@ const SCREENS = {
     }
 
     if (def.id === 'rnd') {
+      const powerDelta = bonusDelta('enginePowerBonus');
+      const powerText = powerDelta > 0 ? ` y +${powerDelta} Potencia del coche` : '';
       const speedPct = Math.round((afterCaps.rndSpeedMultiplier - beforeCaps.rndSpeedMultiplier) * 100);
-      if (!beforeCaps.rndUnlocked && afterCaps.rndUnlocked) return `${currentEffectLine}Prox. nivel: desbloquea I+D`;
+      if (!beforeCaps.rndUnlocked && afterCaps.rndUnlocked) return `${currentEffectLine}Prox. nivel: desbloquea I+D${powerText}`;
       if (speedPct > 0) {
         const beforeSpeed = Number(beforeCaps.rndSpeedMultiplier || 1);
         const afterSpeed = Number(afterCaps.rndSpeedMultiplier || 1);
         const durationCutPct = Math.round((1 - (beforeSpeed / Math.max(afterSpeed, 1))) * 100);
-        if (durationCutPct > 0) return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad I+D (~-${durationCutPct}% tiempo por proyecto)`;
-        return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad de I+D`;
+        if (durationCutPct > 0) return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad I+D (~-${durationCutPct}% tiempo por proyecto)${powerText}`;
+        return `${currentEffectLine}Prox. nivel: +${speedPct}% velocidad de I+D${powerText}`;
       }
+      if (powerDelta > 0) return `${currentEffectLine}Prox. nivel: +${powerDelta} Potencia del coche`;
       return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
     }
 
     if (def.id === 'factory') {
+      const reliabilityDelta = bonusDelta('reliabilityBonus');
+      const reliabilityText = reliabilityDelta > 0 ? ` y +${reliabilityDelta} Fiabilidad del coche` : '';
       const slotsDelta = (afterCaps.factoryParallelSlots || 1) - (beforeCaps.factoryParallelSlots || 1);
-      if (slotsDelta > 0) return `${currentEffectLine}Prox. nivel: +${slotsDelta} cola paralela de I+D (mas progreso simultaneo)`;
+      if (slotsDelta > 0) return `${currentEffectLine}Prox. nivel: +${slotsDelta} cola paralela de I+D${reliabilityText}`;
+      if (reliabilityDelta > 0) return `${currentEffectLine}Prox. nivel: +${reliabilityDelta} Fiabilidad del coche`;
       return `${currentEffectLine}Mejora: ${nextLevelData.effect}`;
     }
 
@@ -1090,6 +1103,10 @@ const SCREENS = {
                 I+D desbloqueado: ${caps.rndUnlocked ? 'Si' : 'No'} ·
                 Velocidad I+D: +${Math.round((caps.rndSpeedMultiplier - 1) * 100)}% ·
                 Entrenamientos simultaneos: ${caps.academyTrainingSlots}
+              </div>
+              <div style="font-size:0.78rem;color:var(--t-secondary);margin-bottom:var(--s-3)">
+                Coche: +${caps.aeroBonus || 0} Aero · +${caps.enginePowerBonus || 0} Potencia · +${caps.reliabilityBonus || 0} Fiabilidad ·
+                Entreno: +${Math.round((caps.academyTrainingSpeedMultiplier - 1) * 100)}%
               </div>
             ` : ''}
             ${GL_DATA.FACILITIES.map(def => {

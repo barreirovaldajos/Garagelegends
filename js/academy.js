@@ -16,11 +16,8 @@ const Academy = {
     const academyLv = (state.hq && state.hq.academy) || 1;
     return {
       trainingSlots: academyLv >= 3 ? 2 : 1,
-      trainingSpeedMultiplier: 1
-        + (academyLv >= 2 ? 0.1 : 0)
-        + (academyLv >= 3 ? 0.2 : 0)
-        + (academyLv >= 4 ? 0.25 : 0)
-        + (academyLv >= 5 ? 0.45 : 0)
+      // Alineado a los textos de venta de la Academia (L1..L5 = +15/30/50/75/100%)
+      trainingSpeedMultiplier: 1 + [0.15, 0.30, 0.50, 0.75, 1.00][Math.max(1, Math.min(5, academyLv)) - 1]
     };
   },
 

@@ -110,6 +110,7 @@ async function runRaceForDivision(db, divKey, opts) {
           colors:         snapshot.colors      || { primary: '#888888' },
           pilots:         snapshot.pilots      || [],
           car:            snapshot.car         || { components: {} },
+          hq:             snapshot.hq          || {},
           staff:          snapshot.staff       || [],
           engineSupplier: snapshot.engineSupplier || '',
           strategy:       strategy

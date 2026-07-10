@@ -181,6 +181,30 @@
     return Math.round(keys.reduce(function (sum, k) { return sum + (components[k].score || 0); }, 0) / keys.length);
   }
 
+  // Bonos de HQ al coche (decisión de diseño 2026-07-10): cada edificio aplica
+  // al componente el valor absoluto prometido en el texto de su nivel actual.
+  var HQ_CAR_BONUSES = {
+    wind_tunnel: { component: 'aero',        byLevel: [10, 20, 35, 50, 75] },
+    rnd:         { component: 'engine',      byLevel: [10, 22, 38, 55, 80] },
+    factory:     { component: 'reliability', byLevel: [10, 20, 35, 55, 80] }
+  };
+
+  function applyHqCarBonuses(components, hq) {
+    if (!components) return components;
+    var result = cloneData(components);
+    var levels = hq || {};
+    Object.keys(HQ_CAR_BONUSES).forEach(function (buildingId) {
+      var spec = HQ_CAR_BONUSES[buildingId];
+      var lv = clamp(Number(levels[buildingId]) || 1, 1, 5);
+      var bonus = spec.byLevel[lv - 1] || 0;
+      var comp = result[spec.component];
+      if (comp && typeof comp.score === 'number') {
+        comp.score = clamp(comp.score + bonus, 0, 99);
+      }
+    });
+    return result;
+  }
+
   function getPilotAttr(pilot, key, fallback) {
     if (fallback === undefined) fallback = 55;
     var value = pilot && pilot.attrs ? pilot.attrs[key] : null;
@@ -602,7 +626,7 @@
 
     // Player teams (can be multiple in multiplayer)
     (playerTeams || []).forEach(function (pt) {
-      var carData = pt.car && pt.car.components ? pt.car.components : {};
+      var carData = applyHqCarBonuses(pt.car && pt.car.components ? pt.car.components : {}, pt.hq);
       var car = carScoreFromComponents(carData);
       var staffFx = getRaceStaffEffects(pt.staff || []);
       var pilots = pt.pilots || [];
@@ -658,7 +682,7 @@
     (botSlots || []).forEach(function (bot) {
       var t = bot.aiTeamData || {};
       var snapshot = bot.teamSnapshot || {};
-      var botCar = carScoreFromComponents(snapshot.car && snapshot.car.components);
+      var botCar = carScoreFromComponents(applyHqCarBonuses(snapshot.car && snapshot.car.components, snapshot.hq));
 
       for (var carSlot = 1; carSlot <= 2; carSlot++) {
         var aiProfile = buildAiDriverProfile(t, carSlot, weather, circuit, profile, botCar, pilotPool);
@@ -1385,7 +1409,8 @@
 
   function generateCalendar(division, circuits, rng) {
     var RACE_STATUS = { UPCOMING: 'upcoming', NEXT: 'next', COMPLETED: 'completed' };
-    var count = Math.min(8 + (8 - division), 12);
+    // Decisión de diseño 2026-07-10: 8 carreras fijas en todas las divisiones
+    var count = 8;
     var shuffled = rng.shuffle(circuits);
     var selectedCircuits = shuffled.slice(0, count);
 
@@ -1476,6 +1501,10 @@
     normalizePitPlan: normalizePitPlan,
     normalizeDriverStrategy: normalizeDriverStrategy,
     getDefaultRaceTyre: getDefaultRaceTyre,
+
+    // HQ
+    HQ_CAR_BONUSES: HQ_CAR_BONUSES,
+    applyHqCarBonuses: applyHqCarBonuses,
 
     // AI
     buildAiDriverProfile: buildAiDriverProfile,

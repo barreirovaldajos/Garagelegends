@@ -273,16 +273,38 @@ function getHqCapabilities(state) {
   const academyLv = hq.academy || 1;
   const windLv = hq.wind_tunnel || 1;
 
+  const coreBonuses = (typeof GL_ENGINE_CORE !== 'undefined' && GL_ENGINE_CORE.HQ_CAR_BONUSES) ? GL_ENGINE_CORE.HQ_CAR_BONUSES : null;
+  const carBonusAt = (buildingId, lv) => {
+    if (!coreBonuses || !coreBonuses[buildingId]) return 0;
+    return coreBonuses[buildingId].byLevel[clamp(lv, 1, 5) - 1] || 0;
+  };
+
   return {
     sponsorMultiplier: 1 + (adminLv >= 2 ? 0.1 : 0) + (adminLv >= 3 ? 0.05 : 0) + (adminLv >= 4 ? 0.05 : 0) + (adminLv >= 5 ? 0.1 : 0),
     rndUnlocked: rndLv >= 2,
     rndSpeedMultiplier: 1 + (rndLv >= 3 ? 0.25 : 0) + (rndLv >= 5 ? 0.15 : 0),
     factoryParallelSlots: factoryLv >= 3 ? 2 : 1,
     academyTrainingSlots: academyLv >= 3 ? 2 : 1,
-    academyTrainingSpeedMultiplier: 1 + (academyLv >= 2 ? 0.1 : 0) + (academyLv >= 3 ? 0.2 : 0) + (academyLv >= 4 ? 0.25 : 0) + (academyLv >= 5 ? 0.45 : 0),
+    // Alineado a los textos de venta de la Academia (L1..L5 = +15/30/50/75/100%)
+    academyTrainingSpeedMultiplier: 1 + [0.15, 0.30, 0.50, 0.75, 1.00][clamp(academyLv, 1, 5) - 1],
     academyInjuryRiskMultiplier: academyLv >= 5 ? 0.5 : 1,
-    weatherResearchUnlocked: windLv >= 2
+    weatherResearchUnlocked: windLv >= 2,
+    // Bonos al coche (decisión 2026-07-10): valores absolutos prometidos por nivel
+    aeroBonus: carBonusAt('wind_tunnel', windLv),
+    enginePowerBonus: carBonusAt('rnd', rndLv),
+    reliabilityBonus: carBonusAt('factory', factoryLv)
   };
+}
+
+// Componentes del coche con los bonos de HQ aplicados (fuente: shared/engine-core.js).
+// Usar SIEMPRE esta versión en cálculos de carrera para no divergir del servidor.
+function getEffectiveCarComponents(state) {
+  const st = state || S.getState();
+  const components = st?.car?.components || {};
+  if (typeof GL_ENGINE_CORE !== 'undefined' && GL_ENGINE_CORE.applyHqCarBonuses) {
+    return GL_ENGINE_CORE.applyHqCarBonuses(components, st?.hq);
+  }
+  return components;
 }
 
 // ---- Research/I+D Configuration ----
@@ -485,7 +507,7 @@ function pilotScore(pilot) {
 
 // ---- car overall score ----
 function carScore() {
-  const c = S.getCar().components;
+  const c = getEffectiveCarComponents(S.getState());
   const keys = Object.keys(c);
   return Math.round(keys.reduce((sum, k) => sum + c[k].score, 0) / keys.length);
 }
@@ -862,7 +884,7 @@ function buildAiDriverProfile(team, carSlot, weather, circuit, profile, referenc
 // ---- build full grid (player + AI teams) ----
 function buildRaceGrid(playerPilot, weather, circuit, strategy = {}, rng) {
   const state = S.getState();
-  const carData = S.getCar().components;
+  const carData = getEffectiveCarComponents(state);
   const car = carScore();
   const profile = getCircuitProfile(circuit, weather);
   const setupFx = getSetupEffects(circuit, weather, strategy.setup || {});
@@ -1844,7 +1866,7 @@ function simulateRace(options = {}) {
 
   if (selectedDrivers[1]) {
     const secondDriver = selectedDrivers[1];
-    const carData = S.getCar().components;
+    const carData = getEffectiveCarComponents(S.getState());
     const car = carScore();
     const pilotSc = getPilotGridStrength(secondDriver.pilot, liveWeather);
     const setupFx = getSetupEffects(circuits, liveWeather, secondDriver.strategy.setup || {});
@@ -3682,10 +3704,14 @@ function trainPilot(pid) {
     return;
   }
   
-  // Apply training points (randomly increase 1 stat by 1-2 points)
+  // Apply training points (randomly increase 1 stat by 1-2 points,
+  // escalado por nivel de Academia y Coach de Pilotos +25%)
   const attrs = Object.keys(p.attrs);
   const targetAttr = attrs[Math.floor(Math.random() * attrs.length)];
-  const gain = Math.floor(Math.random() * 2) + 1;
+  const caps = getHqCapabilities(state);
+  const hasCoach = (state.staff || []).some(s => s && s.effectKey === 'pilot_development');
+  const devMult = (caps.academyTrainingSpeedMultiplier || 1) * (hasCoach ? 1.25 : 1);
+  const gain = Math.max(1, Math.round((Math.floor(Math.random() * 2) + 1) * devMult));
   p.attrs[targetAttr] = Math.min(99, p.attrs[targetAttr] + gain);
   
   p.lastTrained = now.getTime();
@@ -3710,7 +3736,7 @@ window.GL_ENGINE = {
   weeklyTick, applyRaceWeekendEconomy, evaluateSponsorDemands, updateConstructionQueue, startHqUpgrade,
   processWeeklyAgreements: processWeeklyAgreementLifecycle,
   // Research/I+D
-  startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities,
+  startResearch, getResearchStatus, RESEARCH_TREES, getHqCapabilities, getEffectiveCarComponents,
   getRaceStaffEffects,
   refreshForecastForNextRace,
   recommendStrategyForRace,
